@@ -1,0 +1,14 @@
+{
+  "name": "polycoach",
+  "version": "4.0.0",
+  "description": "PolyCoach Student Bus Booking System — Vercel + MongoDB + Cloudinary",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^1.41.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.0"
+  }
+}

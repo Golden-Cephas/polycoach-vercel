@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.reg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.reg-grid .full{grid-column:span 2;}
+.reg-hint{font-size:0.78rem;color:var(--muted);margin-top:4px;}
+#msg{margin-top:14px;padding:12px;border-radius:6px;font-weight:700;display:none;}
+#msg.success{background:#e6f4ea;color:#2e7d32;}
+#msg.error{background:#fdecea;color:var(--danger);}
+@media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'">
+    <img src="/Images/Logo1.png" class="Logo1" alt="Logo">
+    <div class="Logo-Text">PolyCoach</div>
+  </div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
+  </div>
+</div>
+
+<div class="Page-Body-Hero">
+  <div class="page-card-container" style="max-width:520px;">
+    <div class="page-hero-title">
+      <h1>Student Registration</h1>
+      <p>Use your details to create your PolyCoach account.</p>
+    </div>
+    <div class="form-card">
+      <form id="regForm">
+        <div class="reg-grid">
+
+          <div class="input-group full">
+            <label>Full Name</label>
+            <input type="text" id="name" placeholder="Enter your full name" required>
+          </div>
+
+          <div class="input-group full">
+            <label>Program</label>
+            <input type="text" id="program" placeholder="e.g. BEEE4, BCS3, BARCH2" required>
+            <span class="reg-hint">Your course and year e.g. BEEE4</span>
+          </div>
+
+          <div class="input-group full">
+            <label>Phone Number</label>
+            <input type="tel" id="phone" placeholder="099..." required>
+          </div>
+
+          <div class="input-group full">
+            <label>Destination</label>
+            <select id="destination" required>
+              <option value="" disabled selected>-- Choose Destination --</option>
+              <option value="Mzuzu">Mzuzu</option>
+              <option value="Jenda">Jenda</option>
+              <option value="Mzimba">Mzimba</option>
+              <option value="Kasungu">Kasungu</option>
+            </select>
+          </div>
+
+        </div>
+        <button type="submit" class="submit-btn">REGISTER NOW</button>
+        <div id="msg"></div>
+        <div class="login-footer">
+          <p>Already registered? <a href="Book-Login.html">Click here to book</a></p>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer">
+    <div class="Footer-Text">Social Media:</div>
+    <div class="Social-Container">
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+    </div>
+  </div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+document.getElementById("regForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const msg  = document.getElementById("msg");
+  const btn  = this.querySelector("button[type=submit]");
+  const name = document.getElementById("name").value.trim();
+  const prog = document.getElementById("program").value.trim();
+  const phone= document.getElementById("phone").value.trim();
+  const dest = document.getElementById("destination").value;
+
+  if(!name||!prog||!phone||!dest){
+    msg.className="error";msg.style.display="block";
+    msg.textContent="Please fill in all fields.";return;
+  }
+
+  btn.disabled=true;btn.textContent="Registering...";
+  msg.style.display="none";
+
+  try{
+    const r=await fetch("/api/register",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name,program:prog,phone,destination:dest})
+    });
+    const d=await r.json();
+    if(d.success){
+      window.location.href="Thanks-Remark1.html";
+    } else {
+      msg.className="error";msg.style.display="block";
+      msg.textContent=d.message||"Registration failed. Please try again.";
+      btn.disabled=false;btn.textContent="REGISTER NOW";
+    }
+  }catch{
+    msg.className="error";msg.style.display="block";
+    msg.textContent="Server error. Please try again.";
+    btn.disabled=false;btn.textContent="REGISTER NOW";
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seat Status — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.status-body{background-image:linear-gradient(rgba(11,41,77,0.84),rgba(11,41,77,0.72)),url('/Images/Mzimba.png');background-size:cover;background-position:center;min-height:90vh;padding:50px 16px;}
+.status-inner{max-width:600px;margin:0 auto;}
+.status-title{text-align:center;color:#fff;margin-bottom:24px;}
+.status-title h1{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:900;text-transform:uppercase;}
+.status-title p{color:#ddd;font-size:0.95rem;margin-top:8px;}
+.stats-strip{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;}
+.stat-pill{background:rgba(255,255,255,0.15);backdrop-filter:blur(6px);border-radius:30px;padding:10px 22px;color:#fff;font-weight:700;font-size:0.9rem;display:flex;align-items:center;gap:8px;}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;}
+.dot-avail{background:#4caf50;}.dot-pending{background:var(--warning);}.dot-booked{background:var(--danger);}
+#seatTooltip{position:fixed;background:#333;color:#fff;padding:6px 12px;border-radius:5px;font-size:0.8rem;pointer-events:none;display:none;z-index:500;white-space:nowrap;}
+/* No hover/click effect for status view */
+.seat{cursor:default !important;}
+.seat:hover{transform:none !important;}
+</style>
+</head>
+<body>
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Book-Login.html'">Book a Seat</button>
+  </div>
+</div>
+
+<div class="status-body">
+  <div class="status-inner">
+    <div class="status-title">
+      <h1>Bus Seat Status</h1>
+      <p>Live overview of all 72 seats. Hover over seats to see passenger info.</p>
+    </div>
+    <div class="stats-strip">
+      <div class="stat-pill"><span class="dot dot-avail"></span> <span id="cntAvail">—</span> Available</div>
+      <div class="stat-pill"><span class="dot dot-pending"></span> <span id="cntPend">—</span> Pending</div>
+      <div class="stat-pill"><span class="dot dot-booked"></span> <span id="cntBook">—</span> Booked</div>
+    </div>
+    <div class="bus-exterior">
+      <div class="driver-cabin">
+        <i class="fa-solid fa-dharmachakra"></i>
+        <span style="font-weight:700;color:#555;">Driver</span>
+      </div>
+      <div id="seatMap" class="bus-grid"></div>
+    </div>
+    <div class="seat-legend" style="margin-top:18px;">
+      <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
+      <div class="legend-item"><div class="legend-box legend-pending"></div> Pending</div>
+      <div class="legend-item"><div class="legend-box legend-booked"></div> Booked</div>
+    </div>
+  </div>
+</div>
+
+<div id="seatTooltip"></div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+const tooltip=document.getElementById("seatTooltip");
+document.addEventListener("mousemove",e=>{
+  if(tooltip.style.display!=="none"){
+    const tw=tooltip.offsetWidth;
+    const th=tooltip.offsetHeight;
+    const vw=window.innerWidth;
+    const vh=window.innerHeight;
+    // Flip left if too close to right edge
+    let left=e.clientX+14;
+    if(left+tw+10>vw) left=e.clientX-tw-10;
+    // Flip up if too close to bottom
+    let top=e.clientY-30;
+    if(top<0) top=e.clientY+14;
+    if(top+th>vh) top=vh-th-8;
+    tooltip.style.left=Math.max(4,left)+"px";
+    tooltip.style.top=Math.max(4,top)+"px";
+  }
+});
+
+(async()=>{
+  // No login required to view bus status
+  // But if already logged in as admin, offer dashboard link
+  try{
+    const sr=await fetch("/api/session");const sd=await sr.json();
+    if(sd.loggedIn && sd.user && sd.user.role==="admin"){
+      // Show a small admin link at top
+      const bar=document.createElement("div");
+      bar.style="background:#0b294d;color:#fff;text-align:center;padding:8px;font-size:0.85rem;";
+      bar.innerHTML='You are logged in as Admin. <a href="Admin-Dashboard.html" style="color:#0099ff;font-weight:700;">Go to Admin Dashboard</a>';
+      document.body.insertBefore(bar,document.body.firstChild);
+    }
+  }catch(e){}
+  await loadSeats();
+})();
+
+async function loadSeats(){
+  const r=await fetch("/api/seats");const seats=await r.json();
+  const map=document.getElementById("seatMap");map.innerHTML="";
+  let cnt={available:0,pending:0,booked:0};
+  let counter=1;
+  for(let row=0;row<13;row++){
+    for(let col=1;col<=6;col++){
+      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
+      else if(counter<=65){renderSeat(seats,counter,map,cnt);counter++;}
+    }
+  }
+  const backRow=document.createElement("div");backRow.className="back-row-container";
+  for(let i=0;i<7;i++){renderSeat(seats,counter,backRow,cnt);counter++;}
+  map.appendChild(backRow);
+  document.getElementById("cntAvail").textContent=cnt.available;
+  document.getElementById("cntPend").textContent=cnt.pending;
+  document.getElementById("cntBook").textContent=cnt.booked||0;
+}
+
+function renderSeat(seats,num,parent,cnt){
+  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const div=document.createElement("div");
+  div.className="seat "+(data.status==="booked"||data.status==="taken"?"booked":data.status);
+  div.textContent=num;
+  const s=data.status==="booked"||data.status==="taken"?"booked":data.status;
+  if(cnt[s]!==undefined) cnt[s]++;
+  div.addEventListener("mouseenter",(e)=>{
+    let tip=`Seat ${num}`;
+    if(data.passengerName) tip+=` — ${data.passengerName}`;
+    else tip+=` (${data.status})`;
+    tooltip.textContent=tip;
+    // Make visible but off-screen first to measure width
+    tooltip.style.visibility="hidden";
+    tooltip.style.display="block";
+    const tw=tooltip.offsetWidth;
+    const vw=window.innerWidth;
+    const left=e.clientX+14+tw+10>vw ? e.clientX-tw-10 : e.clientX+14;
+    const top=Math.max(4,e.clientY-30);
+    tooltip.style.left=Math.max(4,left)+"px";
+    tooltip.style.top=top+"px";
+    tooltip.style.visibility="visible";
+  });
+  div.addEventListener("mouseleave",()=>tooltip.style.display="none");
+  parent.appendChild(div);
+}
+
+// No logout needed — this page is public
+// Auto-refresh every 30s
+setInterval(loadSeats,30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>View Bus Status — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+#errMsg{display:none;background:#fff8e1;color:#7b5c00;border-radius:6px;padding:12px;margin-top:12px;font-weight:600;font-size:0.9rem;}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
+  </div>
+</div>
+
+<div class="Page-Body-Hero">
+  <div class="page-card-container">
+    <div class="page-hero-title">
+      <h1>View Bus Status</h1>
+      <p>Enter your credentials to continue.</p>
+    </div>
+    <div class="form-card">
+      <form id="statusForm">
+        <div class="input-group">
+          <label>Phone Number</label>
+          <input type="tel" id="phone" placeholder="099..." required>
+        </div>
+        <div class="input-group">
+          <label>Password</label>
+          <input type="password" id="password" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="submit-btn" id="viewBtn">VIEW STATUS</button>
+        <div id="errMsg"></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+document.getElementById("statusForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const btn  = document.getElementById("viewBtn");
+  const err  = document.getElementById("errMsg");
+  const phone= document.getElementById("phone").value.trim();
+  const pass = document.getElementById("password").value;
+
+  btn.disabled=true; btn.textContent="Checking..."; err.style.display="none";
+
+  try{
+    const r=await fetch("/api/login",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({phone,password:pass})
+    });
+    const d=await r.json();
+
+    if(d.success && d.user && d.user.role==="admin"){
+      // Admin credentials — store JWT token and go to dashboard
+      localStorage.setItem("polycoachToken", d.token);
+      localStorage.setItem("polycoachUser", JSON.stringify(d.user));
+      window.location.href="Admin-Dashboard.html";
+    } else {
+      // Wrong credentials or not admin — go to bus status anyway
+      // Show brief message then redirect
+      err.style.display="block";
+      err.textContent="Redirecting to bus status...";
+      setTimeout(()=>window.location.href="Bust-Status-Lay.html", 1000);
+    }
+  }catch{
+    // Any error — just go to bus status
+    window.location.href="Bust-Status-Lay.html";
+  }
+});
+</script>
+</body>
+</html>

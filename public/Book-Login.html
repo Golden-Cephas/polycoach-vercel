@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book a Seat — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+#errMsg{display:none;background:#fdecea;color:var(--danger);border-radius:6px;padding:12px;margin-top:12px;font-weight:700;font-size:0.9rem;}
+.booking-popup-btns{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+#otherPassengerName{display:none;margin-top:10px;width:100%;padding:12px;border:1px solid #ddd;border-radius:6px;font-size:1rem;font-family:'Lato',sans-serif;}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
+  </div>
+</div>
+
+<div class="Page-Body-Hero">
+  <div class="page-card-container">
+    <div class="page-hero-title">
+      <h1>Book Your Seat</h1>
+      <p>Fill in your details to proceed with your booking.</p>
+    </div>
+    <div class="form-card">
+      <form id="bookForm">
+
+        <div class="input-group">
+          <label>Destination</label>
+          <select id="destination" required>
+            <option value="" disabled selected>-- Choose Destination --</option>
+            <option value="Mzuzu">Mzuzu</option>
+            <option value="Jenda">Jenda</option>
+            <option value="Mzimba">Mzimba</option>
+            <option value="Kasungu">Kasungu</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>Full Name</label>
+          <input type="text" id="fullName" placeholder="Enter your full name" required>
+        </div>
+
+        <div class="input-group">
+          <label>Phone Number</label>
+          <input type="tel" id="phone" placeholder="099..." required>
+        </div>
+
+        <div class="input-group">
+          <label>Program</label>
+          <input type="text" id="program" placeholder="e.g. BEEE4, BCS3" required>
+        </div>
+
+        <button type="submit" class="submit-btn" id="proceedBtn">PROCEED</button>
+        <div id="errMsg"></div>
+        <div class="login-footer">
+          <p>Not registered yet? <a href="Register.html">Register here</a></p>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- BOOKING POPUP — who to book for -->
+<div id="bookingPopup" class="popup-overlay">
+  <div class="popup-box">
+    <h2>Who are you booking for?</h2>
+    <p>Choose how you want to reserve the seat.</p>
+    <div class="booking-popup-btns">
+      <button class="popup-btn" onclick="bookForMyself()">
+        <i class="fa-solid fa-user"></i> &nbsp;Book for Myself
+      </button>
+      <button class="popup-btn" style="background:#555;" onclick="showOtherInput()">
+        <i class="fa-solid fa-user-plus"></i> &nbsp;Book for Someone Else
+      </button>
+      <input type="text" id="otherPassengerName" placeholder="Enter passenger full name">
+      <button class="popup-confirm-btn" onclick="bookForSomeone()">Continue →</button>
+    </div>
+  </div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+document.getElementById("bookForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const err  = document.getElementById("errMsg");
+  const btn  = document.getElementById("proceedBtn");
+  const dest = document.getElementById("destination").value;
+  const name = document.getElementById("fullName").value.trim();
+  const phone= document.getElementById("phone").value.trim();
+  const prog = document.getElementById("program").value.trim();
+
+  if(!dest||!name||!phone||!prog){
+    err.style.display="block";
+    err.textContent="Please fill in all fields to continue.";
+    return;
+  }
+
+  btn.disabled=true;btn.textContent="Please wait...";err.style.display="none";
+
+  try{
+    const r=await fetch("/api/booking-session",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({fullName:name,phone,program:prog,destination:dest})
+    });
+    const d=await r.json();
+    if(d.success){
+      // Store in localStorage for use on other pages
+      localStorage.setItem("polycoachUser",JSON.stringify({fullName:name,phone,program:prog,role:"user"}));
+      localStorage.setItem("selectedDestination",dest);
+      openBookingPopup();
+      btn.disabled=false;btn.textContent="PROCEED";
+    } else {
+      err.style.display="block";
+      err.textContent=d.message||"Something went wrong. Please try again.";
+      btn.disabled=false;btn.textContent="PROCEED";
+    }
+  }catch{
+    err.style.display="block";
+    err.textContent="Server error. Please try again.";
+    btn.disabled=false;btn.textContent="PROCEED";
+  }
+});
+</script>
+</body>
+</html>

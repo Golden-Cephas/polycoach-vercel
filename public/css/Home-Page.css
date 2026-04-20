@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Lato:wght@400;700&display=swap');
+
+:root{
+  --primary:#0b294d;
+  --accent:#0099ff;
+  --danger:#e53e3e;
+  --warning:#d69e2e;
+  --success:#28a745;
+  --bg:#f4f7f9;
+  --text:#222;
+  --muted:#666;
+  --radius:8px;
+  --shadow:0 4px 20px rgba(0,0,0,0.12);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Lato',sans-serif;background:var(--bg);color:var(--text);}
+img{max-width:100%;display:block;}
+a{text-decoration:none;color:inherit;}
+
+/* ── HEADER ── */
+.Home-Page-Header{
+  background:#fff;min-height:68px;display:flex;justify-content:space-between;
+  align-items:center;padding:0 28px;box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  position:sticky;top:0;z-index:100;
+}
+.Left-Header{display:flex;align-items:center;gap:10px;cursor:pointer;}
+.Logo1{height:44px;}
+.Logo-Text{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:900;color:var(--primary);letter-spacing:1px;}
+.Right-Header{display:flex;align-items:center;gap:6px;}
+.Header-Button{background:none;border:none;padding:8px 14px;font-weight:700;font-size:0.9rem;color:#444;cursor:pointer;border-radius:5px;transition:color 0.2s;}
+.Header-Button:hover{color:var(--accent);}
+.Register-Button{background:var(--primary);color:#fff;border:none;padding:9px 20px;border-radius:5px;font-weight:700;font-size:0.9rem;cursor:pointer;transition:background 0.2s;}
+.Register-Button:hover{background:var(--accent);}
+
+/* ── FOOTER ── */
+.Home-Page-Footer{
+  background:#1a1f2e;color:#ccc;display:flex;justify-content:space-around;
+  padding:50px 20px;flex-wrap:wrap;gap:30px;
+}
+.Home-Left-Footer,.Home-Mid-Footer,.Home-Right-Footer{display:flex;flex-direction:column;align-items:center;gap:12px;}
+.Logo-Text1{color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:900;}
+.Footer-Button{background:none;border:none;color:#aaa;cursor:pointer;font-size:0.95rem;font-family:'Lato',sans-serif;transition:color 0.2s;padding:3px 0;}
+.Footer-Button:hover{color:var(--accent);}
+.Footer-Text{font-weight:700;color:#fff;font-size:0.85rem;text-transform:uppercase;letter-spacing:1px;}
+.Social-Container{display:flex;gap:12px;}
+.Footer-Icons{width:40px;height:40px;background:#2d3448;border-radius:50%;display:flex;justify-content:center;align-items:center;transition:background 0.2s;cursor:pointer;}
+.Footer-Icons:hover{background:var(--accent);}
+.Footer-Icons img{width:20px;height:20px;object-fit:contain;}
+
+/* ── POPUP OVERLAY ── */
+.popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:999;}
+.popup-box{background:#fff;padding:35px;border-radius:14px;max-width:500px;width:92%;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.3);animation:popIn 0.25s ease;}
+@keyframes popIn{from{transform:scale(0.9);opacity:0}to{transform:scale(1);opacity:1}}
+.popup-box h2{color:var(--primary);margin-bottom:12px;font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;}
+.popup-box p{color:#555;line-height:1.6;margin-bottom:10px;}
+.close-btn,.popup-btn{background:var(--primary);color:#fff;border:none;padding:12px 28px;border-radius:6px;cursor:pointer;font-weight:700;font-size:0.95rem;margin-top:12px;transition:background 0.2s;}
+.close-btn:hover,.popup-btn:hover{background:var(--accent);}
+.popup-btn{display:block;width:100%;margin-bottom:8px;}
+.popup-confirm-btn{display:block;width:100%;background:var(--accent);color:#fff;border:none;padding:12px;border-radius:6px;cursor:pointer;font-weight:700;margin-top:8px;transition:background 0.2s;}
+.popup-confirm-btn:hover{background:#007acc;}
+
+/* ── BUS SEAT COLOURS (global) ── */
+.seat.available{background:#e8f5e9;border:2px solid #4caf50;color:#2e7d32;}
+.seat.available:hover{background:#4caf50;color:#fff;transform:scale(1.05);}
+.seat.selected{background:var(--accent);border:2px solid #007acc;color:#fff;}
+.seat.pending{background:#fff8e1;border:2px solid var(--warning);color:#7b5c00;cursor:not-allowed;}
+.seat.booked{background:#fdecea;border:2px solid var(--danger);color:var(--danger);cursor:not-allowed;}
+.seat.taken{background:#fdecea;border:2px solid var(--danger);color:var(--danger);cursor:not-allowed;}
+
+/* ── 72-SEAT BUS GRID (2+aisle+3 × 13rows + back 7) ── */
+.bus-exterior{
+  background:#f8f9fa;max-width:520px;margin:0 auto;
+  padding:25px 20px;border-radius:40px 40px 16px 16px;
+  border:5px solid #333;box-shadow:0 8px 30px rgba(0,0,0,0.25);
+}
+.driver-cabin{display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;margin-bottom:18px;border-bottom:3px solid #ddd;color:#666;font-weight:700;}
+.driver-cabin i{font-size:1.6rem;color:var(--primary);}
+.bus-grid{display:grid;grid-template-columns:repeat(2,1fr) 36px repeat(3,1fr);gap:7px;}
+.seat{
+  height:40px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:0.72rem;font-weight:700;cursor:pointer;transition:all 0.18s;
+  position:relative;user-select:none;
+}
+.aisle-space{background:none !important;border:none !important;cursor:default;}
+.back-row-container{grid-column:span 6;display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-top:10px;}
+.seat-legend{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px;}
+.legend-item{display:flex;align-items:center;gap:7px;font-size:0.85rem;color:#555;}
+.legend-box{width:18px;height:18px;border-radius:3px;}
+.legend-available{background:#4caf50;}
+.legend-pending{background:var(--warning);}
+.legend-booked{background:var(--danger);}
+.legend-selected{background:var(--accent);}
+
+/* ── FORMS ── */
+.input-group{margin-bottom:18px;display:flex;flex-direction:column;}
+.input-group label{font-size:0.8rem;font-weight:700;text-transform:uppercase;color:var(--primary);margin-bottom:6px;letter-spacing:0.5px;}
+.input-group input,.input-group select,.input-group textarea{
+  background:#f4f7f9;border:1px solid #ddd;border-radius:6px;padding:12px;
+  font-size:0.95rem;color:var(--text);transition:border-color 0.2s;font-family:'Lato',sans-serif;
+}
+.input-group input:focus,.input-group select:focus,.input-group textarea:focus{border-color:var(--accent);outline:none;background:#fff;}
+.submit-btn{
+  background:var(--primary);color:#fff;border:none;border-radius:6px;padding:15px;
+  width:100%;font-weight:700;font-size:1rem;cursor:pointer;text-transform:uppercase;
+  letter-spacing:1px;transition:background 0.2s;margin-top:6px;
+}
+.submit-btn:hover{background:var(--accent);}
+
+/* ── PAGE BODY WITH HERO BG ── */
+.Page-Body-Hero{
+  background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('../Images/Mzuzu.jpg');
+  background-size:cover;background-position:center;background-attachment:fixed;
+  min-height:85vh;display:flex;align-items:center;justify-content:center;padding:60px 16px;
+}
+.page-card-container{width:100%;max-width:480px;}
+.page-hero-title{text-align:center;color:#fff;margin-bottom:28px;}
+.page-hero-title h1{font-family:'Barlow Condensed',sans-serif;font-size:2.6rem;font-weight:900;text-transform:uppercase;}
+.page-hero-title p{font-size:1rem;color:#ddd;margin-top:8px;}
+.form-card{background:rgba(255,255,255,0.97);padding:36px;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,0.3);}
+.login-footer{margin-top:18px;text-align:center;border-top:1px solid #eee;padding-top:15px;font-size:0.9rem;color:#666;}
+.login-footer a{color:var(--accent);font-weight:700;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .Home-Page-Header{padding:0 14px;}
+  .Logo-Text{font-size:20px;}
+  .Right-Header{gap:2px;}
+  .Header-Button{padding:6px 8px;font-size:0.82rem;}
+  .Register-Button{padding:7px 12px;font-size:0.82rem;}
+  .bus-grid{gap:4px;}
+  .seat{height:32px;font-size:0.62rem;}
+  .back-row-container{gap:4px;}
+  .bus-exterior{padding:16px 10px;border-radius:24px 24px 10px 10px;}
+  .Home-Page-Footer{padding:30px 10px;}
+  .popup-box{padding:24px 18px;}
+}
+@media(max-width:400px){
+  .seat{height:26px;font-size:0.55rem;}
+  .bus-grid{gap:3px;}
+  .back-row-container{gap:3px;}
+}

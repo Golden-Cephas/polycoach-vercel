@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Upload Payment Proof — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.payment-body{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Mzuzu.jpg');background-size:cover;background-position:center;background-attachment:fixed;min-height:90vh;display:flex;align-items:center;justify-content:center;padding:50px 16px;}
+.payment-card{background:#fff;border-radius:14px;padding:36px 32px;max-width:520px;width:100%;box-shadow:0 16px 48px rgba(0,0,0,0.3);}
+.payment-card h2{font-family:'Barlow Condensed',sans-serif;color:var(--primary);font-size:1.9rem;font-weight:900;text-align:center;text-transform:uppercase;margin-bottom:4px;}
+.card-subtitle{text-align:center;color:#666;font-size:0.9rem;margin-bottom:22px;}
+.payment-details-box{background:#f0f7ff;border-left:4px solid var(--accent);border-radius:8px;padding:18px 20px;margin-bottom:20px;}
+.payment-details-box h3{color:var(--primary);font-size:0.9rem;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.payment-details-box h3 i{color:var(--accent);}
+.pay-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed #cce3ff;}
+.pay-row:last-of-type{border:none;}
+.pay-label{color:#555;font-weight:700;font-size:0.88rem;display:flex;align-items:center;gap:7px;}
+.pay-value{color:var(--primary);font-weight:900;font-size:0.97rem;cursor:pointer;background:#fff;padding:5px 12px;border-radius:5px;border:1px solid #cce3ff;transition:background 0.15s;}
+.pay-value:hover{background:#0099ff;color:#fff;border-color:#0099ff;}
+.acct-name-row{margin-top:12px;padding-top:12px;border-top:2px solid #cce3ff;display:flex;justify-content:space-between;align-items:center;}
+.acct-name-val{color:var(--primary);font-weight:900;font-size:0.97rem;}
+.copy-hint{font-size:0.72rem;color:#aaa;text-align:right;margin-top:6px;font-style:italic;}
+.fee-reminder{text-align:center;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;margin-bottom:20px;font-size:0.9rem;color:#555;}
+.fee-reminder strong{color:var(--primary);font-size:1.05rem;}
+.divider{border:none;border-top:1px solid #eee;margin:18px 0;}
+.upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;box-sizing:border-box;border:2px dashed var(--accent);border-radius:10px;padding:30px 20px;text-align:center;cursor:pointer;transition:background 0.2s,border-color 0.2s;margin-bottom:14px;gap:8px;}
+.upload-zone:hover,.upload-zone.dragover{background:#f0f7ff;border-color:#007acc;}
+.upload-zone i.upload-icon{font-size:2.8rem;color:var(--accent);}
+.uz-title{font-size:0.97rem;color:#333;font-weight:700;margin:0;}
+.uz-sub{font-size:0.8rem;color:#aaa;margin:0;}
+.file-chosen{font-size:0.82rem;color:var(--success);font-weight:700;margin:0;display:none;}
+.upload-zone input[type="file"]{display:none;}
+#preview{max-width:100%;border-radius:8px;margin:0 auto 16px;display:none;max-height:200px;object-fit:contain;border:2px solid #eee;}
+#msg{margin-top:12px;padding:12px;border-radius:6px;font-weight:700;display:none;font-size:0.9rem;text-align:center;}
+#msg.success{background:#e6f4ea;color:#2e7d32;}
+#msg.error{background:#fdecea;color:var(--danger);}
+.progress-bar{height:6px;background:#eee;border-radius:3px;margin-top:10px;display:none;}
+.progress-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;transition:width 0.3s;}
+.disclaimer{font-size:0.78rem;color:#aaa;text-align:center;margin-top:12px;font-style:italic;line-height:1.5;}
+@media(max-width:540px){.payment-card{padding:22px 14px;}.pay-row{flex-direction:column;align-items:flex-start;gap:5px;}.pay-value{align-self:stretch;text-align:center;}}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'" style="cursor:pointer;">
+    <img src="/Images/Logo1.png" class="Logo1" alt="Logo">
+    <div class="Logo-Text">PolyCoach</div>
+  </div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Book-Login.html'">Book</button>
+  </div>
+</div>
+
+<div class="payment-body">
+  <div class="payment-card">
+    <h2>Payment Verification</h2>
+    <p class="card-subtitle">Send your payment using the details below, then upload your receipt.</p>
+
+    <div class="payment-details-box">
+      <h3><i class="fa-solid fa-money-bill-wave"></i> Our Payment Details</h3>
+      <div class="pay-row">
+        <span class="pay-label"><i class="fa-solid fa-building-columns"></i> National Bank (NB)</span>
+        <span class="pay-value" id="payNB" onclick="copyVal(this)">—</span>
+      </div>
+      <div class="pay-row">
+        <span class="pay-label"><i class="fa-solid fa-mobile-screen-button"></i> Airtel Money</span>
+        <span class="pay-value" id="payAirtel" onclick="copyVal(this)">—</span>
+      </div>
+      <div class="pay-row">
+        <span class="pay-label"><i class="fa-solid fa-mobile-screen-button"></i> TNM Mpamba</span>
+        <span class="pay-value" id="payTNM" onclick="copyVal(this)">—</span>
+      </div>
+      <div class="acct-name-row">
+        <span class="pay-label">Account Name:</span>
+        <span class="acct-name-val" id="payAcctName">—</span>
+      </div>
+      <p class="copy-hint"><i class="fa-regular fa-hand-pointer"></i> Tap any number above to copy it</p>
+    </div>
+
+    <div class="fee-reminder">
+      Send exactly <strong id="feeAmt">K5,000</strong> as your booking fee to secure your seat.
+    </div>
+
+    <hr class="divider">
+
+    <form id="payForm">
+      <label class="upload-zone" for="payFile" id="dropZone">
+        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+        <p class="uz-title">Drag &amp; Drop or <strong>Click to Browse</strong></p>
+        <p class="uz-sub">Upload your payment screenshot (JPG, PNG)</p>
+        <p class="file-chosen" id="fileChosen"><i class="fa-solid fa-circle-check"></i> <span id="chosenName"></span></p>
+        <input type="file" id="payFile" accept="image/*">
+      </label>
+      <img id="preview" alt="Payment preview">
+      <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+      <button type="submit" class="submit-btn" id="uploadBtn">
+        <i class="fa-solid fa-paper-plane"></i>&nbsp; SEND PROOF OF PAYMENT
+      </button>
+      <div id="msg"></div>
+      <p class="disclaimer">⚠ Your booking is not yet confirmed. An administrator will verify your payment and approve your seat.</p>
+    </form>
+  </div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+// Guard
+(function(){
+  const u=getUser();
+  if(!u||!u.fullName){alert("Please fill in the booking form first.");window.location.href="Book-Login.html";}
+})();
+
+// Load payment details
+fetch("/api/settings").then(r=>r.json()).then(s=>{
+  document.getElementById("payNB").textContent      = s.payNationalBank  || "—";
+  document.getElementById("payAirtel").textContent  = s.payAirtelMoney   || "—";
+  document.getElementById("payTNM").textContent     = s.payTNMMpamba     || "—";
+  document.getElementById("payAcctName").textContent= s.payAccountName   || "—";
+  document.getElementById("feeAmt").textContent     = s.bookingFee       || "K5,000";
+}).catch(()=>{});
+
+// Copy to clipboard
+function copyVal(el){
+  const text=el.textContent.trim();
+  if(!text||text==="—") return;
+  navigator.clipboard.writeText(text).then(()=>{
+    const orig=el.textContent;
+    el.textContent="✅ Copied!";el.style.background="#e6f4ea";el.style.color="#2e7d32";
+    setTimeout(()=>{el.textContent=orig;el.style.background="";el.style.color="";},1800);
+  }).catch(()=>{
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);
+    el.textContent="✅ Copied!";setTimeout(()=>el.textContent=text,1800);
+  });
+}
+
+// Drag and drop
+const dropZone=document.getElementById("dropZone");
+dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.classList.add("dragover");});
+dropZone.addEventListener("dragleave",e=>{if(!dropZone.contains(e.relatedTarget))dropZone.classList.remove("dragover");});
+dropZone.addEventListener("drop",e=>{
+  e.preventDefault();dropZone.classList.remove("dragover");
+  const file=e.dataTransfer.files[0];
+  if(file&&file.type.startsWith("image/")){handleFile(file);}
+  else{showMsg("error","Please drop a JPG or PNG image.");}
+});
+
+let selectedFile=null;
+document.getElementById("payFile").addEventListener("change",function(){if(this.files[0])handleFile(this.files[0]);});
+
+function handleFile(file){
+  selectedFile=file;
+  document.getElementById("chosenName").textContent=file.name;
+  document.getElementById("fileChosen").style.display="block";
+  const rd=new FileReader();
+  rd.onload=e=>{const p=document.getElementById("preview");p.src=e.target.result;p.style.display="block";};
+  rd.readAsDataURL(file);
+}
+
+// Submit — direct Cloudinary upload
+document.getElementById("payForm").addEventListener("submit",async function(e){
+  e.preventDefault();
+  const file=document.getElementById("payFile").files[0]||selectedFile;
+  if(!file){showMsg("error","⚠ Please select your payment screenshot.");return;}
+
+  const btn=document.getElementById("uploadBtn");
+  const progressBar=document.getElementById("progressBar");
+  const progressFill=document.getElementById("progressFill");
+  btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i>&nbsp; Uploading...';
+  progressBar.style.display="block";progressFill.style.width="20%";
+
+  try{
+    // Step 1: Get signed upload params from our API
+    const sigRes=await fetch("/api/upload-payment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+    const sigData=await sigRes.json();
+    if(!sigData.success) throw new Error(sigData.message||"Could not prepare upload.");
+    progressFill.style.width="40%";
+
+    // Step 2: Upload directly to Cloudinary
+    const u=getUser();
+    const fd=new FormData();
+    fd.append("file",file);
+    fd.append("api_key",sigData.apiKey);
+    fd.append("timestamp",sigData.timestamp);
+    fd.append("signature",sigData.signature);
+    fd.append("folder",sigData.folder);
+    // Tag with passenger name for easy identification in Cloudinary dashboard
+    const passengerName=localStorage.getItem("passengerName")||u.fullName||"unknown";
+    fd.append("context","passenger="+passengerName+"|phone="+(u.phone||""));
+
+    progressFill.style.width="60%";
+    const upRes=await fetch(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/image/upload`,{method:"POST",body:fd});
+    const upData=await upRes.json();
+    if(!upData.secure_url) throw new Error("Upload to Cloudinary failed.");
+    progressFill.style.width="100%";
+
+    // Step 3: Store Cloudinary URL in localStorage for book-seat
+    localStorage.setItem("paymentProofUrl",upData.secure_url);
+
+    showMsg("success","✅ Payment proof uploaded! Redirecting to seat selection...");
+    setTimeout(()=>window.location.href="Bus-Lay.html",1500);
+  }catch(err){
+    showMsg("error",err.message||"Upload failed. Please try again.");
+    btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane"></i>&nbsp; SEND PROOF OF PAYMENT';
+    progressBar.style.display="none";
+  }
+});
+
+function showMsg(type,text){
+  const m=document.getElementById("msg");m.className=type;m.style.display="block";m.textContent=text;
+}
+</script>
+</body>
+</html>

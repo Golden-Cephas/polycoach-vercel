@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking Complete — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.ty-body{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Mzuzu.jpg');background-size:cover;background-position:center;min-height:85vh;display:flex;align-items:center;justify-content:center;padding:40px 16px;}
+.success-card{background:#fff;padding:52px 40px;border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,0.3);max-width:540px;width:100%;text-align:center;}
+.success-icon i{font-size:5rem;color:var(--success);}
+.success-card h1{font-family:'Barlow Condensed',sans-serif;color:var(--primary);font-size:2.4rem;font-weight:900;text-transform:uppercase;margin:18px 0 10px;}
+.status-message p{color:#444;font-size:1.05rem;line-height:1.65;margin:8px 0;}
+.wishes-box{background:#f0f7ff;border:1px solid #cce3ff;padding:20px;border-radius:12px;margin:24px 0;color:var(--primary);}
+.wishes-box i{font-size:1.5rem;margin-bottom:8px;}
+.wishes-box p{font-style:italic;font-weight:600;font-size:0.95rem;margin:0;}
+.home-btn{background:var(--primary);color:#fff;border:none;border-radius:7px;padding:16px 40px;font-weight:700;font-size:1rem;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:background 0.2s;}
+.home-btn:hover{background:var(--accent);}
+</style>
+</head>
+<body>
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="logout()">Logout</button>
+  </div>
+</div>
+
+<div class="ty-body">
+  <div class="success-card">
+    <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
+    <h1>Booking Received!</h1>
+    <div class="status-message">
+      <p>Thank you for choosing <strong>PolyCoach</strong> for your journey home.</p>
+      <p>Your payment proof has been submitted. You will receive a <strong>confirmation</strong> once our administrators have verified your payment.</p>
+    </div>
+    <div class="wishes-box">
+      <i class="fa-solid fa-graduation-cap"></i>
+      <p>We wish you all the very best as you prepare for exams and the successful completion of your semester!</p>
+    </div>
+    <button class="home-btn" onclick="location.href='Home-Page.html'">RETURN TO HOME</button>
+  </div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact Support</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+// Guard — check localStorage, no server session needed
+(function(){
+  const u=JSON.parse(localStorage.getItem("polycoachUser")||"null");
+  if(!u||!u.fullName) window.location.href="Home-Page.html";
+})();
+async function logout(){await fetch("/api/logout");localStorage.clear();window.location.href="Home-Page.html";}
+</script>
+</body>
+</html>

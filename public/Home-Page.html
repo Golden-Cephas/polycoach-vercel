@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PolyCoach — Student Bus Booking</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.hero{background-image:linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.5)),url('/Images/Background1.png');background-size:cover;background-position:center;min-height:620px;display:flex;align-items:center;}
+.hero-content{padding:0 24px;}
+.hero h1{font-family:'Barlow Condensed',sans-serif;font-size:clamp(2.4rem,6vw,4.2rem);font-weight:900;color:#fff;text-transform:uppercase;line-height:1.05;text-shadow:2px 2px 12px rgba(0,0,0,0.6);}
+.hero p{font-size:1.15rem;color:#eee;margin-top:12px;max-width:560px;text-shadow:1px 1px 6px rgba(0,0,0,0.5);}
+.search-bar{background:rgba(20,20,20,0.88);padding:22px 24px;border-radius:12px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:32px;max-width:720px;backdrop-filter:blur(6px);}
+.sb-group{display:flex;flex-direction:column;}
+.sb-group label{color:#aaa;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
+.sb-group input{background:#fff;border:none;border-radius:5px;padding:11px 14px;font-weight:700;color:#222;font-size:0.92rem;font-family:'Lato',sans-serif;min-width:130px;}
+.view-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:12px 26px;font-weight:700;font-size:0.95rem;cursor:pointer;height:42px;white-space:nowrap;transition:background 0.2s;}
+.view-btn:hover{background:#007acc;}
+.section-title{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:1px;padding:48px 0 8px;}
+.section-sub{text-align:center;color:var(--muted);margin-bottom:36px;font-size:1rem;}
+.routes{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;padding:0 20px 48px;}
+.bus-card{width:300px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.09);transition:transform 0.2s,box-shadow 0.2s;}
+.bus-card:hover{transform:translateY(-5px);box-shadow:0 14px 35px rgba(0,0,0,0.15);}
+.card-img{position:relative;height:180px;overflow:hidden;}
+.card-img img{width:100%;height:100%;object-fit:cover;}
+.card-overlay{position:absolute;inset:0;background:rgba(11,41,77,0.55);display:flex;align-items:flex-end;padding:14px;}
+.card-overlay h2{color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:900;}
+.card-footer{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;}
+.price-label{font-size:0.75rem;color:var(--muted);font-weight:700;text-transform:uppercase;}
+.price-amount{font-size:1.5rem;font-weight:900;color:var(--primary);font-family:'Barlow Condensed',sans-serif;}
+.book-btn{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:7px;font-weight:700;cursor:pointer;transition:background 0.2s;}
+.book-btn:hover{background:var(--accent);}
+.features{display:flex;justify-content:center;gap:30px;flex-wrap:wrap;padding:48px 20px;background:#fff;}
+.feature{display:flex;align-items:flex-start;gap:18px;flex:1;min-width:240px;max-width:300px;}
+.feat-icon i{font-size:2.2rem;color:var(--primary);}
+.feat-icon{transition:transform 0.2s;}
+.feature:hover .feat-icon{transform:translateY(-4px);}
+.feat-text h3{font-size:1rem;font-weight:800;text-transform:uppercase;color:#111;}
+.feat-text p{font-size:0.9rem;color:#777;margin-top:5px;line-height:1.5;}
+@media(max-width:640px){.search-bar{flex-direction:column;}.view-btn{width:100%;}}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'">
+    <img src="/Images/Logo1.png" class="Logo1" alt="Logo">
+    <div class="Logo-Text">PolyCoach</div>
+  </div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="container hero-content" style="max-width:1100px;margin:0 auto;width:100%;">
+    <h1>Welcome to<br>PolyCoach</h1>
+    <p>Travel home the easy way — organised by students, for students.</p>
+    <div class="search-bar" id="searchBar">
+      <div class="sb-group">
+        <label>Departure</label>
+        <input type="text" id="depVenue" readonly>
+      </div>
+      <div class="sb-group">
+        <label>Date</label>
+        <input type="text" id="depDate" readonly>
+      </div>
+      <div class="sb-group">
+        <label>Time</label>
+        <input type="text" id="depTime" readonly>
+      </div>
+      <button class="view-btn" onclick="location.href='Bust-Status-Lay.html'">VIEW BUS STATUS</button>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Where are you heading?</div>
+<p class="section-sub">Select your destination and book your seat today</p>
+<div class="routes" id="routeCards">
+  <div class="bus-card"><div class="card-img"><img src="/Images/Mzuzu.jpg" alt="Mzuzu"><div class="card-overlay"><h2>Mzuzu</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl1">Booking Fee</div><div class="price-amount" id="fee1">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
+  <div class="bus-card"><div class="card-img"><img src="/Images/Mzimba.png" alt="Mzimba"><div class="card-overlay"><h2>Mzimba</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl2">Booking Fee</div><div class="price-amount" id="fee2">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
+  <div class="bus-card"><div class="card-img"><img src="/Images/Jenda.jpg" alt="Jenda"><div class="card-overlay"><h2>Jenda</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl3">Booking Fee</div><div class="price-amount" id="fee3">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
+</div>
+
+<div class="section-title" style="background:#fff;padding-bottom:4px;">Why Book With Us?</div>
+<div class="features">
+  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-cookie-bite"></i></div><div class="feat-text"><h3>Free Snacks</h3><p>Don't travel hungry — enjoy complimentary treats on every journey.</p></div></div>
+  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-tags"></i></div><div class="feat-text"><h3>Fair Prices</h3><p>Student-friendly fares so you save your cash for the holiday fun.</p></div></div>
+  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-wifi"></i></div><div class="feat-text"><h3>Free Wi-Fi</h3><p>Stay connected and entertained throughout your journey.</p></div></div>
+</div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer">
+    <div class="Footer-Text">Social Media</div>
+    <div class="Social-Container">
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+    </div>
+  </div>
+</div>
+
+<div id="popupOverlay" class="popup-overlay">
+  <div class="popup-box">
+    <div id="popupContent"></div>
+    <button class="close-btn" onclick="closePopup()">Close</button>
+  </div>
+</div>
+
+<script src="/js/popup.js"></script>
+<script>
+fetch("/api/settings").then(r=>r.json()).then(s=>{
+  document.getElementById("depVenue").value=s.departureVenue||"MUBAS";
+  document.getElementById("depDate").value=s.departureDate||"15 March 2025";
+  document.getElementById("depTime").value=s.departureTime||"18:00 hrs";
+  const label=s.bookingLabel||"Booking Fee";
+  const fee=s.bookingFee||"K5,000";
+  [1,2,3].forEach(i=>{
+    document.getElementById("fee"+i).textContent=fee;
+    document.getElementById("lbl"+i).textContent=label;
+  });
+}).catch(()=>{});
+</script>
+</body>
+</html>

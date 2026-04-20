@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — PolyCoach</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Lato:wght@400;700&display=swap');
+:root{--primary:#0b294d;--accent:#0099ff;--danger:#e53e3e;--warning:#d69e2e;--success:#28a745;--bg:#f0f2f5;--sidebar:220px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Lato',sans-serif;background:var(--bg);display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar);background:var(--primary);color:#fff;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:200;overflow-y:auto;}
+.sidebar-logo{padding:22px 18px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;gap:10px;}
+.sidebar-logo img{height:36px;}
+.sidebar-logo span{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:900;letter-spacing:1px;}
+.nav-link{display:flex;align-items:center;gap:12px;padding:14px 20px;cursor:pointer;font-size:0.9rem;font-weight:700;color:rgba(255,255,255,0.75);border-left:3px solid transparent;transition:all 0.2s;position:relative;}
+.nav-link:hover,.nav-link.active{background:rgba(255,255,255,0.1);color:#fff;border-left-color:var(--accent);}
+.nav-link i{width:18px;text-align:center;}
+.badge{background:var(--danger);color:#fff;font-size:0.7rem;font-weight:700;border-radius:10px;padding:2px 7px;margin-left:auto;}
+.nav-logout{margin-top:auto;padding:14px 20px;cursor:pointer;color:#ff8080;display:flex;align-items:center;gap:12px;font-weight:700;font-size:0.9rem;border-top:1px solid rgba(255,255,255,0.1);}
+.nav-logout:hover{background:rgba(255,0,0,0.1);}
+
+/* MAIN */
+.main{margin-left:var(--sidebar);flex:1;min-height:100vh;}
+.top-bar{background:#fff;padding:16px 28px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,0.06);position:sticky;top:0;z-index:100;}
+.top-bar h1{font-family:'Barlow Condensed',sans-serif;font-size:1.7rem;color:var(--primary);font-weight:900;}
+.top-bar-user{font-size:0.85rem;color:#666;font-weight:700;}
+
+/* PANELS */
+.panel{display:none;padding:24px 28px;}
+.panel.active{display:block;}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px;}
+.stat-card{background:#fff;border-radius:10px;padding:20px;text-align:center;box-shadow:0 3px 12px rgba(0,0,0,0.07);}
+.stat-card .num{font-size:2.2rem;font-weight:900;font-family:'Barlow Condensed',sans-serif;color:var(--primary);}
+.stat-card .lbl{font-size:0.78rem;font-weight:700;text-transform:uppercase;color:#888;margin-top:4px;letter-spacing:0.5px;}
+
+/* TABLE */
+.table-card{background:#fff;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,0.07);overflow:hidden;}
+.table-card-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:10px;}
+.table-card-header h3{font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;color:var(--primary);font-weight:700;}
+.search-input{padding:9px 14px;border:1px solid #ddd;border-radius:6px;font-size:0.88rem;font-family:'Lato',sans-serif;width:220px;}
+table{width:100%;border-collapse:collapse;font-size:0.88rem;}
+th{background:#f8f9fa;color:#555;font-weight:700;text-transform:uppercase;font-size:0.72rem;letter-spacing:0.5px;padding:11px 14px;text-align:left;border-bottom:2px solid #eee;}
+td{padding:11px 14px;border-bottom:1px solid #f5f5f5;vertical-align:middle;}
+tr:last-child td{border:none;}
+tr:hover td{background:#fafafa;}
+
+/* BADGES */
+.badge-pending{background:#fff8e1;color:#7b5c00;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;}
+.badge-approved{background:#e6f4ea;color:#2e7d32;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;}
+.badge-rejected{background:#fdecea;color:#b71c1c;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;}
+
+/* BUTTONS */
+.btn{border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:700;font-size:0.8rem;transition:opacity 0.2s;}
+.btn:hover{opacity:0.82;}
+.btn-approve{background:var(--success);color:#fff;}
+.btn-reject{background:var(--warning);color:#fff;}
+.btn-delete{background:var(--danger);color:#fff;}
+.btn-add{background:var(--accent);color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;}
+.btn-save{background:var(--success);color:#fff;padding:10px 22px;border-radius:6px;font-size:0.9rem;font-weight:700;border:none;cursor:pointer;}
+
+/* BUS PANEL */
+.bus-admin-grid{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;}
+.bus-wrap{background:#fff;border-radius:12px;padding:22px;box-shadow:0 3px 12px rgba(0,0,0,0.07);}
+.bus-wrap h3{font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;color:var(--primary);margin-bottom:16px;font-weight:700;}
+.console-card{background:#fff;border-radius:12px;padding:22px;box-shadow:0 3px 12px rgba(0,0,0,0.07);position:sticky;top:80px;}
+.console-card h3{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;color:var(--primary);margin-bottom:14px;font-weight:700;}
+.seat-badge{font-size:1.6rem;font-weight:900;color:var(--primary);font-family:'Barlow Condensed',sans-serif;margin-bottom:16px;}
+.cg{margin-bottom:14px;}
+.cg label{display:block;font-size:0.78rem;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;letter-spacing:0.4px;}
+.cg input,.cg select{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:0.9rem;font-family:'Lato',sans-serif;}
+.bus-exterior-admin{background:#f8f9fa;padding:16px;border-radius:30px 30px 10px 10px;border:4px solid #333;}
+.bus-grid{display:grid;grid-template-columns:repeat(2,1fr) 28px repeat(3,1fr);gap:5px;}
+.seat{height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;cursor:pointer;transition:all 0.15s;border:2px solid transparent;}
+.seat.available{background:#e8f5e9;border-color:#4caf50;color:#2e7d32;}
+.seat.available:hover{background:#4caf50;color:#fff;}
+.seat.pending{background:#fff8e1;border-color:var(--warning);color:#7b5c00;}
+.seat.booked,.seat.taken{background:#fdecea;border-color:var(--danger);color:var(--danger);}
+.seat.selected-admin{background:var(--accent);border-color:#007acc;color:#fff;}
+.seat.aisle-space{background:none;border:none;cursor:default;}
+.back-row-container{grid-column:span 6;display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px;}
+.driver-row{display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:12px;border-bottom:2px solid #ddd;color:#666;font-weight:700;font-size:0.85rem;}
+
+/* SETTINGS */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:700px;}
+.settings-grid .full{grid-column:span 2;}
+.settings-card{background:#fff;border-radius:12px;padding:28px;box-shadow:0 3px 12px rgba(0,0,0,0.07);max-width:700px;}
+.settings-card h3{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;color:var(--primary);margin-bottom:20px;font-weight:700;}
+.settings-input{width:100%;padding:11px;border:1px solid #ddd;border-radius:6px;font-size:0.95rem;font-family:'Lato',sans-serif;}
+.settings-label{font-size:0.78rem;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:0.4px;display:block;margin-bottom:6px;}
+#settingsSaved{display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:999;}
+.modal-box{background:#fff;border-radius:14px;padding:32px;max-width:460px;width:92%;box-shadow:0 20px 50px rgba(0,0,0,0.3);}
+.modal-box h3{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;color:var(--primary);margin-bottom:18px;font-weight:700;}
+.modal-actions{display:flex;gap:12px;margin-top:20px;}
+.btn-cancel{background:#eee;color:#333;padding:10px 20px;border-radius:6px;border:none;cursor:pointer;font-weight:700;}
+.proof-img{max-width:100%;border-radius:8px;margin-top:10px;max-height:220px;object-fit:contain;display:none;}
+
+/* RESPONSIVE */
+@media(max-width:900px){.bus-admin-grid{grid-template-columns:1fr;}.console-card{position:static;}}
+@media(max-width:700px){
+  .sidebar{width:60px;}.sidebar-logo span,.nav-link span{display:none;}.sidebar-logo{justify-content:center;padding:16px 0;}.nav-link{justify-content:center;padding:14px 0;border-left:none;border-bottom:3px solid transparent;}.main{margin-left:60px;}.nav-logout span{display:none;}.nav-logout{justify-content:center;}
+  .panel{padding:14px 10px;}.top-bar{padding:12px 14px;}
+  .settings-grid{grid-template-columns:1fr;}.settings-grid .full{grid-column:span 1;}
+  table{font-size:0.78rem;}td,th{padding:8px 8px;}
+}
+@media(max-width:420px){.seat{height:26px;font-size:0.58rem;}.bus-grid{gap:3px;}.back-row-container{gap:3px;}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <img src="/Images/Logo3.png" alt="Logo">
+    <span>Admin</span>
+  </div>
+  <div class="nav-link active" onclick="showPanel('bus')"><i class="fa-solid fa-bus"></i> <span>Bus Layout</span></div>
+  <div class="nav-link" onclick="showPanel('users')"><i class="fa-solid fa-users"></i> <span>Registered Users</span></div>
+  <div class="nav-link" id="pendingNavBtn" onclick="showPanel('bookings')"><i class="fa-solid fa-file-invoice-dollar"></i> <span>Pending Approvals</span> <span class="badge" id="pendingBadge" style="display:none;"></span></div>
+  <div class="nav-link" onclick="showPanel('settings')"><i class="fa-solid fa-gear"></i> <span>Settings</span></div>
+  <div class="nav-logout" onclick="adminLogout()"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="top-bar">
+    <h1 id="panelTitle">Bus Layout &amp; Seat Control</h1>
+    <div class="top-bar-user" id="adminWelcome">Welcome, Admin</div>
+  </div>
+
+  <!-- BUS PANEL -->
+  <div id="panel-bus" class="panel active">
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="bs-avail">—</div><div class="lbl">Available</div></div>
+      <div class="stat-card"><div class="num" id="bs-pend">—</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="num" id="bs-book">—</div><div class="lbl">Booked</div></div>
+      <div class="stat-card"><div class="num">72</div><div class="lbl">Total Seats</div></div>
+      <div class="stat-card" style="display:flex;align-items:center;justify-content:center;">
+        <button onclick="resetAllSeats()" style="background:var(--danger);color:#fff;border:none;padding:10px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:0.82rem;">⚠ Reset All Seats</button>
+      </div>
+    </div>
+    <div class="bus-admin-grid">
+      <div class="bus-wrap">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;">Click a seat to edit it</h3>
+          <button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadBusPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
+        </div>
+        <div class="bus-exterior-admin">
+          <div class="driver-row"><i class="fa-solid fa-dharmachakra"></i> <span>Driver</span></div>
+          <div id="adminSeatMap" class="bus-grid"></div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:0.82rem;color:#555;">
+          <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:#4caf50;border-radius:3px;display:inline-block;"></span> Available</span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:var(--warning);border-radius:3px;display:inline-block;"></span> Pending</span>
+          <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;height:14px;background:var(--danger);border-radius:3px;display:inline-block;"></span> Booked</span>
+        </div>
+      </div>
+      <div class="console-card">
+        <h3>Seat Editor</h3>
+        <p style="color:#aaa;font-size:0.88rem;" id="consoleHint">Select a seat on the bus to edit it.</p>
+        <div id="seatEditor" style="display:none;">
+          <div class="seat-badge">SEAT #<span id="editSeatNum">—</span></div>
+          <div class="cg"><label>Occupant Name</label><input type="text" id="editName" placeholder="Full name"></div>
+          <div class="cg"><label>Status</label>
+            <select id="editStatus">
+              <option value="available">Available (Green)</option>
+              <option value="pending">Pending (Yellow)</option>
+              <option value="booked">Booked (Red)</option>
+            </select>
+          </div>
+          <div class="cg"><label>Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button class="btn-save" style="flex:2;" onclick="saveSeatEdit()">UPDATE SEAT</button>
+            <button class="btn btn-delete" onclick="clearSeat()">RESET</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- USERS PANEL -->
+  <div id="panel-users" class="panel">
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="us-total">—</div><div class="lbl">Total Users</div></div>
+    </div>
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>Registered Users</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <input class="search-input" type="text" placeholder="Search name..." oninput="filterTable('usersTable',this.value,0)">
+          <button class="btn btn-add" onclick="openAddUserModal()"><i class="fa-solid fa-plus"></i> Add User</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadUsersPDF()"><i class="fa-solid fa-file-pdf"></i> Download List</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="usersTable">
+          <thead><tr><th>Full Name</th><th>Phone</th><th>Program</th><th>Destination</th><th>Date</th><th>Action</th></tr></thead>
+          <tbody id="usersTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOOKINGS PANEL -->
+  <div id="panel-bookings" class="panel">
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="bk-pending">—</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="num" id="bk-approved">—</div><div class="lbl">Approved</div></div>
+      <div class="stat-card"><div class="num" id="bk-rejected">—</div><div class="lbl">Rejected</div></div>
+    </div>
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>Bookings &amp; Approvals</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
+          <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusLayoutPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="bookingsTable">
+          <thead><tr><th>Passenger</th><th>Program</th><th>Seat</th><th>Destination</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="bookingsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div id="panel-settings" class="panel">
+
+    <!-- TRIP SETTINGS -->
+    <div class="settings-card" style="margin-bottom:22px;">
+      <h3>Trip Settings</h3>
+      <div class="settings-grid">
+        <div>
+          <label class="settings-label">Booking Label (e.g. "Booking")</label>
+          <input class="settings-input" type="text" id="setLabel" placeholder="Booking">
+        </div>
+        <div>
+          <label class="settings-label">Booking Fee</label>
+          <input class="settings-input" type="text" id="setFee" placeholder="K5,000">
+        </div>
+        <div>
+          <label class="settings-label">Departure Date</label>
+          <input class="settings-input" type="text" id="setDate" placeholder="15 March 2025">
+        </div>
+        <div>
+          <label class="settings-label">Departure Time</label>
+          <input class="settings-input" type="text" id="setTime" placeholder="18:00 hrs">
+        </div>
+        <div class="full">
+          <label class="settings-label">Departure Venue</label>
+          <input class="settings-input" type="text" id="setVenue" placeholder="MUBAS Main Gate">
+        </div>
+      </div>
+      <button class="btn-save" style="margin-top:20px;" onclick="saveSettings()">SAVE TRIP SETTINGS</button>
+      <div id="settingsSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ Settings saved successfully!</div>
+    </div>
+
+    <!-- PAYMENT DETAILS SETTINGS -->
+    <div class="settings-card" style="margin-bottom:22px;">
+      <h3>💳 Payment Details</h3>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:18px;">These appear on the payment upload page so students know exactly where to send money. Double-check every detail carefully.</p>
+      <div class="settings-grid">
+        <div>
+          <label class="settings-label">National Bank Account Number</label>
+          <input class="settings-input" type="text" id="setNB" placeholder="e.g. 1012168938">
+        </div>
+        <div>
+          <label class="settings-label">Airtel Money Number</label>
+          <input class="settings-input" type="text" id="setAirtel" placeholder="e.g. 0999 261 665">
+        </div>
+        <div>
+          <label class="settings-label">TNM Mpamba Number</label>
+          <input class="settings-input" type="text" id="setTNM" placeholder="e.g. 0881 730 203">
+        </div>
+        <div>
+          <label class="settings-label">Account Name (must be exact)</label>
+          <input class="settings-input" type="text" id="setAcctName" placeholder="e.g. PETROS MWAKHWAWA">
+        </div>
+      </div>
+      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:12px;margin-top:14px;font-size:0.82rem;color:#7b5c00;">
+        ⚠ <strong>Warning:</strong> Incorrect payment details will cause students to send money to the wrong account. Verify before saving.
+      </div>
+      <button class="btn-save" style="margin-top:16px;" onclick="savePaymentDetails()">SAVE PAYMENT DETAILS</button>
+      <div id="paymentSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ Payment details saved!</div>
+    </div>
+
+    <!-- ADMIN PASSWORD MANAGEMENT -->
+    <div class="settings-card">
+      <h3>🔐 Admin Password Management</h3>
+
+      <!-- Change own password -->
+      <div style="border:1px solid #eee;border-radius:8px;padding:20px;margin-bottom:18px;">
+        <h4 style="color:var(--primary);margin-bottom:14px;font-size:1rem;">Change Your Password</h4>
+        <div class="settings-grid">
+          <div class="full">
+            <label class="settings-label">Current Password</label>
+            <input class="settings-input" type="password" id="currPass" placeholder="Enter your current password">
+          </div>
+          <div>
+            <label class="settings-label">New Password</label>
+            <input class="settings-input" type="password" id="newPass" placeholder="New password (min 4 chars)">
+          </div>
+          <div>
+            <label class="settings-label">Confirm New Password</label>
+            <input class="settings-input" type="password" id="confirmPass" placeholder="Repeat new password">
+          </div>
+        </div>
+        <button class="btn-save" style="margin-top:14px;" onclick="changePassword()">CHANGE MY PASSWORD</button>
+        <div id="passMsg" style="display:none;padding:12px;border-radius:6px;margin-top:12px;font-weight:700;font-size:0.9rem;"></div>
+      </div>
+
+      <!-- Reset other admin password -->
+      <div style="border:1px solid #fdecea;border-radius:8px;padding:20px;background:#fffafa;">
+        <h4 style="color:var(--danger);margin-bottom:8px;font-size:1rem;">Reset Another Admin to Default Password</h4>
+        <p style="font-size:0.82rem;color:#888;margin-bottom:14px;">This resets the selected admin back to their original default password. Use this if an admin is locked out.</p>
+        <div>
+          <label class="settings-label">Select Admin to Reset</label>
+          <select class="settings-input" id="resetTarget" style="margin-bottom:12px;">
+            <option value="">-- Select Admin --</option>
+            <option value="0981136268">Golden Cephas (0981136268)</option>
+            <option value="0881730203">Emmanuel Soyo (0881730203)</option>
+          </select>
+        </div>
+        <button style="background:var(--danger);color:#fff;border:none;padding:11px 22px;border-radius:6px;font-weight:700;cursor:pointer;" onclick="resetAdminPassword()">RESET TO DEFAULT PASSWORD</button>
+        <div id="resetMsg" style="display:none;padding:12px;border-radius:6px;margin-top:12px;font-weight:700;font-size:0.9rem;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADD USER MODAL -->
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal-box">
+    <h3>Add User Manually</h3>
+    <div class="cg"><label>Full Name</label><input type="text" id="mu-name" class="settings-input" placeholder="Full Name"></div>
+    <div class="cg"><label>Phone</label><input type="text" id="mu-phone" class="settings-input" placeholder="099..."></div>
+    <div class="cg"><label>Program</label><input type="text" id="mu-prog" class="settings-input" placeholder="e.g. BEEE4"></div>
+    <div class="cg"><label>Destination</label>
+      <select id="mu-dest" class="settings-input">
+        <option value="">-- Choose --</option>
+        <option value="Mzuzu">Mzuzu</option>
+        <option value="Jenda">Jenda</option>
+        <option value="Mzimba">Mzimba</option>
+        <option value="Kasungu">Kasungu</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="addUser()">ADD USER</button>
+      <button class="btn-cancel" onclick="closeModal('addUserModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD BOOKING MODAL -->
+<div class="modal-overlay" id="addBookingModal">
+  <div class="modal-box">
+    <h3>Add Booking Manually</h3>
+    <div class="cg"><label>Passenger Name</label><input type="text" id="mb-name" class="settings-input" placeholder="Full Name"></div>
+    <div class="cg"><label>Phone</label><input type="text" id="mb-phone" class="settings-input" placeholder="099..."></div>
+    <div class="cg"><label>Seat Number (1-72)</label><input type="number" id="mb-seat" class="settings-input" min="1" max="72"></div>
+    <div class="cg"><label>Destination</label><input type="text" id="mb-dest" class="settings-input" placeholder="Mzuzu"></div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="addBooking()">ADD BOOKING</button>
+      <button class="btn-cancel" onclick="closeModal('addBookingModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT PROOF MODAL -->
+<div class="modal-overlay" id="proofModal">
+  <div class="modal-box">
+    <h3>Payment Proof</h3>
+    <p id="proofLoading" style="display:none;color:#888;text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading image...</p>
+    <img class="proof-img" id="proofImg" alt="Payment proof" style="max-width:100%;border-radius:8px;margin-top:10px;display:none;">
+    <button class="btn-cancel" style="margin-top:16px;" onclick="closeModal('proofModal')">Close</button>
+  </div>
+</div>
+
+<script>
+let currentSeatNum=null;
+
+// JWT auth helpers (from popup.js)
+// authHeaders() is defined in popup.js
+
+// Admin auth guard — check JWT token
+(function(){
+  const u=getUser();
+  const t=getToken();
+  if(!u||!t||u.role!=="admin"){
+    alert("Admin access only. Please login via View Bus Status.");
+    window.location.href="Status-Login.html";return;
+  }
+  document.getElementById("adminWelcome").textContent="Welcome, "+u.fullName;
+  loadAll();
+})();
+
+async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
+
+/* ── PANELS ── */
+const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings"};
+function showPanel(name){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-link").forEach(l=>l.classList.remove("active"));
+  document.getElementById("panel-"+name).classList.add("active");
+  event.currentTarget.classList.add("active");
+  document.getElementById("panelTitle").textContent=PANEL_TITLES[name];
+  if(name==="bus") loadBus();
+  if(name==="users") loadUsers();
+  if(name==="bookings") loadBookings();
+  if(name==="settings") loadSettings();
+}
+
+/* ── BUS ── */
+async function loadBus(){
+  const r=await fetch("/api/seats");const seats=await r.json();
+  const map=document.getElementById("adminSeatMap");map.innerHTML="";
+  let cnt={available:0,pending:0,booked:0};
+  let counter=1;
+  for(let row=0;row<13;row++){
+    for(let col=1;col<=6;col++){
+      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
+      else if(counter<=65){renderAdminSeat(seats,counter,map,cnt);counter++;}
+    }
+  }
+  const back=document.createElement("div");back.className="back-row-container";
+  for(let i=0;i<7;i++){renderAdminSeat(seats,counter,back,cnt);counter++;}
+  map.appendChild(back);
+  document.getElementById("bs-avail").textContent=cnt.available;
+  document.getElementById("bs-pend").textContent=cnt.pending;
+  document.getElementById("bs-book").textContent=cnt.booked;
+}
+
+function renderAdminSeat(seats,num,parent,cnt){
+  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const div=document.createElement("div");
+  const st=data.status==="taken"?"booked":data.status;
+  div.className="seat "+st;
+  div.textContent=num;
+  if(cnt[st]!==undefined) cnt[st]++;
+  div.title=data.passengerName?`${data.passengerName} (${st})`:`Seat ${num} (${st})`;
+  div.onclick=()=>openSeatEditor(num,data);
+  parent.appendChild(div);
+}
+
+function openSeatEditor(num,data){
+  currentSeatNum=num;
+  document.getElementById("editSeatNum").textContent=num;
+  document.getElementById("editName").value=data.passengerName||"";
+  document.getElementById("editStatus").value=data.status==="taken"?"booked":(data.status||"available");
+  document.getElementById("editDest").value=data.destination||"";
+  document.getElementById("consoleHint").style.display="none";
+  document.getElementById("seatEditor").style.display="block";
+  // Highlight
+  document.querySelectorAll("#adminSeatMap .seat, #adminSeatMap .back-row-container .seat").forEach(s=>s.classList.remove("selected-admin"));
+  event.currentTarget.classList.add("selected-admin");
+}
+
+async function saveSeatEdit(){
+  const status=document.getElementById("editStatus").value;
+  const name=document.getElementById("editName").value.trim();
+  const dest=document.getElementById("editDest").value.trim();
+  if(status!=="available"&&!name){alert("Please enter an occupant name.");return;}
+  const r=await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{method:"POST",headers:authHeaders(),body:JSON.stringify({status,passengerName:name,destination:dest})});
+  const d=await r.json();
+  if(d.success){
+    // If seat is being assigned to someone, register them if not already in the system
+    if(status!=="available"&&name){
+      await fetch("/api/admin?action=register-passenger",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,destination:dest})});
+    }
+    loadBus();loadBookings();loadUsers();
+  }
+  else alert("Error updating seat.");
+}
+
+async function clearSeat(){
+  if(!confirm(`Reset Seat ${currentSeatNum} to Available?`)) return;
+  await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+  document.getElementById("seatEditor").style.display="none";
+  document.getElementById("consoleHint").style.display="block";
+  loadBus();loadBookings();
+}
+
+/* ── USERS ── */
+async function loadUsers(){
+  try{
+    const r=await fetch("/api/admin?action=users",{headers:authHeaders()});
+    const users=await r.json();
+    document.getElementById("us-total").textContent=users.length;
+    const tbody=document.getElementById("usersTbody");
+    tbody.innerHTML="";
+    if(!users.length){
+      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No users registered yet.</td></tr>';
+      return;
+    }
+    users.forEach(u=>{
+      // Use _id (MongoDB field) not .id
+      const uid = u._id || u.id;
+      const tr=document.createElement("tr");
+      tr.id="user-row-"+uid;
+      tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${u.phone}</td><td>${u.program||u.regNumber||"—"}</td>
+      <td>${u.destination||"—"}</td>
+      <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
+      <td><button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button></td>`;
+      tbody.appendChild(tr);
+    });
+  }catch(err){
+    console.error("loadUsers error:",err);
+  }
+}
+
+async function deleteUser(id,name){
+  if(!confirm('Delete user "'+name+'"? This cannot be undone.')) return;
+  // Grey out the row immediately for instant visual feedback
+  const row=document.getElementById("user-row-"+id);
+  const btn=document.getElementById("delbtn-"+id);
+  if(row) row.style.opacity="0.4";
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch("/api/admin?action=delete-user&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+    const d=await r.json();
+    if(d.success){
+      // Remove row from DOM immediately — no need to reload whole table
+      if(row) row.remove();
+      const total=document.getElementById("us-total");
+      total.textContent=Math.max(0,parseInt(total.textContent||"0")-1);
+    } else {
+      alert("Delete failed: "+(d.message||"Unknown error"));
+      if(row) row.style.opacity="1";
+      if(btn) btn.disabled=false;
+    }
+  }catch(err){
+    alert("Network error. Please try again.");
+    if(row) row.style.opacity="1";
+    if(btn) btn.disabled=false;
+  }
+}
+
+function openAddUserModal(){document.getElementById("addUserModal").style.display="flex";}
+function closeModal(id){document.getElementById(id).style.display="none";}
+async function addUser(){
+  const name=document.getElementById("mu-name").value.trim();
+  const phone=document.getElementById("mu-phone").value.trim();
+  const prog=document.getElementById("mu-prog").value.trim();
+  const dest=document.getElementById("mu-dest").value;
+  if(!name||!phone) return alert("Name and phone are required.");
+  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,program:prog||"Admin Assigned",destination:dest||""})});
+  const d=await r.json();
+  if(d.success){closeModal("addUserModal");loadUsers();}
+  else alert(d.message||"Error.");
+}
+
+/* ── BOOKINGS ── */
+async function loadBookings(){
+  const r=await fetch("/api/admin?action=bookings",{headers:authHeaders()});const bks=await r.json();
+  const pending=bks.filter(b=>b.status==="pending").length;
+  const approved=bks.filter(b=>b.status==="approved").length;
+  const rejected=bks.filter(b=>b.status==="rejected").length;
+  document.getElementById("bk-pending").textContent=pending;
+  document.getElementById("bk-approved").textContent=approved;
+  document.getElementById("bk-rejected").textContent=rejected;
+  // Badge
+  const badge=document.getElementById("pendingBadge");
+  badge.textContent=pending;badge.style.display=pending>0?"inline-block":"none";
+  const tbody=document.getElementById("bookingsTbody");tbody.innerHTML="";
+  if(!bks.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No bookings yet.</td></tr>';return;}
+  bks.forEach(b=>{
+    const tr=document.createElement("tr");
+    const bid=b._id||b.id;
+    tr.id="booking-row-"+bid;
+    const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
+    tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
+    <td>${b.program||"—"}</td>
+    <td><strong>Seat ${b.seatNumber}</strong></td>
+    <td>${b.destination||"—"}</td>
+    <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
+    <td><span class="${badgeClass}">${b.status.toUpperCase()}</span></td>
+    <td style="display:flex;gap:5px;flex-wrap:wrap;">
+      ${b.status==="pending"?`<button class="btn btn-approve" onclick="approveBooking('${b._id||b.id}')"><i class="fa-solid fa-check"></i></button><button class="btn btn-reject" onclick="rejectBooking('${b._id||b.id}')"><i class="fa-solid fa-xmark"></i></button>`:""}
+      ${b.status==="approved"?`<button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadReceipt('${b._id||b.id}','${b.passengerName}')"><i class="fa-solid fa-receipt"></i></button>`:``}
+      <button class="btn btn-delete" onclick="deleteBooking('${b._id||b.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+async function approveBooking(id){
+  await fetch("/api/admin?action=approve&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  loadBookings();loadBus();
+}
+async function rejectBooking(id){
+  await fetch("/api/admin?action=reject&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  loadBookings();loadBus();
+}
+async function deleteBooking(id){
+  if(!confirm("Delete this booking record? The seat will be freed.")) return;
+  const row=document.getElementById("booking-row-"+id);
+  if(row) row.style.opacity="0.4";
+  try{
+    const r=await fetch("/api/admin?action=delete-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+    const d=await r.json();
+    if(d.success){
+      if(row) row.remove();
+      loadBookings();
+      loadBus();
+    } else {
+      alert("Delete failed: "+(d.message||"Unknown error"));
+      if(row) row.style.opacity="1";
+    }
+  }catch(err){
+    alert("Network error. Please try again.");
+    if(row) row.style.opacity="1";
+  }
+}
+
+async function viewProof(bookingId){
+  const img=document.getElementById("proofImg");
+  img.style.display="none";
+  img.src="";
+  document.getElementById("proofModal").style.display="flex";
+  // Show loading
+  const box=document.querySelector("#proofModal .modal-box");
+  const loading=document.getElementById("proofLoading");
+  if(loading) loading.style.display="block";
+  try{
+    const r=await fetch("/api/admin?action=proof&id="+bookingId,{headers:authHeaders()});
+    const d=await r.json();
+    if(d.success){
+      img.src=d.image;
+      img.style.display="block";
+    } else {
+      alert("No payment proof found for this booking.");
+      document.getElementById("proofModal").style.display="none";
+    }
+  }catch{
+    alert("Could not load image. Please try again.");
+    document.getElementById("proofModal").style.display="none";
+  }
+  if(loading) loading.style.display="none";
+}
+
+async function viewStudentID(userId, name){
+  try{
+    const r=await fetch("/api/admin?action=studentid&id="+userId,{headers:authHeaders()});
+    const d=await r.json();
+    if(d.success){
+      const img=document.getElementById("proofImg");
+      img.src=d.image;
+      img.style.display="block";
+      document.getElementById("proofModal").style.display="flex";
+    } else {
+      alert("No student ID found for "+name);
+    }
+  }catch{
+    alert("Could not load student ID.");
+  }
+}
+
+function openAddBookingModal(){document.getElementById("addBookingModal").style.display="flex";}
+async function addBooking(){
+  const name=document.getElementById("mb-name").value.trim();
+  const phone=document.getElementById("mb-phone").value.trim();
+  const seat=document.getElementById("mb-seat").value;
+  const dest=document.getElementById("mb-dest").value.trim();
+  if(!name||!seat) return alert("Passenger name and seat are required.");
+  const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone,seatNumber:Number(seat),destination:dest})});
+  const d=await r.json();
+  if(d.success){closeModal("addBookingModal");loadBookings();loadBus();}
+  else alert(d.message||"Error adding booking.");
+}
+
+/* ── SETTINGS ── */
+async function loadSettings(){
+  const r=await fetch("/api/settings");const s=await r.json();
+  document.getElementById("setLabel").value   = s.bookingLabel   || "";
+  document.getElementById("setFee").value     = s.bookingFee     || "";
+  document.getElementById("setDate").value    = s.departureDate  || "";
+  document.getElementById("setTime").value    = s.departureTime  || "";
+  document.getElementById("setVenue").value   = s.departureVenue || "";
+  document.getElementById("setNB").value      = s.payNationalBank  || "";
+  document.getElementById("setAirtel").value  = s.payAirtelMoney   || "";
+  document.getElementById("setTNM").value     = s.payTNMMpamba     || "";
+  document.getElementById("setAcctName").value= s.payAccountName   || "";
+}
+
+async function saveSettings(){
+  const data={
+    bookingLabel:  document.getElementById("setLabel").value.trim(),
+    bookingFee:    document.getElementById("setFee").value.trim(),
+    departureDate: document.getElementById("setDate").value.trim(),
+    departureTime: document.getElementById("setTime").value.trim(),
+    departureVenue:document.getElementById("setVenue").value.trim()
+  };
+  const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
+  const d=await r.json();
+  const msg=document.getElementById("settingsSaved");
+  if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
+  else alert("Error saving settings.");
+}
+
+async function savePaymentDetails(){
+  const nb      = document.getElementById("setNB").value.trim();
+  const airtel  = document.getElementById("setAirtel").value.trim();
+  const tnm     = document.getElementById("setTNM").value.trim();
+  const acct    = document.getElementById("setAcctName").value.trim();
+  if(!nb&&!airtel&&!tnm&&!acct){alert("Please enter at least one payment detail.");return;}
+  const data={payNationalBank:nb,payAirtelMoney:airtel,payTNMMpamba:tnm,payAccountName:acct};
+  const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
+  const d=await r.json();
+  const msg=document.getElementById("paymentSaved");
+  if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
+  else alert("Error saving payment details.");
+}
+
+/* ── ADMIN PASSWORD MANAGEMENT ── */
+async function changePassword(){
+  const curr    = document.getElementById("currPass").value;
+  const newP    = document.getElementById("newPass").value;
+  const confirm = document.getElementById("confirmPass").value;
+  const msg     = document.getElementById("passMsg");
+  msg.style.display="none";
+  if(!curr||!newP||!confirm){showPassMsg("error","Please fill in all password fields.");return;}
+  if(newP.length<4){showPassMsg("error","New password must be at least 4 characters.");return;}
+  if(newP!==confirm){showPassMsg("error","New passwords do not match.");return;}
+  const r=await fetch("/api/admin?action=change-password",{method:"POST",headers:authHeaders(),body:JSON.stringify({currentPassword:curr,newPassword:newP})});
+  const d=await r.json();
+  if(d.success){
+    showPassMsg("success","✅ Password changed successfully! Use your new password next login.");
+    document.getElementById("currPass").value="";
+    document.getElementById("newPass").value="";
+    document.getElementById("confirmPass").value="";
+  } else {
+    showPassMsg("error",d.message||"Error changing password.");
+  }
+}
+
+function showPassMsg(type,text){
+  const m=document.getElementById("passMsg");
+  m.style.display="block";
+  m.style.background=type==="success"?"#e6f4ea":"#fdecea";
+  m.style.color=type==="success"?"#2e7d32":"#b71c1c";
+  m.textContent=text;
+}
+
+async function resetAdminPassword(){
+  const target=document.getElementById("resetTarget").value;
+  const msg=document.getElementById("resetMsg");
+  if(!target){msg.style.display="block";msg.style.background="#fdecea";msg.style.color="#b71c1c";msg.textContent="Please select an admin to reset.";return;}
+  const name=document.getElementById("resetTarget").options[document.getElementById("resetTarget").selectedIndex].text;
+  if(!confirm("Reset password for "+name+" to their default? They must be informed of the change.")) return;
+  const r=await fetch("/api/admin?action=reset-admin-password",{method:"POST",headers:authHeaders(),body:JSON.stringify({targetPhone:target})});
+  const d=await r.json();
+  msg.style.display="block";
+  if(d.success){msg.style.background="#e6f4ea";msg.style.color="#2e7d32";msg.textContent="✅ "+d.message;}
+  else{msg.style.background="#fdecea";msg.style.color="#b71c1c";msg.textContent=d.message||"Error resetting password.";}
+}
+
+/* ── SEARCH ── */
+function filterTable(tableId,query,col){
+  const q=query.toLowerCase();
+  document.querySelectorAll("#"+tableId+" tbody tr").forEach(tr=>{
+    const cell=tr.children[col];
+    tr.style.display=cell&&cell.textContent.toLowerCase().includes(q)?"":"none";
+  });
+}
+
+/* ── RESET SEATS ── */
+async function resetAllSeats(){
+  if(!confirm("WARNING: This will reset ALL 72 seats to available and clear all booking records. Are you absolutely sure?")) return;
+  if(!confirm("Second confirmation: ALL booking data will be lost permanently. Continue?")) return;
+  const r=await fetch("/api/admin?action=reset-seats",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  const d=await r.json();
+  if(d.success){alert("All seats have been reset.");loadAll();}
+  else alert("Error resetting seats.");
+}
+
+/* ── PDF DOWNLOADS ── */
+
+function pdfHeader(doc, title) {
+  const pw = doc.internal.pageSize.getWidth();
+  // Dark blue header bar
+  doc.setFillColor(11, 41, 77);
+  doc.rect(0, 0, pw, 28, 'F');
+  // White title
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PolyCoach', 14, 11);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Student Bus Booking System — MUBAS', 14, 19);
+  // Right side title
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, pw - 14, 15, { align: 'right' });
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
+}
+
+function pdfFooter(doc) {
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    // Accent blue footer bar
+    doc.setFillColor(0, 153, 255);
+    doc.rect(0, ph - 18, pw, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Email: polycoachsupport@gmail.com   |   Phone: +265 881 730 203   |   MUBAS, Blantyre, Malawi', pw / 2, ph - 9, { align: 'center' });
+    doc.text('Page ' + i + ' of ' + pageCount, pw - 14, ph - 9, { align: 'right' });
+    doc.text('Generated: ' + new Date().toLocaleDateString(), 14, ph - 9);
+    doc.setTextColor(0, 0, 0);
+  }
+}
+
+async function downloadUsersPDF() {
+  const r = await fetch('/api/admin/users');
+  const users = await r.json();
+  if (!users.length) { alert('No registered users yet.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();
+
+  pdfHeader(doc, 'Registered Users');
+
+  // Date line
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Printed: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }), 14, 36);
+  doc.text('Total Students: ' + users.length, pw - 14, 36, { align: 'right' });
+
+  // Table
+  const rows = users.map((u, i) => [
+    i + 1,
+    u.fullName || '',
+    u.regNumber || '',
+    u.phone || ''
+  ]);
+
+  doc.autoTable({
+    startY: 40,
+    head: [['#', 'Full Name', 'Registration Number', 'Phone']],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [11, 41, 77],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 10
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [0, 0, 0]
+    },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: {
+      0: { cellWidth: 12, halign: 'center' },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 60 },
+      3: { cellWidth: 40 }
+    },
+    margin: { left: 14, right: 14, bottom: 22 },
+    didDrawPage: () => pdfHeader(doc, 'Registered Users')
+  });
+
+  pdfFooter(doc);
+  doc.save('PolyCoach_Registered_Users_' + new Date().toISOString().slice(0,10) + '.pdf');
+}
+
+async function downloadBusLayoutPDF() {
+  const r = await fetch('/api/seats');
+  const seats = await r.json();
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();
+  const ph = doc.internal.pageSize.getHeight();
+
+  pdfHeader(doc, 'Bus Seat Layout');
+
+  // Subtitle
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const booked = seats.filter(s => s.status === 'booked' || s.status === 'pending').length;
+  const available = seats.filter(s => s.status === 'available').length;
+  doc.text('Printed: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }), 14, 36);
+  doc.text('Booked/Pending: ' + booked + '   |   Available: ' + available + '   |   Total: 72 seats', pw - 14, 36, { align: 'right' });
+
+  // Build 72-seat grid: 2 cols + aisle + 3 cols = 5 cols per row, 13 rows + back row of 7
+  const startX = 14;
+  const startY = 42;
+  const cellW = 44;
+  const cellH = 9;
+  const aisleW = 8;
+  const gap = 1;
+
+  // Column X positions: 2 left + aisle + 3 right
+  const colX = [
+    startX,
+    startX + cellW + gap,
+    // aisle gap here
+    startX + cellW * 2 + gap * 2 + aisleW,
+    startX + cellW * 3 + gap * 3 + aisleW,
+    startX + cellW * 4 + gap * 4 + aisleW,
+  ];
+
+  // Legend
+  const legendY = startY - 2;
+  [[11,41,77,'Booked'],[180,180,180,'Available'],[214,158,46,'Pending']].forEach((item, i) => {
+    const lx = pw - 120 + i * 40;
+    doc.setFillColor(item[0], item[1], item[2]);
+    doc.rect(lx, legendY - 3, 6, 4, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(0,0,0);
+    doc.text(item[3], lx + 8, legendY);
+  });
+
+  let seatIdx = 0;
+  const seatList = [...seats].sort((a,b) => a.number - b.number);
+
+  function drawSeat(seat, x, y) {
+    const status = seat ? seat.status : 'available';
+    const name = seat && seat.passengerName ? seat.passengerName : '';
+    const num = seat ? seat.number : '';
+
+    // Background
+    if (status === 'booked') doc.setFillColor(11, 41, 77);
+    else if (status === 'pending') doc.setFillColor(214, 158, 46);
+    else doc.setFillColor(220, 220, 220);
+
+    doc.roundedRect(x, y, cellW, cellH, 1, 1, 'F');
+
+    // Seat number
+    if (status === 'booked') doc.setTextColor(255, 255, 255);
+    else doc.setTextColor(0, 0, 0);
+
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(num), x + 2, y + 3.5);
+
+    // Passenger name
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    const displayName = name.length > 18 ? name.substring(0, 17) + '.' : name;
+    doc.text(displayName, x + cellW / 2, y + 6.5, { align: 'center' });
+
+    doc.setTextColor(0, 0, 0);
+  }
+
+  // Driver row
+  doc.setFillColor(240, 240, 240);
+  doc.roundedRect(startX, startY - 8, pw - startX * 2, 6, 1, 1, 'F');
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(80, 80, 80);
+  doc.text('DRIVER', pw / 2, startY - 4, { align: 'center' });
+  doc.setTextColor(0,0,0);
+
+  // 13 rows × (2 + aisle + 3)
+  for (let row = 0; row < 13; row++) {
+    const y = startY + row * (cellH + gap);
+    const cols = [0, 1, 2, 3, 4]; // 5 seats per row
+    cols.forEach((col, ci) => {
+      if (seatIdx < 65) {
+        drawSeat(seatList[seatIdx], colX[col], y);
+        seatIdx++;
+      }
+    });
+  }
+
+  // Back row — 7 seats spread across full width
+  const backY = startY + 13 * (cellH + gap) + 4;
+  const backCellW = (pw - startX * 2 - gap * 6) / 7;
+  for (let i = 0; i < 7; i++) {
+    const bx = startX + i * (backCellW + gap);
+    if (seatIdx < 72) {
+      const seat = seatList[seatIdx];
+      const status = seat ? seat.status : 'available';
+      const name = seat && seat.passengerName ? seat.passengerName : '';
+      if (status === 'booked') doc.setFillColor(11, 41, 77);
+      else if (status === 'pending') doc.setFillColor(214, 158, 46);
+      else doc.setFillColor(220, 220, 220);
+      doc.roundedRect(bx, backY, backCellW, cellH, 1, 1, 'F');
+      if (status === 'booked') doc.setTextColor(255, 255, 255);
+      else doc.setTextColor(0, 0, 0);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(seat.number), bx + 2, backY + 3.5);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      const dn = name.length > 14 ? name.substring(0,13)+'.' : name;
+      doc.text(dn, bx + backCellW/2, backY + 6.5, { align: 'center' });
+      doc.setTextColor(0,0,0);
+      seatIdx++;
+    }
+  }
+
+  // Back row label
+  doc.setFontSize(7);
+  doc.setTextColor(100,100,100);
+  doc.text('BACK ROW', pw/2, backY - 2, { align:'center' });
+
+  pdfFooter(doc);
+  doc.save('PolyCoach_Bus_Layout_' + new Date().toISOString().slice(0,10) + '.pdf');
+}
+
+/* ── PDF HELPERS ── */
+
+/* ════════════════════════════════════════
+   SHARED HEADER — logo image + title
+   Uses Logo2.PNG from /Images/
+════════════════════════════════════════ */
+function pdfHeader(doc, docTitle, logoDataURL){
+  const pW = doc.internal.pageSize.getWidth();
+  // Navy bar
+  doc.setFillColor(11,41,77);
+  doc.rect(0, 0, pW, 36, 'F');
+
+  // Logo — embed actual image if available
+  if(logoDataURL){
+    try{
+      doc.addImage(logoDataURL, 'PNG', 10, 4, 28, 28);
+    }catch(e){
+      // If image fails silently skip — no broken placeholder
+    }
+    // Organisation name next to logo
+    doc.setFont("times","bold");
+    doc.setFontSize(17);
+    doc.setTextColor(255,255,255);
+    doc.text("PolyCoach", 42, 16);
+    doc.setFont("times","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(180,210,255);
+    doc.text("Student Bus Booking System  —  MUBAS", 42, 23);
+  } else {
+    // No logo — just text, centred vertically in bar
+    doc.setFont("times","bold");
+    doc.setFontSize(17);
+    doc.setTextColor(255,255,255);
+    doc.text("PolyCoach", 14, 16);
+    doc.setFont("times","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(180,210,255);
+    doc.text("Student Bus Booking System  —  MUBAS", 14, 23);
+  }
+
+  // Document title — right aligned
+  doc.setFont("times","bold");
+  doc.setFontSize(13);
+  doc.setTextColor(255,255,255);
+  doc.text(docTitle, pW - 12, 20, {align:"right"});
+
+  // Accent blue line
+  doc.setDrawColor(0,153,255);
+  doc.setLineWidth(1.5);
+  doc.line(0, 36, pW, 36);
+
+  // Reset
+  doc.setTextColor(0,0,0);
+  doc.setDrawColor(0,0,0);
+  doc.setLineWidth(0.3);
+}
+
+/* ════════════════════════════════════════
+   SHARED FOOTER
+════════════════════════════════════════ */
+function pdfFooter(doc, printedDate){
+  const pW    = doc.internal.pageSize.getWidth();
+  const pH    = doc.internal.pageSize.getHeight();
+  const pages = doc.internal.getNumberOfPages();
+  for(let i = 1; i <= pages; i++){
+    doc.setPage(i);
+    doc.setDrawColor(0,153,255);
+    doc.setLineWidth(0.8);
+    doc.line(0, pH-18, pW, pH-18);
+    doc.setFillColor(11,41,77);
+    doc.rect(0, pH-17, pW, 17, 'F');
+    doc.setFont("times","normal");
+    doc.setFontSize(8);
+    doc.setTextColor(255,255,255);
+    doc.text(
+      "polycoachsupport@gmail.com  |  +265 881 730 203  |  MUBAS, Blantyre, Malawi",
+      14, pH - 9
+    );
+    doc.text("Printed: " + printedDate, 14, pH - 4);
+    doc.text("Page " + i + " of " + pages, pW - 12, pH - 6, {align:"right"});
+    doc.setTextColor(0,0,0);
+  }
+}
+
+/* ════════════════════════════════════════
+   LOAD Logo2.PNG as base64 data URL
+════════════════════════════════════════ */
+async function loadLogo2(){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function(){
+      try{
+        const canvas = document.createElement("canvas");
+        canvas.width  = img.naturalWidth  || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      }catch(e){ resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = "/Images/Logo2.PNG?" + Date.now(); // cache-bust
+  });
+}
+
+/* ════════════════════════════════════════
+   DRAW ONE SEAT ON THE BUS PDF
+   — name (first line) / SURNAME (second line)
+   — Times New Roman throughout
+════════════════════════════════════════ */
+function drawSeatPDF(doc, seats, num, x, y, w, h){
+  const seat   = seats.find(s => Number(s.number) === num) || {number:num, status:"available"};
+  const status = (seat.status === "taken") ? "booked" : (seat.status || "available");
+
+  if(status === "booked"){
+    doc.setFillColor(255,180,180); doc.setDrawColor(180,60,60);
+  } else if(status === "pending"){
+    doc.setFillColor(255,235,150); doc.setDrawColor(180,140,30);
+  } else {
+    doc.setFillColor(190,235,190); doc.setDrawColor(60,160,60);
+  }
+  doc.setLineWidth(0.35);
+  doc.roundedRect(x, y, w, h, 1.2, 1.2, 'FD');
+
+  // Seat number — top-left, small bold
+  doc.setFont("times","bold");
+  doc.setFontSize(5.5);
+  doc.setTextColor(40,40,40);
+  doc.text(String(num), x + 1.5, y + 4);
+
+  // Passenger name split: first name top, SURNAME bottom
+  if(seat.passengerName && status !== "available"){
+    const parts   = seat.passengerName.trim().split(" ");
+    const maxW    = w - 4; // usable width in mm
+    const maxChar = Math.max(6, Math.floor(maxW / 1.7));
+    let line1 = "", line2 = "";
+    if(parts.length === 1){
+      line1 = parts[0].slice(0, maxChar);
+    } else {
+      const surname   = parts[parts.length - 1];
+      const firstName = parts.slice(0, -1).join(" ");
+      line1 = firstName.slice(0, maxChar);
+      line2 = surname.slice(0, maxChar);
+    }
+    doc.setFontSize(5);
+    doc.setTextColor(20,20,20);
+    if(line2){
+      doc.setFont("times","normal");
+      doc.text(line1, x + w/2, y + h/2 - 0.8, {align:"center"});
+      doc.setFont("times","bold");
+      doc.text(line2.toUpperCase(), x + w/2, y + h/2 + 4, {align:"center"});
+    } else {
+      doc.setFont("times","normal");
+      doc.text(line1, x + w/2, y + h/2 + 2, {align:"center"});
+    }
+    doc.setTextColor(0,0,0);
+  }
+}
+
+/* ════════════════════════════════════════
+   BUILD BUS LAYOUT PDF
+   Page height auto-calculated to fit
+   the full bus — nothing cut off
+════════════════════════════════════════ */
+async function buildBusLayoutPDF(){
+  const seats    = await (await fetch("/api/seats")).json();
+  const settings = await (await fetch("/api/settings")).json();
+  const logo     = await loadLogo2();
+  const {jsPDF}  = window.jspdf;
+
+  const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+
+  // ── BUS DIMENSIONS (fixed, comfortable) ──
+  const seatW  = 28;
+  const seatH  = 15;
+  const gap    = 2.5;
+  const aisleW = 10;
+  const pW     = 210; // A4 width mm — keep standard width
+
+  // 2 left + aisle + 3 right
+  const busW   = 2*seatW + aisleW + 3*seatW + 5*gap;
+  const startX = (pW - busW) / 2;
+
+  // Column x positions
+  const col = [
+    startX,
+    startX + seatW + gap,
+    startX + 2*seatW + aisleW + 2*gap,
+    startX + 2*seatW + aisleW + seatW + 3*gap,
+    startX + 2*seatW + aisleW + 2*seatW + 4*gap
+  ];
+
+  // ── CALCULATE EXACT PAGE HEIGHT NEEDED ──
+  const headerH  = 36;  // header bar
+  const tripH    = 12;  // trip info line
+  const busTopY  = headerH + tripH;   // = 48
+  const topStripH= 5;
+  const driverH  = 10;
+  const driverGap= 2;
+  const rows13H  = 13 * (seatH + gap);
+  const backGap  = 5;
+  const backH    = seatH;
+  const padBus   = 6;   // padding inside bus shell at bottom
+  const busH     = topStripH + driverGap + driverH + driverGap + rows13H + backGap + backH + padBus;
+  const legH     = 14;  // legend
+  const footerH  = 20;  // footer bar + margin
+  const padTop   = 2;   // small top margin above bus
+
+  // Total page height = everything stacked
+  const pH = busTopY + padTop + busH + legH + footerH + 4;
+
+  // Create doc with custom page size
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: [pW, pH]   // custom height — fits everything perfectly
+  });
+
+  pdfHeader(doc, "Bus Seat Layout", logo);
+
+  // Departure info
+  doc.setFont("times","normal");
+  doc.setFontSize(9);
+  doc.setTextColor(60,60,60);
+  const tripLine =
+    "Departure: " + (settings.departureDate||"") +
+    "  at  "     + (settings.departureTime||"") +
+    "  |  Venue: "+ (settings.departureVenue||"");
+  doc.text(tripLine, pW/2, 43, {align:"center"});
+  doc.setTextColor(0,0,0);
+
+  // ── BUS SHELL ──
+  const busShellY = busTopY + padTop;
+  doc.setFillColor(255,255,255);
+  doc.setDrawColor(50,50,50);
+  doc.setLineWidth(1.0);
+  doc.roundedRect(startX - 5, busShellY, busW + 10, busH, 6, 6, 'FD');
+
+  // Navy top strip
+  doc.setFillColor(11,41,77);
+  doc.roundedRect(startX - 5, busShellY, busW + 10, topStripH, 3, 3, 'F');
+  doc.rect(startX - 5, busShellY + 2, busW + 10, topStripH - 2, 'F');
+
+  // Driver area
+  const driverY = busShellY + topStripH + driverGap;
+  doc.setFillColor(220,230,245);
+  doc.setDrawColor(11,41,77);
+  doc.setLineWidth(0.5);
+  doc.rect(startX, driverY, busW, driverH, 'FD');
+  doc.setFont("times","bold");
+  doc.setFontSize(8);
+  doc.setTextColor(11,41,77);
+  doc.text("DRIVER", startX + busW/2, driverY + 6.5, {align:"center"});
+
+  // ── 13 ROWS OF SEATS ──
+  let seatNum = 1;
+  const rowsY = driverY + driverH + driverGap;
+
+  for(let row = 0; row < 13; row++){
+    const y = rowsY + row * (seatH + gap);
+    drawSeatPDF(doc, seats, seatNum++, col[0], y, seatW, seatH);
+    drawSeatPDF(doc, seats, seatNum++, col[1], y, seatW, seatH);
+    doc.setFillColor(200,200,200);
+    doc.circle(startX + 2*seatW + aisleW/2 + gap, y + seatH/2, 0.7, 'F');
+    drawSeatPDF(doc, seats, seatNum++, col[2], y, seatW, seatH);
+    drawSeatPDF(doc, seats, seatNum++, col[3], y, seatW, seatH);
+    drawSeatPDF(doc, seats, seatNum++, col[4], y, seatW, seatH);
+  }
+
+  // ── BACK ROW — 7 seats ──
+  const backY     = rowsY + 13*(seatH + gap) + backGap;
+  const backSeatW = (busW - 6*gap) / 7;
+  doc.setFont("times","italic");
+  doc.setFontSize(6);
+  doc.setTextColor(120,120,120);
+  doc.text("BACK ROW", startX + busW/2, backY - 1.5, {align:"center"});
+  for(let i = 0; i < 7; i++){
+    drawSeatPDF(doc, seats, seatNum++,
+      startX + i*(backSeatW + gap), backY, backSeatW, seatH);
+  }
+
+  // ── LEGEND ──
+  const legY = busShellY + busH + 5;
+  doc.setFont("times","normal");
+  doc.setFontSize(8);
+  doc.setTextColor(0,0,0);
+  const items = [
+    {label:"Available", fill:[190,235,190], stroke:[60,160,60]},
+    {label:"Booked",    fill:[255,180,180], stroke:[180,60,60]},
+    {label:"Pending",   fill:[255,235,150], stroke:[180,140,30]}
+  ];
+  const legTotalW = items.length * 38;
+  let legX = (pW - legTotalW) / 2;
+  items.forEach(item => {
+    doc.setFillColor(...item.fill);
+    doc.setDrawColor(...item.stroke);
+    doc.setLineWidth(0.4);
+    doc.rect(legX, legY, 6, 4, 'FD');
+    doc.setTextColor(0,0,0);
+    doc.text(item.label, legX + 8, legY + 3.3);
+    legX += 38;
+  });
+
+  pdfFooter(doc, dateStr);
+  return doc;
+}
+
+/* ════════════════════════════════════════
+   DOWNLOAD BUS LAYOUT — Bus panel button
+════════════════════════════════════════ */
+async function downloadBusPDF(){
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  try{
+    const doc = await buildBusLayoutPDF();
+    doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
+  }catch(err){
+    alert("Could not generate PDF. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download Bus Layout';
+}
+
+/* ════════════════════════════════════════
+   DOWNLOAD BUS LAYOUT — Bookings panel button
+   (same output as downloadBusPDF)
+════════════════════════════════════════ */
+async function downloadBusLayoutPDF(){
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  try{
+    const doc = await buildBusLayoutPDF();
+    doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
+  }catch(err){
+    alert("Could not generate PDF. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download Bus Layout';
+}
+
+/* ════════════════════════════════════════
+   DOWNLOAD REGISTRATION LIST
+════════════════════════════════════════ */
+async function downloadUsersPDF(){
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  try{
+    const users   = await (await fetch("/api/admin/users")).json();
+    const logo    = await loadLogo2();
+    const {jsPDF} = window.jspdf;
+    const doc     = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+    const pW      = doc.internal.pageSize.getWidth();
+    const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+
+    pdfHeader(doc, "Registration List", logo);
+
+    // Sub-info line
+    doc.setFont("times","italic");
+    doc.setFontSize(9);
+    doc.setTextColor(90,90,90);
+    doc.text("Total Students: " + users.length, pW - 14, 43, {align:"right"});
+    doc.setTextColor(0,0,0);
+
+    // Table
+    const rows = users.map((u, i) => [
+      String(i + 1),
+      u.fullName    || "-",
+      u.program     || u.regNumber || "-",
+      u.phone       || "-",
+      u.destination || "-"
+    ]);
+
+    doc.autoTable({
+      startY: 46,
+      head: [["#", "Full Name", "Program", "Phone", "Destination"]],
+      body: rows,
+      styles:{
+        font:        "times",
+        fontSize:    10.5,
+        cellPadding: {top:4, bottom:4, left:4, right:4},
+        textColor:   [0,0,0],
+        lineColor:   [200,215,230],
+        lineWidth:   0.3,
+        valign:      "middle"
+      },
+      headStyles:{
+        fillColor:  [11,41,77],
+        textColor:  [255,255,255],
+        fontStyle:  "bold",
+        fontSize:   10,
+        font:       "times",
+        cellPadding:{top:5, bottom:5, left:4, right:4}
+      },
+      alternateRowStyles:{ fillColor:[240,246,255] },
+      columnStyles:{
+        0:{cellWidth:10,  halign:"center", fontStyle:"bold"},
+        1:{cellWidth:58},
+        2:{cellWidth:30},
+        3:{cellWidth:36},
+        4:{cellWidth:38}
+      },
+      margin:{left:14, right:14, top:47, bottom:22},
+      didDrawPage: function(){
+        pdfHeader(doc, "Registration List", logo);
+      }
+    });
+
+    pdfFooter(doc, dateStr);
+    doc.save("PolyCoach-Registration-List-" + new Date().toISOString().slice(0,10) + ".pdf");
+  }catch(err){
+    alert("Could not generate Registration List PDF. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download List';
+}
+
+/* ── RECEIPT DOWNLOAD ── */
+async function downloadReceipt(id, name){
+  try{
+    const r=await fetch("/api/admin?action=receipt&id="+id,{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.success){alert("Could not load receipt.");return;}
+    const rc=d.receipt;
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const pW=doc.internal.pageSize.getWidth();
+    const dateStr=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+    const logo=await loadLogo2();
+
+    // Header
+    doc.setFillColor(11,41,77);
+    doc.rect(0,0,pW,36,'F');
+    if(logo){try{doc.addImage(logo,'PNG',10,4,28,28);}catch(e){}}
+    doc.setFont("times","bold");doc.setFontSize(17);doc.setTextColor(255,255,255);
+    doc.text("PolyCoach",42,16);
+    doc.setFont("times","normal");doc.setFontSize(8.5);doc.setTextColor(180,210,255);
+    doc.text("Student Bus Booking System  —  MUBAS",42,23);
+    doc.setFont("times","bold");doc.setFontSize(13);doc.setTextColor(255,255,255);
+    doc.text("Booking Receipt",pW-12,20,{align:"right"});
+    doc.setDrawColor(0,153,255);doc.setLineWidth(1.5);doc.line(0,36,pW,36);
+
+    // Receipt body
+    doc.setTextColor(0,0,0);
+    doc.setFont("times","bold");doc.setFontSize(14);
+    doc.text("BOOKING CONFIRMED",pW/2,50,{align:"center"});
+    doc.setDrawColor(0,153,255);doc.setLineWidth(0.5);
+    doc.line(14,53,pW-14,53);
+
+    // Green checkmark area
+    doc.setFillColor(230,250,235);
+    doc.roundedRect(14,57,pW-28,14,3,3,'F');
+    doc.setFont("times","bold");doc.setFontSize(11);doc.setTextColor(40,120,60);
+    doc.text("✓  Your seat has been confirmed by the administrator.",pW/2,66,{align:"center"});
+
+    // Details table
+    const details=[
+      ["Passenger Name",rc.passengerName||"—"],
+      ["Program",rc.program||"—"],
+      ["Phone Number",rc.phone||"—"],
+      ["Destination",rc.destination||"—"],
+      ["Seat Number","Seat "+rc.seatNumber],
+      ["Booking Status",rc.status?rc.status.toUpperCase():"—"],
+      ["Booking Date",rc.createdAt?new Date(rc.createdAt).toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"}):"—"],
+      ["Issued On",dateStr]
+    ];
+
+    let rowY=80;
+    details.forEach(([label,val],i)=>{
+      const bg=i%2===0?[245,248,252]:[255,255,255];
+      doc.setFillColor(...bg);
+      doc.rect(14,rowY,pW-28,10,'F');
+      doc.setFont("times","bold");doc.setFontSize(10);doc.setTextColor(11,41,77);
+      doc.text(label,20,rowY+7);
+      doc.setFont("times","normal");doc.setFontSize(10);doc.setTextColor(0,0,0);
+      doc.text(String(val),pW/2,rowY+7);
+      rowY+=10;
+    });
+
+    // Border around details
+    doc.setDrawColor(200,215,230);doc.setLineWidth(0.4);
+    doc.rect(14,80,pW-28,details.length*10);
+
+    // Note
+    rowY+=8;
+    doc.setFont("times","italic");doc.setFontSize(9);doc.setTextColor(120,120,120);
+    doc.text("Please present this receipt on your day of travel.",pW/2,rowY,{align:"center"});
+
+    // Footer
+    const pH=doc.internal.pageSize.getHeight();
+    doc.setDrawColor(0,153,255);doc.setLineWidth(0.8);doc.line(0,pH-18,pW,pH-18);
+    doc.setFillColor(11,41,77);doc.rect(0,pH-17,pW,17,'F');
+    doc.setFont("times","normal");doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text("polycoachsupport@gmail.com  |  +265 881 730 203  |  MUBAS, Blantyre, Malawi",14,pH-9);
+    doc.text("Printed: "+dateStr,14,pH-4);
+    doc.text("Page 1 of 1",pW-12,pH-6,{align:"right"});
+
+    doc.save("PolyCoach-Receipt-"+rc.passengerName.replace(/\s+/g,"-")+"-Seat"+rc.seatNumber+".pdf");
+  }catch(err){
+    alert("Could not generate receipt.");
+    console.error(err);
+  }
+}
+
+/* ── LOGOUT ── */
+async function adminLogout(){
+  localStorage.removeItem("polycoachToken");
+  localStorage.removeItem("polycoachUser");
+  window.location.href="Home-Page.html";
+}
+
+// Close modals on overlay click
+document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",function(e){if(e.target===this)this.style.display="none";}));
+</script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Select Seat — PolyCoach</title>
+<link rel="stylesheet" href="/css/Home-Page.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+.bus-page-body{background-image:linear-gradient(rgba(11,41,77,0.84),rgba(11,41,77,0.7)),url('/Images/Jenda.jpg');background-size:cover;background-position:center;background-attachment:fixed;min-height:90vh;padding:50px 16px;}
+.bus-page-inner{max-width:600px;margin:0 auto;}
+.bus-page-title{text-align:center;color:#fff;margin-bottom:24px;}
+.bus-page-title h1{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:900;text-transform:uppercase;}
+.bus-page-title p{color:#ddd;margin-top:8px;font-size:0.95rem;}
+.summary-card{background:rgba(255,255,255,0.97);border-radius:14px;padding:24px;margin-top:24px;box-shadow:0 12px 35px rgba(0,0,0,0.25);}
+.summary-card h3{color:var(--primary);font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;margin-bottom:14px;}
+.summary-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:0.95rem;}
+.summary-row:last-child{border:none;}
+.summary-label{color:#666;font-weight:700;}
+.summary-val{color:var(--primary);font-weight:700;}
+#confirmBtn{margin-top:16px;width:100%;}
+#confirmBtn:disabled{background:#aaa;cursor:not-allowed;}
+#seatTooltip{position:fixed;background:#333;color:#fff;padding:6px 12px;border-radius:5px;font-size:0.8rem;pointer-events:none;display:none;z-index:500;white-space:nowrap;}
+</style>
+</head>
+<body>
+
+<div class="Home-Page-Header">
+  <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
+  <div class="Right-Header">
+    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
+    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Register-Button" onclick="location.href='Book-Login.html'">Book</button>
+  </div>
+</div>
+
+<div class="bus-page-body">
+  <div class="bus-page-inner">
+    <div class="bus-page-title">
+      <h1>Choose Your Seat</h1>
+      <p>Hover over seats to see occupant info. Click a green seat to select it.</p>
+    </div>
+    <div class="bus-exterior">
+      <div class="driver-cabin"><i class="fa-solid fa-dharmachakra"></i><span style="font-weight:700;color:#555;">Driver</span></div>
+      <div id="seatMap" class="bus-grid"></div>
+    </div>
+    <div class="seat-legend">
+      <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
+      <div class="legend-item"><div class="legend-box legend-pending"></div> Pending</div>
+      <div class="legend-item"><div class="legend-box legend-booked"></div> Booked</div>
+      <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
+    </div>
+    <div class="summary-card">
+      <h3>Booking Summary</h3>
+      <div class="summary-row"><span class="summary-label">Passenger</span><span class="summary-val" id="sumName">—</span></div>
+      <div class="summary-row"><span class="summary-label">Destination</span><span class="summary-val" id="sumDest">—</span></div>
+      <div class="summary-row"><span class="summary-label">Selected Seat</span><span class="summary-val" id="sumSeat">None selected</span></div>
+      <button class="submit-btn" id="confirmBtn" disabled onclick="confirmBooking()">CONFIRM BOOKING</button>
+    </div>
+  </div>
+</div>
+
+<div id="seatTooltip"></div>
+
+<div class="Home-Page-Footer">
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Mid-Footer">
+    <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
+    <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
+    <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
+  </div>
+  <div class="Home-Right-Footer"><div class="Footer-Text">Social Media:</div><div class="Social-Container">
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
+    <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+  </div></div>
+</div>
+<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<script src="/js/popup.js"></script>
+<script>
+// Guard
+(function(){
+  const u=getUser();
+  if(!u||!u.fullName){alert("Please fill in the booking form first.");window.location.href="Book-Login.html";}
+  const p=localStorage.getItem("passengerName");
+  if(!p){alert("Please go back and choose who you are booking for.");window.location.href="Book-Login.html";}
+})();
+
+let selectedSeat=null;
+const passengerName=localStorage.getItem("passengerName");
+const destination=localStorage.getItem("selectedDestination");
+const u=getUser();
+const tooltip=document.getElementById("seatTooltip");
+
+document.getElementById("sumName").textContent=passengerName||"—";
+document.getElementById("sumDest").textContent=destination||"—";
+
+// Tooltip positioning — stays within viewport
+document.addEventListener("mousemove",e=>{
+  if(tooltip.style.display!=="none"){
+    const tw=tooltip.offsetWidth,vw=window.innerWidth,vh=window.innerHeight;
+    let left=e.clientX+14;if(left+tw+10>vw)left=e.clientX-tw-10;
+    let top=e.clientY-30;if(top<0)top=e.clientY+14;if(top+tooltip.offsetHeight>vh)top=vh-tooltip.offsetHeight-8;
+    tooltip.style.left=Math.max(4,left)+"px";tooltip.style.top=Math.max(4,top)+"px";
+  }
+});
+
+async function loadSeats(){
+  const r=await fetch("/api/seats");const seats=await r.json();
+  const map=document.getElementById("seatMap");map.innerHTML="";
+  let counter=1;
+  for(let row=0;row<13;row++){
+    for(let col=1;col<=6;col++){
+      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
+      else if(counter<=65){renderSeat(seats,counter,map);counter++;}
+    }
+  }
+  const backRow=document.createElement("div");backRow.className="back-row-container";
+  for(let i=0;i<7;i++){renderSeat(seats,counter,backRow);counter++;}
+  map.appendChild(backRow);
+}
+
+function renderSeat(seats,num,parent){
+  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const div=document.createElement("div");
+  div.className="seat "+data.status;div.textContent=num;
+  div.addEventListener("mouseenter",(e)=>{
+    let tip="Seat "+num;
+    if(data.passengerName)tip+=" — "+data.passengerName;
+    else tip+=" ("+data.status+")";
+    tooltip.textContent=tip;
+    tooltip.style.visibility="hidden";tooltip.style.display="block";
+    const tw=tooltip.offsetWidth,vw=window.innerWidth;
+    const left=e.clientX+14+tw+10>vw?e.clientX-tw-10:e.clientX+14;
+    tooltip.style.left=Math.max(4,left)+"px";tooltip.style.top=Math.max(4,e.clientY-30)+"px";
+    tooltip.style.visibility="visible";
+  });
+  div.addEventListener("mouseleave",()=>tooltip.style.display="none");
+  if(data.status==="available") div.onclick=()=>selectSeat(num,div);
+  parent.appendChild(div);
+}
+
+function selectSeat(num,el){
+  document.querySelectorAll(".seat.selected").forEach(s=>s.className="seat available");
+  el.className="seat selected";selectedSeat=num;
+  document.getElementById("sumSeat").textContent="Seat "+num;
+  document.getElementById("confirmBtn").disabled=false;
+}
+
+async function confirmBooking(){
+  if(!selectedSeat)return;
+  const btn=document.getElementById("confirmBtn");
+  btn.disabled=true;btn.textContent="Booking...";
+  const paymentProof=localStorage.getItem("paymentProofUrl")||null;
+  try{
+    const r=await fetch("/api/book-seat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        seatNumber:   selectedSeat,
+        passengerName,
+        destination:  destination||"",
+        phone:        u?u.phone:"",
+        program:      u?u.program:"",
+        paymentProof
+      })
+    });
+    const d=await r.json();
+    if(d.success){
+      // Clear payment proof from localStorage after booking
+      localStorage.removeItem("paymentProofUrl");
+      localStorage.removeItem("passengerName");
+      window.location.href="Final-Thanks.html";
+    } else {
+      alert(d.message||"Booking failed. Please try another seat.");
+      btn.disabled=false;btn.textContent="CONFIRM BOOKING";
+      loadSeats();
+    }
+  }catch{
+    alert("Server error. Please try again.");
+    btn.disabled=false;btn.textContent="CONFIRM BOOKING";
+  }
+}
+
+loadSeats();
+</script>
+</body>
+</html>
