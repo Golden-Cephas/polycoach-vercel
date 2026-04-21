@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel — PolyCoach</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="/js/popup.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -394,8 +395,8 @@ let currentSeatNum=null;
 // JWT auth helpers (from popup.js)
 // authHeaders() is defined in popup.js
 
-// Admin auth guard — check JWT token
-(function(){
+// Admin auth guard — runs after DOM + popup.js fully loaded
+document.addEventListener("DOMContentLoaded",function(){
   const u=getUser();
   const t=getToken();
   if(!u||!t||u.role!=="admin"){
@@ -404,7 +405,7 @@ let currentSeatNum=null;
   }
   document.getElementById("adminWelcome").textContent="Welcome, "+u.fullName;
   loadAll();
-})();
+});
 
 async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
@@ -424,32 +425,52 @@ function showPanel(name){
 
 /* ── BUS ── */
 async function loadBus(){
-  const r=await fetch("/api/seats");const seats=await r.json();
-  const map=document.getElementById("adminSeatMap");map.innerHTML="";
-  let cnt={available:0,pending:0,booked:0};
-  let counter=1;
-  for(let row=0;row<13;row++){
-    for(let col=1;col<=6;col++){
-      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
-      else if(counter<=65){renderAdminSeat(seats,counter,map,cnt);counter++;}
+  try{
+    const r=await fetch("/api/seats");
+    if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
+    const seats=await r.json();
+    const map=document.getElementById("adminSeatMap");
+    map.innerHTML="";
+    let cnt={available:0,pending:0,booked:0};
+    let counter=1;
+    // 13 rows x 5 seats (2 left + 3 right) = 65 seats
+    for(let row=0;row<13;row++){
+      for(let col=1;col<=6;col++){
+        if(col===3){
+          const a=document.createElement("div");
+          a.className="seat aisle-space";
+          map.appendChild(a);
+        } else if(counter<=65){
+          renderAdminSeat(seats,counter,map,cnt);
+          counter++;
+        }
+      }
     }
+    // Back row: seats 66-72
+    const back=document.createElement("div");
+    back.className="back-row-container";
+    while(counter<=72){
+      renderAdminSeat(seats,counter,back,cnt);
+      counter++;
+    }
+    map.appendChild(back);
+    document.getElementById("bs-avail").textContent=cnt.available;
+    document.getElementById("bs-pend").textContent=cnt.pending;
+    document.getElementById("bs-book").textContent=cnt.booked;
+  }catch(err){
+    console.error("loadBus error:",err);
+    document.getElementById("adminSeatMap").innerHTML='<p style="color:red;padding:10px;">Error loading bus: '+err.message+'</p>';
   }
-  const back=document.createElement("div");back.className="back-row-container";
-  for(let i=0;i<7;i++){renderAdminSeat(seats,counter,back,cnt);counter++;}
-  map.appendChild(back);
-  document.getElementById("bs-avail").textContent=cnt.available;
-  document.getElementById("bs-pend").textContent=cnt.pending;
-  document.getElementById("bs-book").textContent=cnt.booked;
 }
 
 function renderAdminSeat(seats,num,parent,cnt){
-  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const data=seats.find(s=>Number(s.number)===num)||{number:num,status:"available"};
   const div=document.createElement("div");
   const st=data.status==="taken"?"booked":data.status;
   div.className="seat "+st;
   div.textContent=num;
   if(cnt[st]!==undefined) cnt[st]++;
-  div.title=data.passengerName?`${data.passengerName} (${st})`:`Seat ${num} (${st})`;
+  div.title=data.passengerName?data.passengerName+" ("+st+")":`Seat ${num} (${st})`;
   div.onclick=()=>openSeatEditor(num,data);
   parent.appendChild(div);
 }
@@ -567,12 +588,15 @@ async function loadBookings(){
   const pending=bks.filter(b=>b.status==="pending").length;
   const approved=bks.filter(b=>b.status==="approved").length;
   const rejected=bks.filter(b=>b.status==="rejected").length;
-  document.getElementById("bk-pending").textContent=pending;
-  document.getElementById("bk-approved").textContent=approved;
-  document.getElementById("bk-rejected").textContent=rejected;
+  const bkPendEl=document.getElementById("bk-pending");
+  const bkAppEl=document.getElementById("bk-approved");
+  const bkRejEl=document.getElementById("bk-rejected");
+  if(bkPendEl) bkPendEl.textContent=pending;
+  if(bkAppEl) bkAppEl.textContent=approved;
+  if(bkRejEl) bkRejEl.textContent=rejected;
   // Badge
   const badge=document.getElementById("pendingBadge");
-  badge.textContent=pending;badge.style.display=pending>0?"inline-block":"none";
+  if(badge){badge.textContent=pending;badge.style.display=pending>0?"inline-block":"none";}
   const tbody=document.getElementById("bookingsTbody");tbody.innerHTML="";
   if(!bks.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No bookings yet.</td></tr>';return;}
   bks.forEach(b=>{
@@ -671,13 +695,20 @@ function openAddBookingModal(){document.getElementById("addBookingModal").style.
 async function addBooking(){
   const name=document.getElementById("mb-name").value.trim();
   const phone=document.getElementById("mb-phone").value.trim();
-  const seat=document.getElementById("mb-seat").value;
+  const seatVal=document.getElementById("mb-seat").value.trim();
   const dest=document.getElementById("mb-dest").value.trim();
-  if(!name||!seat) return alert("Passenger name and seat are required.");
-  const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone,seatNumber:Number(seat),destination:dest})});
-  const d=await r.json();
-  if(d.success){closeModal("addBookingModal");loadBookings();loadBus();}
-  else alert(d.message||"Error adding booking.");
+  if(!name){alert("Passenger name is required.");return;}
+  const seatNum=Number(seatVal);
+  if(!seatVal||isNaN(seatNum)||seatNum<1||seatNum>72){alert("Please enter a valid seat number between 1 and 72.");return;}
+  const btn=document.querySelector("#addBookingModal .btn-save");
+  btn.disabled=true;btn.textContent="Adding...";
+  try{
+    const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone:phone||"",seatNumber:seatNum,destination:dest})});
+    const d=await r.json();
+    if(d.success){closeModal("addBookingModal");loadBookings();loadBus();loadUsers();}
+    else alert(d.message||"Error adding booking.");
+  }catch(e){alert("Server error. Please try again.");}
+  btn.disabled=false;btn.textContent="ADD BOOKING";
 }
 
 /* ── SETTINGS ── */
