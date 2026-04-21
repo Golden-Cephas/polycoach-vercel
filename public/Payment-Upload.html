@@ -197,19 +197,19 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
     // Step 2: Upload directly to Cloudinary
     const u=getUser();
     const fd=new FormData();
+    // Only append fields that are included in the signature
     fd.append("file",file);
     fd.append("api_key",sigData.apiKey);
     fd.append("timestamp",sigData.timestamp);
     fd.append("signature",sigData.signature);
     fd.append("folder",sigData.folder);
-    // Tag with passenger name for easy identification in Cloudinary dashboard
-    const passengerName=localStorage.getItem("passengerName")||u.fullName||"unknown";
-    fd.append("context","passenger="+passengerName+"|phone="+(u.phone||""));
+    // Note: do NOT add any extra fields (context, tags etc) unless they are in the signature
 
     progressFill.style.width="60%";
-    const upRes=await fetch(`https://api.cloudinary.com/v1_1/${sigData.cloudName}/image/upload`,{method:"POST",body:fd});
+    const upRes=await fetch("https://api.cloudinary.com/v1_1/"+sigData.cloudName+"/image/upload",{method:"POST",body:fd});
     const upData=await upRes.json();
-    if(!upData.secure_url) throw new Error("Upload to Cloudinary failed.");
+    if(upData.error) throw new Error("Cloudinary: "+upData.error.message);
+    if(!upData.secure_url) throw new Error("Upload failed - no URL returned.");
     progressFill.style.width="100%";
 
     // Step 3: Store Cloudinary URL in localStorage for book-seat
