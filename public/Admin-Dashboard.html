@@ -460,9 +460,8 @@ async function saveSeatEdit(){
   const btn=document.querySelector(".btn-save");
   if(btn){btn.disabled=true;btn.textContent="Saving...";}
   try{
-    const _ah=(typeof authHeaders==="function")?authHeaders():{"Content-Type":"application/json","Authorization":"Bearer "+(localStorage.getItem("polycoachToken")||"")};
     const r=await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{
-      method:"POST",headers:_ah,
+      method:"POST",headers:authHeaders(),
       body:JSON.stringify({status,passengerName:name,destination:dest})
     });
     const d=await r.json();

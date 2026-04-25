@@ -115,21 +115,6 @@ module.exports = async (req, res) => {
         });
       }
 
-      // Update booking with missing fields (called from popup)
-      if (action === "update-booking" && id) {
-        const b = await Booking.findById(id);
-        if (!b) return res.status(404).json({ success: false });
-        const {passengerName,phone,destination,deposit,departureDate,departureVenue}=req.body||{};
-        if(passengerName)  b.passengerName  = passengerName;
-        if(phone)          b.phone          = phone;
-        if(destination)    b.destination    = destination;
-        if(deposit)        b.deposit        = deposit;
-        if(departureDate)  b.departureDate  = departureDate;
-        if(departureVenue) b.departureVenue = departureVenue;
-        await b.save();
-        return res.json({ success: true });
-      }
-
       // Get student ID for a user
       if (action === "studentid" && id) {
         const user = await User.findById(id).select("studentID fullName");
@@ -158,7 +143,7 @@ module.exports = async (req, res) => {
           const lbl=(n>=66)?"BR"+(n-65):(Math.ceil(n/5))+["A","B","C","D","E"][(n-(Math.ceil(n/5)-1)*5)-1];
           const now=new Date();
           const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
-          const l6=(b.phone||"000000").replace(/\D/g,"").slice(-6).padStart(6,"0");
+          const l6=(b.phone||"000000").replace(/[^0-9]/g,"").slice(-6).padStart(6,"0");
           const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
           const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
           b.receiptNumber=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt).padStart(2,"0");
@@ -213,7 +198,7 @@ module.exports = async (req, res) => {
         await seat.save();
         await Booking.create({ seatNumber: Number(seatNumber), passengerName, destination: destination||"", phone: phone||"", status: "approved" });
         // Auto-register passenger
-        const nameExists = await User.findOne({ fullName: { $regex: new RegExp("^"+passengerName.trim()+"$","i") } });
+        const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
         if (!nameExists) {
           await User.create({ fullName: passengerName, phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
         }
@@ -252,7 +237,7 @@ module.exports = async (req, res) => {
 
         if (status === "booked" && passengerName) {
           // Auto-register passenger
-          const nameExists = await User.findOne({ fullName: { $regex: new RegExp("^"+passengerName.trim()+"$","i") } });
+          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
           if (!nameExists) {
             await User.create({ fullName: passengerName.trim(), phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
           }
@@ -264,7 +249,7 @@ module.exports = async (req, res) => {
             const lbl=(seatN>=66)?"BR"+(seatN-65):(Math.ceil(seatN/5))+["A","B","C","D","E"][(seatN-(Math.ceil(seatN/5)-1)*5)-1];
             const now=new Date();
             const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
-            const l6=(phone||"000000").replace(/\D/g,"").slice(-6).padStart(6,"0");
+            const l6=(phone||"000000").replace(/[^0-9]/g,"").slice(-6).padStart(6,"0");
             const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
             const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
             const receiptNo=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt+1).padStart(2,"0");
@@ -338,11 +323,26 @@ module.exports = async (req, res) => {
         return res.json({ success: true, message: `Password for ${adminDoc.fullName} reset to default.` });
       }
 
+      // Update booking missing fields from popup
+      if (action === "update-booking" && id) {
+        const b = await Booking.findById(id);
+        if (!b) return res.status(404).json({ success: false });
+        const {passengerName,phone,destination,deposit,departureDate,departureVenue}=req.body||{};
+        if(passengerName)  b.passengerName  = passengerName;
+        if(phone)          b.phone          = phone;
+        if(destination)    b.destination    = destination;
+        if(deposit)        b.deposit        = deposit;
+        if(departureDate)  b.departureDate  = departureDate;
+        if(departureVenue) b.departureVenue = departureVenue;
+        await b.save();
+        return res.json({ success: true });
+      }
+
       // Register passenger (from seat edit)
       if (action === "register-passenger") {
         const { fullName, destination } = req.body;
         if (!fullName) return res.json({ success: false, message: "Name required." });
-        const exists = await User.findOne({ fullName: { $regex: new RegExp("^"+fullName.trim()+"$","i") } });
+        const exists = await User.findOne({ fullName: { $regex: "^"+fullName.trim()+"$", $options: "i" } });
         if (exists) return res.json({ success: true, existing: true });
         await User.create({ fullName: fullName.trim(), phone: "admin-"+Date.now(), program: "Admin Assigned", destination: destination||"" });
         return res.json({ success: true, existing: false });
