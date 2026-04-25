@@ -95,18 +95,39 @@ module.exports = async (req, res) => {
       if (action === "receipt" && id) {
         const b = await Booking.findById(id);
         if (!b) return res.status(404).json({ success: false });
+        const settings = await Settings.findOne();
         return res.json({
           success: true,
           receipt: {
-            passengerName: b.passengerName,
-            phone:         b.phone,
-            program:       b.program || "",
-            destination:   b.destination,
-            seatNumber:    b.seatNumber,
-            status:        b.status,
-            createdAt:     b.createdAt
+            receiptNumber:  b.receiptNumber  || "",
+            seatLabel:      b.seatLabel      || ("Seat "+b.seatNumber),
+            passengerName:  b.passengerName  || "",
+            phone:          b.phone          || "",
+            program:        b.program        || "",
+            destination:    b.destination    || "",
+            deposit:        b.deposit        || (settings&&settings.bookingFee)     || "",
+            departureDate:  b.departureDate  || (settings&&settings.departureDate)  || "",
+            departureVenue: b.departureVenue || (settings&&settings.departureVenue) || "",
+            seatNumber:     b.seatNumber,
+            status:         b.status,
+            createdAt:      b.createdAt
           }
         });
+      }
+
+      // Update booking with missing fields (called from popup)
+      if (action === "update-booking" && id) {
+        const b = await Booking.findById(id);
+        if (!b) return res.status(404).json({ success: false });
+        const {passengerName,phone,destination,deposit,departureDate,departureVenue}=req.body||{};
+        if(passengerName)  b.passengerName  = passengerName;
+        if(phone)          b.phone          = phone;
+        if(destination)    b.destination    = destination;
+        if(deposit)        b.deposit        = deposit;
+        if(departureDate)  b.departureDate  = departureDate;
+        if(departureVenue) b.departureVenue = departureVenue;
+        await b.save();
+        return res.json({ success: true });
       }
 
       // Get student ID for a user
@@ -131,6 +152,27 @@ module.exports = async (req, res) => {
         const b = await Booking.findById(id);
         if (!b) return res.status(404).json({ success: false });
         b.status = "approved";
+        // Generate receipt number if not set
+        if (!b.receiptNumber) {
+          const n=b.seatNumber;
+          const lbl=(n>=66)?"BR"+(n-65):(Math.ceil(n/5))+["A","B","C","D","E"][(n-(Math.ceil(n/5)-1)*5)-1];
+          const now=new Date();
+          const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
+          const l6=(b.phone||"000000").replace(/\D/g,"").slice(-6).padStart(6,"0");
+          const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+          const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
+          b.receiptNumber=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt).padStart(2,"0");
+          b.seatLabel=lbl;
+        }
+        // Pull departure info from settings if missing
+        if(!b.departureDate||!b.departureVenue||!b.deposit){
+          const settings=await Settings.findOne();
+          if(settings){
+            if(!b.departureDate)  b.departureDate  = settings.departureDate  ||"";
+            if(!b.departureVenue) b.departureVenue = settings.departureVenue ||"";
+            if(!b.deposit)        b.deposit        = settings.bookingFee     ||"";
+          }
+        }
         await b.save();
         await Seat.findOneAndUpdate({ number: b.seatNumber }, { status: "booked" });
         return res.json({ success: true });
@@ -195,21 +237,63 @@ module.exports = async (req, res) => {
 
       // Edit seat directly
       if (action === "edit-seat" && num) {
-        const { status, passengerName, destination } = req.body;
-        const seat = await Seat.findOne({ number: Number(num) });
+        const { status, passengerName, destination, phone } = req.body;
+        const seatN = Number(num);
+        const seat = await Seat.findOne({ number: seatN });
         if (!seat) return res.status(404).json({ success: false });
         seat.status        = status || "available";
         seat.passengerName = status === "available" ? null : (passengerName || null);
         seat.destination   = destination || "";
+        seat.phone         = phone || seat.phone || "";
         await seat.save();
-        // Auto-register passenger
-        if (status !== "available" && passengerName) {
-          const exists = await User.findOne({ fullName: { $regex: new RegExp("^"+passengerName.trim()+"$","i") } });
-          if (!exists) {
-            await User.create({ fullName: passengerName.trim(), phone: "admin-"+Date.now(), program: "Admin Assigned", destination: destination||"" });
+
+        let bookingCreated = false;
+        let bookingId      = null;
+
+        if (status === "booked" && passengerName) {
+          // Auto-register passenger
+          const nameExists = await User.findOne({ fullName: { $regex: new RegExp("^"+passengerName.trim()+"$","i") } });
+          if (!nameExists) {
+            await User.create({ fullName: passengerName.trim(), phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
+          }
+          // Create booking record if none exists for this seat
+          const existing = await Booking.findOne({ seatNumber: seatN, status: { $ne: "rejected" } });
+          if (!existing) {
+            const settings = await Settings.findOne();
+            // Build receipt number X-Y-Z
+            const lbl=(seatN>=66)?"BR"+(seatN-65):(Math.ceil(seatN/5))+["A","B","C","D","E"][(seatN-(Math.ceil(seatN/5)-1)*5)-1];
+            const now=new Date();
+            const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
+            const l6=(phone||"000000").replace(/\D/g,"").slice(-6).padStart(6,"0");
+            const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
+            const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
+            const receiptNo=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt+1).padStart(2,"0");
+            const booking = await Booking.create({
+              seatNumber:    seatN,
+              passengerName,
+              destination:   destination||"",
+              phone:         phone||"",
+              program:       "",
+              receiptNumber: receiptNo,
+              seatLabel:     lbl,
+              deposit:       (settings&&settings.bookingFee)     ||"",
+              departureDate: (settings&&settings.departureDate)  ||"",
+              departureVenue:(settings&&settings.departureVenue) ||"",
+              paymentProof:  null,
+              status:        "approved"
+            });
+            bookingCreated=true;
+            bookingId=booking._id;
+          } else if(existing.status==="pending"){
+            existing.status="approved";
+            if(!existing.receiptNumber) existing.receiptNumber="SEAT"+seatN+"-APPROVED";
+            await existing.save();
+            bookingId=existing._id;
+          } else {
+            bookingId=existing._id;
           }
         }
-        return res.json({ success: true });
+        return res.json({ success: true, bookingCreated, bookingId });
       }
 
       // Reset all seats

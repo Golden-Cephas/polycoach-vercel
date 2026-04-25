@@ -55,14 +55,19 @@ const Seat = model("Seat", new mongoose.Schema({
 }));
 
 const Booking = model("Booking", new mongoose.Schema({
-  seatNumber:    Number,
-  passengerName: String,
-  destination:   String,
-  phone:         String,
-  program:       { type: String, default: "" },
-  paymentProof:  { type: String, default: null }, // Cloudinary URL
-  status:        { type: String, enum: ["pending","approved","rejected"], default: "pending" },
-  createdAt:     { type: Date, default: Date.now }
+  seatNumber:     Number,
+  passengerName:  String,
+  destination:    String,
+  phone:          { type: String, default: "" },
+  program:        { type: String, default: "" },
+  receiptNumber:  { type: String, default: "" },
+  seatLabel:      { type: String, default: "" },
+  deposit:        { type: String, default: "" },
+  departureDate:  { type: String, default: "" },
+  departureVenue: { type: String, default: "" },
+  paymentProof:   { type: String, default: null },
+  status:         { type: String, enum: ["pending","approved","rejected"], default: "pending" },
+  createdAt:      { type: Date, default: Date.now }
 }));
 
 const Settings = model("Settings", new mongoose.Schema({
