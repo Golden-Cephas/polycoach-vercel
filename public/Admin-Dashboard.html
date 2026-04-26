@@ -1492,29 +1492,23 @@ let _pendingReceiptId = null;
 
 function openMissingFieldsPopup(id, rc){
   _pendingReceiptId = id;
-  document.getElementById("rf-name").value        = rc.passengerName  || "";
-  document.getElementById("rf-phone").value       = rc.phone          || "";
-  document.getElementById("rf-dest").value        = rc.destination    || "";
-  document.getElementById("rf-from").value        = rc.departureVenue || "";
-  document.getElementById("rf-date").value        = rc.departureDate  || "";
-  document.getElementById("rf-deposit").value     = rc.deposit        || "";
-  document.getElementById("missingFieldsPopup").style.display = "flex";
+  // Only ask for deposit — everything else is already saved
+  const depEl = document.getElementById("rf-deposit");
+  if(depEl) depEl.value = rc.deposit || "";
+  const popup = document.getElementById("missingFieldsPopup");
+  if(popup) popup.style.display = "flex";
 }
 
 async function confirmMissingFields(){
-  const data = {
-    passengerName:  document.getElementById("rf-name").value.trim(),
-    phone:          document.getElementById("rf-phone").value.trim(),
-    destination:    document.getElementById("rf-dest").value.trim(),
-    departureVenue: document.getElementById("rf-from").value.trim(),
-    departureDate:  document.getElementById("rf-date").value.trim(),
-    deposit:        document.getElementById("rf-deposit").value.trim(),
-  };
-  if(!data.passengerName){ alert("Name is required."); return; }
-  document.getElementById("missingFieldsPopup").style.display = "none";
+  const deposit = (document.getElementById("rf-deposit")||{value:""}).value.trim();
+  if(!deposit){ alert("Please enter the deposit amount."); return; }
+  const popup = document.getElementById("missingFieldsPopup");
+  if(popup) popup.style.display = "none";
+  // Save deposit to booking record
   await fetch("/api/admin?action=update-booking&id="+_pendingReceiptId, {
-    method:"POST", headers:authHeaders(), body:JSON.stringify(data)
+    method:"POST", headers:authHeaders(), body:JSON.stringify({deposit})
   }).catch(()=>{});
+  // Fetch updated receipt and generate
   const r = await fetch("/api/admin?action=receipt&id="+_pendingReceiptId, {headers:authHeaders()});
   const d = await r.json();
   if(d.success) generateReceiptPDF(d.receipt);
@@ -1706,5 +1700,23 @@ async function adminLogout(){
 // Close modals on overlay click
 document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click",function(e){if(e.target===this)this.style.display="none";}));
 </script>
+
+<!-- DEPOSIT POPUP — admin enters deposit before receipt downloads -->
+<div id="missingFieldsPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.35);font-family:'Lato',Arial,sans-serif;">
+    <h3 style="color:#0b294d;margin:0 0 6px 0;font-family:'Barlow Condensed',Arial,sans-serif;font-size:1.35rem;">Enter Deposit Amount</h3>
+    <p style="color:#888;font-size:0.83rem;margin-bottom:20px;">Enter the deposit amount in MK before generating the receipt.</p>
+    <div>
+      <label style="font-size:0.75rem;font-weight:700;color:#0b294d;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Deposit Amount (MK)</label>
+      <input id="rf-deposit" type="text" placeholder="e.g. K5,000" style="width:100%;padding:11px 13px;border:2px solid #e0e6f0;border-radius:7px;font-size:1rem;box-sizing:border-box;outline:none;" oninput="this.style.borderColor='#0099ff'">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="confirmMissingFields()" style="flex:1;padding:13px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.95rem;cursor:pointer;transition:background 0.2s;" onmouseover="this.style.background='#0099ff'" onmouseout="this.style.background='#0b294d'">
+        <i class="fa-solid fa-file-pdf"></i>&nbsp; Download Receipt
+      </button>
+      <button onclick="document.getElementById('missingFieldsPopup').style.display='none'" style="padding:13px 16px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

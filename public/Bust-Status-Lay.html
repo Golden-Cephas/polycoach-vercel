@@ -110,28 +110,48 @@ document.addEventListener("mousemove",e=>{
     }
   }catch(e){}
   await loadSeats();
-  // Highlight seat from QR code URL param ?seat=X
+
+function closeQRPopup(){
+  document.getElementById("qrVerifyPopup").style.display="none";
+  // Now highlight the seat
+  if(window._highlightSeat){
+    const seatNum = window._highlightSeat;
+    const allSeats = document.querySelectorAll(".seat[data-seat]");
+    allSeats.forEach(el=>{
+      if(Number(el.dataset.seat)===seatNum){
+        el.style.outline="3px solid #0099ff";
+        el.style.outlineOffset="3px";
+        el.scrollIntoView({behavior:"smooth",block:"center"});
+      }
+    });
+  }
+}
+  // QR code scan — ?seat=X in URL
   const urlSeat = new URLSearchParams(window.location.search).get("seat");
   if(urlSeat){
     const seatNum = Number(urlSeat);
-    const allSeats = document.querySelectorAll(".seat[data-seat]");
-    allSeats.forEach(el=>{
-      if(Number(el.dataset.seat) === seatNum){
-        el.style.outline = "3px solid #0099ff";
-        el.style.outlineOffset = "2px";
-        el.style.zIndex = "10";
-        el.scrollIntoView({behavior:"smooth", block:"center"});
-        // Show tooltip immediately
-        const tip = document.getElementById("seatTooltip");
-        if(tip){
-          tip.textContent = el.title || "Seat "+seatNum;
-          tip.style.display = "block";
-          const rect = el.getBoundingClientRect();
-          tip.style.left = (rect.left + window.scrollX)+"px";
-          tip.style.top  = (rect.top  + window.scrollY - 32)+"px";
+    // Fetch seat data to get passenger name + booking details
+    try{
+      const sr = await fetch("/api/seats");
+      const seats = await sr.json();
+      const seatData = seats.find(s=>Number(s.number)===seatNum);
+      const stR = await fetch("/api/settings");
+      const settings = await stR.json();
+      if(seatData){
+        // Show verification popup
+        const popup = document.getElementById("qrVerifyPopup");
+        if(popup){
+          document.getElementById("qv-name").textContent  = seatData.passengerName || "Passenger";
+          document.getElementById("qv-seat").textContent  = seatNum;
+          document.getElementById("qv-from").textContent  = settings.departureVenue || "MUBAS";
+          document.getElementById("qv-to").textContent    = seatData.destination   || "";
+          document.getElementById("qv-date").textContent  = settings.departureDate  || "";
+          popup.style.display = "flex";
         }
       }
-    });
+    }catch(e){ console.error("QR verify error:",e); }
+    // Highlight the seat after popup is dismissed
+    window._highlightSeat = seatNum;
   }
 })();
 
@@ -186,5 +206,24 @@ function renderSeat(seats,num,parent,cnt){
 // Auto-refresh every 30s
 setInterval(loadSeats,30000);
 </script>
+
+<!-- QR VERIFICATION POPUP -->
+<div id="qrVerifyPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:14px;padding:36px 30px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;font-family:'Segoe UI',Arial,sans-serif;">
+    <div style="font-size:2.8rem;margin-bottom:14px;">&#10003;</div>
+    <h2 style="color:#0b294d;font-size:1.35rem;font-weight:800;margin-bottom:18px;">Booking Verified</h2>
+    <div style="background:#f0f7ff;border-radius:10px;padding:20px;text-align:left;font-size:0.93rem;line-height:2;color:#333;border:1px solid #dde8f5;">
+      <strong id="qv-name" style="color:#0b294d;font-size:1rem;display:block;margin-bottom:4px;"></strong>
+      The booking for seat <strong id="qv-seat" style="color:#0b294d;"></strong><br>
+      on the bus traveling from <strong id="qv-from"></strong><br>
+      to <strong id="qv-to"></strong><br>
+      on <strong id="qv-date"></strong><br>
+      was successfully verified.
+    </div>
+    <button onclick="closeQRPopup()" style="margin-top:22px;background:#0b294d;color:#fff;border:none;border-radius:8px;padding:13px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;">
+      OK &mdash; View My Seat
+    </button>
+  </div>
+</div>
 </body>
 </html>
