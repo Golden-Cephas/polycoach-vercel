@@ -1543,148 +1543,139 @@ async function loadQRImage(){
 async function generateReceiptPDF(rc){
   const {jsPDF} = window.jspdf;
 
-  // A5 landscape — generous size like the HTML, still carryable
-  const doc = new jsPDF({orientation:"landscape", unit:"mm", format:"a5"});
-  const W = doc.internal.pageSize.getWidth();  // 210
-  const H = doc.internal.pageSize.getHeight(); // 148
+  // Portrait card — proportions match the 450px wide HTML receipt
+  // 450px wide, content ~700px tall at 96dpi ≈ 120x186mm
+  const W = 120, H = 188;
+  const doc = new jsPDF({orientation:"portrait", unit:"mm", format:[W, H]});
 
-  // White background
   doc.setFillColor(255,255,255);
   doc.rect(0,0,W,H,"F");
 
-  // ── OUTER BORDER — matches receipt-container border:1px solid #ccc ──
-  const pad = 10; // border inset from page edge
-  doc.setDrawColor(200,200,200);
-  doc.setLineWidth(0.5);
+  // ── BORDER — matches receipt-container border:1px solid #ccc ──
+  const pad = 7;
+  doc.setDrawColor(204,204,204);
+  doc.setLineWidth(0.4);
   doc.rect(pad, pad, W-pad*2, H-pad*2);
 
-  // Inner padding matches HTML 40px → ~14mm
-  const ip = pad + 12; // inner content starts here
+  const ip = pad + 8; // inner padding — matches HTML 40px
+  const re = W - ip; // right edge
 
   // ── HEADER LEFT: Logo + POLYCOACH ──
   const logo = await loadLogo2().catch(()=>null);
   let nameX = ip;
   if(logo){
-    try{ doc.addImage(logo,"PNG", ip, pad+8, 18, 18); nameX = ip+21; }catch(e){}
+    try{ doc.addImage(logo,"PNG",ip,pad+5,13,13); nameX=ip+15; }catch(e){}
   }
-  // Brand name — 26pt in HTML → ~13pt in PDF (proportional)
   doc.setFont("helvetica","bold");
-  doc.setFontSize(20);
+  doc.setFontSize(15);
   doc.setTextColor(51,51,51);
-  doc.text("POLYCOACH", nameX, pad+20);
+  doc.text("POLYCOACH", nameX, pad+14);
 
-  // ── HEADER RIGHT: Receipt No + QR ──
-  const rightEdge = W - ip;
-  // QR — 90px in HTML → ~28mm
-  const qrSize = 28;
-  const qrX    = rightEdge - qrSize;
-  const qrY    = pad + 7;
+  // ── HEADER RIGHT: Receipt No (above line) + QR ──
+  const qrSize = 20;
+  const qrX    = re - qrSize;
+  const qrY    = pad + 4;
+
+  // Receipt number — right aligned, inside border, above QR
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(6);
+  doc.setTextColor(102,102,102);
+  const rno = rc.receiptNumber || "";
+  doc.text("Receipt No:", re, pad+5, {align:"right"});
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(6.5);
+  doc.setTextColor(30,30,30);
+  doc.text(rno, re, pad+9.5, {align:"right"});
+
+  // QR code
   window._qrSeat = rc.seatNumber || "";
   const qr = await loadQRImage();
-  if(qr){ try{ doc.addImage(qr,"PNG", qrX, qrY, qrSize, qrSize); }catch(e){} }
+  if(qr){ try{ doc.addImage(qr,"PNG",qrX,qrY+8,qrSize,qrSize); }catch(e){} }
 
-  // Receipt No — above QR, right-aligned, inside border
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(8);
-  doc.setTextColor(102,102,102);
-  doc.text("Receipt No:  " + (rc.receiptNumber||""), rightEdge, pad+6, {align:"right"});
-
-  // ── BOOKING RECEIPT label — 14pt uppercase letter-spacing:2px ──
-  const labelY = pad + 40;
+  // ── BOOKING RECEIPT label ──
+  const labelY = pad + 36;
   doc.setFont("helvetica","bold");
-  doc.setFontSize(11);
+  doc.setFontSize(8);
   doc.setTextColor(85,85,85);
   doc.setCharSpace(1.8);
   doc.text("BOOKING RECEIPT", ip, labelY);
   doc.setCharSpace(0);
 
   // ── DIVIDER — matches border-bottom:1px solid #eee ──
-  const divY = labelY + 5;
   doc.setDrawColor(238,238,238);
-  doc.setLineWidth(0.4);
-  doc.line(ip, divY, rightEdge, divY);
+  doc.setLineWidth(0.35);
+  doc.line(ip, labelY+4, re, labelY+4);
 
   // ── FIELDS ──
-  // HTML has margin-bottom:30px between fields
-  // At ~3.5px/mm that's ~8.5mm gap between fields
-  // Labels: font-size 12pt bold, min-width 100px
-  // Lines: border-bottom 1px solid #ddd
+  // Each field: label bold left, value normal on same baseline,
+  // full underline from label-start to right edge — BELOW the text
+  // Matches HTML: label min-width 100px, line flex-grow border-bottom #ddd
+  const fs  = 8.5;   // font size — matches 12pt scaled
+  const gap = 12;    // mm between field baselines — matches margin-bottom:30px
+  let   y   = labelY + 14;
 
-  const fieldFontSize = 9.5;   // matches 12pt label feel
-  const fieldGap      = 11;    // mm between field baselines — generous like HTML
-  let   curY          = divY + 10; // first field starts here
-
-  function drawField(label, value, x, y, lineEnd){
+  function field(label, value, x1, x2){
+    // Label
     doc.setFont("helvetica","bold");
-    doc.setFontSize(fieldFontSize);
+    doc.setFontSize(fs);
     doc.setTextColor(68,68,68);
-    doc.text(label, x, y);
+    doc.text(label, x1, y);
     const lw = doc.getTextWidth(label);
-    const valueStartX = x + lw + 4;
-    // Value sitting on the line — drawn BEFORE the underline so text is clean
-    let valueEndX = valueStartX;
+    // Value — normal weight, after label
     if(value && String(value).trim()){
       doc.setFont("helvetica","normal");
-      doc.setFontSize(fieldFontSize);
+      doc.setFontSize(fs);
       doc.setTextColor(30,30,30);
-      const maxW = lineEnd - valueStartX;
+      const maxW = x2 - (x1+lw+3);
       const txt  = doc.splitTextToSize(String(value).trim(), maxW)[0];
-      doc.text(txt, valueStartX, y);
-      valueEndX = valueStartX + doc.getTextWidth(txt) + 2;
+      doc.text(txt, x1+lw+3, y);
     }
-    // Underline only on the EMPTY portion after the value — no line over text
+    // Underline — full width from x1 to x2, drawn 1.5mm below baseline
+    // This is BELOW the text so it never crosses through letters
     doc.setDrawColor(221,221,221);
-    doc.setLineWidth(0.35);
-    if(valueEndX < lineEnd){
-      doc.line(valueEndX, y + 1.5, lineEnd, y + 1.5);
-    }
+    doc.setLineWidth(0.3);
+    doc.line(x1, y+1.5, x2, y+1.5);
   }
 
-  // Seat number — plain 1 to 72
-  const seatNo = rc.seatNumber ? String(rc.seatNumber) : "";
+  const mid = ip + (re-ip)*0.5;
 
-  // Split row: Date (left half) + Seat No (right half)
-  function drawSplitRow(l1, v1, l2, v2, y){
-    const mid = ip + (rightEdge - ip) * 0.50;
-    drawField(l1, v1, ip,    y, mid - 6);
-    drawField(l2, v2, mid+2, y, rightEdge);
-  }
+  // Full-width fields
+  field("Name:",    rc.passengerName||"", ip, re); y += gap;
+  field("Phone:",   rc.phone||"",         ip, re); y += gap;
 
-  // Name
-  drawField("Name:",    rc.passengerName||"", ip, curY, rightEdge); curY += fieldGap;
-  // Phone
-  drawField("Phone:",   rc.phone||"",         ip, curY, rightEdge); curY += fieldGap;
-  // Date + Seat No (split row)
-  drawSplitRow("Date:", rc.departureDate||"", "Seat No:", seatNo, curY); curY += fieldGap;
-  // From
-  drawField("From:",    rc.departureVenue||"",ip, curY, rightEdge); curY += fieldGap;
-  // To
-  drawField("To:",      rc.destination||"",   ip, curY, rightEdge); curY += fieldGap;
-  // Deposit
-  drawField("Deposit:", rc.deposit||"",       ip, curY, rightEdge);
+  // Split row: Date (left) | Seat No (right) — matches .row-split in HTML
+  const savedY = y;
+  field("Date:",    rc.departureDate||"", ip, mid-3); // left half
+  y = savedY; // reset y for right half
+  field("Seat No:", rc.seatNumber ? String(rc.seatNumber) : "", mid+3, re);
+  y = savedY + gap;
+
+  // Full-width fields continue
+  field("From:",    rc.departureVenue||"",ip, re); y += gap;
+  field("To:",      rc.destination||"",   ip, re); y += gap;
+  field("Deposit:", rc.deposit||"",       ip, re);
 
   // ── FOOTER — matches margin-top:50px, border-top:1px solid #f0f0f0 ──
-  const footerLineY = H - pad - 18;
+  const footerY = H - pad - 20;
   doc.setDrawColor(240,240,240);
-  doc.setLineWidth(0.35);
-  doc.line(ip, footerLineY, rightEdge, footerLineY);
-
+  doc.setLineWidth(0.3);
+  doc.line(ip, footerY, re, footerY);
   doc.setFont("helvetica","italic");
-  doc.setFontSize(8);
+  doc.setFontSize(6.5);
   doc.setTextColor(100,100,100);
   doc.text(
     "Thanks for choosing Polycoach. We wish you all the best as you finish the semester.",
-    ip, footerLineY + 7
+    ip, footerY+6, {maxWidth: re-ip}
   );
 
-  // Issue date — bottom right, below footer text, outside footer line
+  // Issue date — bottom right, below footer
   const issued = new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{
     day:"numeric", month:"long", year:"numeric"
   });
   doc.setFont("helvetica","normal");
-  doc.setFontSize(6.5);
+  doc.setFontSize(5.5);
   doc.setTextColor(180,180,180);
-  doc.text(issued, rightEdge, H - pad - 4, {align:"right"});
+  doc.text(issued, re, H-pad-5, {align:"right"});
 
   const fname = "PolyCoach-Receipt-Seat"+(rc.seatNumber||"")+"-"+(rc.passengerName||"").replace(/\s+/g,"-")+".pdf";
   doc.save(fname);
