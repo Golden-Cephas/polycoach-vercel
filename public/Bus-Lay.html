@@ -24,13 +24,12 @@
 </style>
 </head>
 <body>
-
 <div class="Home-Page-Header">
   <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
   <div class="Right-Header">
     <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
     <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
-    <button class="Register-Button" onclick="location.href='Book-Login.html'">Book</button>
+    <button class="Register-Button" onclick="logout()">Logout</button>
   </div>
 </div>
 
@@ -38,18 +37,24 @@
   <div class="bus-page-inner">
     <div class="bus-page-title">
       <h1>Choose Your Seat</h1>
-      <p>Hover over seats to see occupant info. Click a green seat to select it.</p>
+      <p>Hover over seats to see occupant info. Click an available seat to select it.</p>
     </div>
+
     <div class="bus-exterior">
-      <div class="driver-cabin"><i class="fa-solid fa-dharmachakra"></i><span style="font-weight:700;color:#555;">Driver</span></div>
+      <div class="driver-cabin">
+        <i class="fa-solid fa-dharmachakra"></i>
+        <span style="font-weight:700;color:#555;">Driver</span>
+      </div>
       <div id="seatMap" class="bus-grid"></div>
     </div>
+
     <div class="seat-legend">
       <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
       <div class="legend-item"><div class="legend-box legend-pending"></div> Pending</div>
       <div class="legend-item"><div class="legend-box legend-booked"></div> Booked</div>
       <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
     </div>
+
     <div class="summary-card">
       <h3>Booking Summary</h3>
       <div class="summary-row"><span class="summary-label">Passenger</span><span class="summary-val" id="sumName">—</span></div>
@@ -78,43 +83,46 @@
 
 <script src="/js/popup.js"></script>
 <script>
-// Guard
-(function(){
-  const u=getUser();
-  if(!u||!u.fullName){alert("Please fill in the booking form first.");window.location.href="Book-Login.html";}
-  const p=localStorage.getItem("passengerName");
-  if(!p){alert("Please go back and choose who you are booking for.");window.location.href="Book-Login.html";}
-})();
-
 let selectedSeat=null;
 const passengerName=localStorage.getItem("passengerName");
 const destination=localStorage.getItem("selectedDestination");
-const u=getUser();
+const user=JSON.parse(localStorage.getItem("polycoachUser")||"null");
 const tooltip=document.getElementById("seatTooltip");
+
+// Guard — check localStorage, no server session needed
+(function(){
+  const u=JSON.parse(localStorage.getItem("polycoachUser")||"null");
+  if(!u||!u.fullName){
+    alert("Please fill in the booking form first.");
+    window.location.href="Book-Login.html";return;
+  }
+  if(!passengerName){
+    alert("Please go back and choose who you are booking for.");
+    window.location.href="Book-Login.html";
+  }
+})();
 
 document.getElementById("sumName").textContent=passengerName||"—";
 document.getElementById("sumDest").textContent=destination||"—";
 
-// Tooltip positioning — stays within viewport
+// Tooltip
 document.addEventListener("mousemove",e=>{
-  if(tooltip.style.display!=="none"){
-    const tw=tooltip.offsetWidth,vw=window.innerWidth,vh=window.innerHeight;
-    let left=e.clientX+14;if(left+tw+10>vw)left=e.clientX-tw-10;
-    let top=e.clientY-30;if(top<0)top=e.clientY+14;if(top+tooltip.offsetHeight>vh)top=vh-tooltip.offsetHeight-8;
-    tooltip.style.left=Math.max(4,left)+"px";tooltip.style.top=Math.max(4,top)+"px";
-  }
+  if(tooltip.style.display!=="none"){tooltip.style.left=(e.clientX+14)+"px";tooltip.style.top=(e.clientY-30)+"px";}
 });
 
 async function loadSeats(){
   const r=await fetch("/api/seats");const seats=await r.json();
-  const map=document.getElementById("seatMap");map.innerHTML="";
+  const map=document.getElementById("seatMap");
+  map.innerHTML="";
   let counter=1;
+  // 13 rows × (2 left + aisle + 3 right)
   for(let row=0;row<13;row++){
     for(let col=1;col<=6;col++){
       if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
       else if(counter<=65){renderSeat(seats,counter,map);counter++;}
     }
   }
+  // Back row 7 seats
   const backRow=document.createElement("div");backRow.className="back-row-container";
   for(let i=0;i<7;i++){renderSeat(seats,counter,backRow);counter++;}
   map.appendChild(backRow);
@@ -123,65 +131,68 @@ async function loadSeats(){
 function renderSeat(seats,num,parent){
   const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
   const div=document.createElement("div");
-  div.className="seat "+data.status;div.textContent=num;
-  div.addEventListener("mouseenter",(e)=>{
-    let tip="Seat "+num;
-    if(data.passengerName)tip+=" — "+data.passengerName;
-    else tip+=" ("+data.status+")";
-    tooltip.textContent=tip;
-    tooltip.style.visibility="hidden";tooltip.style.display="block";
-    const tw=tooltip.offsetWidth,vw=window.innerWidth;
-    const left=e.clientX+14+tw+10>vw?e.clientX-tw-10:e.clientX+14;
-    tooltip.style.left=Math.max(4,left)+"px";tooltip.style.top=Math.max(4,e.clientY-30)+"px";
-    tooltip.style.visibility="visible";
+  div.className="seat "+data.status;
+  div.textContent=num;
+  // Tooltip
+  div.addEventListener("mouseenter",()=>{
+    let tip=`Seat ${num}`;
+    if(data.passengerName) tip+=` — ${data.passengerName}`;
+    tooltip.textContent=tip;tooltip.style.display="block";
   });
   div.addEventListener("mouseleave",()=>tooltip.style.display="none");
-  if(data.status==="available") div.onclick=()=>selectSeat(num,div);
+  if(data.status==="available"){
+    div.onclick=()=>selectSeat(num,div);
+  } else if(data.status==="booked"||data.status==="taken"){
+    div.title=data.passengerName?`Booked by ${data.passengerName}`:"Booked";
+  } else if(data.status==="pending"){
+    div.title="Pending approval";
+  }
   parent.appendChild(div);
 }
 
 function selectSeat(num,el){
-  document.querySelectorAll(".seat.selected").forEach(s=>s.className="seat available");
-  el.className="seat selected";selectedSeat=num;
+  document.querySelectorAll(".seat.selected").forEach(s=>{
+    const orig=s._origStatus||"available";
+    s.className="seat "+orig;
+  });
+  el._origStatus="available";
+  el.className="seat selected";
+  selectedSeat=num;
   document.getElementById("sumSeat").textContent="Seat "+num;
   document.getElementById("confirmBtn").disabled=false;
 }
 
 async function confirmBooking(){
-  if(!selectedSeat)return;
+  if(!selectedSeat) return;
   const btn=document.getElementById("confirmBtn");
   btn.disabled=true;btn.textContent="Booking...";
-  const paymentProof=localStorage.getItem("paymentProofUrl")||null;
   try{
-    const r=await fetch("/api/book-seat",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        seatNumber:   selectedSeat,
-        passengerName,
-        destination:  destination||"",
-        phone:        u?u.phone:"",
-        program:      u?u.program:"",
-        paymentProof
-      })
-    });
+    const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
+    const payload={seatNumber:Number(selectedSeat),passengerName:passengerName,destination:destination||"",phone:u.phone||"",program:u.program||""};
+    const r=await fetch("/api/book-seat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const d=await r.json();
     if(d.success){
-      // Clear payment proof from localStorage after booking
-      localStorage.removeItem("paymentProofUrl");
       localStorage.removeItem("passengerName");
-      window.location.href="Final-Thanks.html";
+      localStorage.setItem("lastBookedSeat", String(selectedSeat));
+      fetch("/api/settings").then(r=>r.json()).then(s=>{
+        localStorage.setItem("departureVenue", s.departureVenue||"MUBAS");
+        localStorage.setItem("departureDate",  s.departureDate||"");
+      }).catch(()=>{}).finally(()=>{ window.location.href="Final-Thanks.html"; });
+      return;
     } else {
       alert(d.message||"Booking failed. Please try another seat.");
       btn.disabled=false;btn.textContent="CONFIRM BOOKING";
+      selectedSeat=null;
+      document.getElementById("sumSeat").textContent="None selected";
       loadSeats();
     }
-  }catch{
-    alert("Server error. Please try again.");
+  }catch(err){
+    alert("Server error: "+err.message);
     btn.disabled=false;btn.textContent="CONFIRM BOOKING";
   }
 }
 
+async function logout(){await fetch("/api/logout");localStorage.clear();window.location.href="Home-Page.html";}
 loadSeats();
 </script>
 </body>

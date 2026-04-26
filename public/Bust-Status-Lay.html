@@ -110,6 +110,29 @@ document.addEventListener("mousemove",e=>{
     }
   }catch(e){}
   await loadSeats();
+  // Highlight seat from QR code URL param ?seat=X
+  const urlSeat = new URLSearchParams(window.location.search).get("seat");
+  if(urlSeat){
+    const seatNum = Number(urlSeat);
+    const allSeats = document.querySelectorAll(".seat[data-seat]");
+    allSeats.forEach(el=>{
+      if(Number(el.dataset.seat) === seatNum){
+        el.style.outline = "3px solid #0099ff";
+        el.style.outlineOffset = "2px";
+        el.style.zIndex = "10";
+        el.scrollIntoView({behavior:"smooth", block:"center"});
+        // Show tooltip immediately
+        const tip = document.getElementById("seatTooltip");
+        if(tip){
+          tip.textContent = el.title || "Seat "+seatNum;
+          tip.style.display = "block";
+          const rect = el.getBoundingClientRect();
+          tip.style.left = (rect.left + window.scrollX)+"px";
+          tip.style.top  = (rect.top  + window.scrollY - 32)+"px";
+        }
+      }
+    });
+  }
 })();
 
 async function loadSeats(){
@@ -136,6 +159,7 @@ function renderSeat(seats,num,parent,cnt){
   const div=document.createElement("div");
   div.className="seat "+(data.status==="booked"||data.status==="taken"?"booked":data.status);
   div.textContent=num;
+  div.dataset.seat=num;
   const s=data.status==="booked"||data.status==="taken"?"booked":data.status;
   if(cnt[s]!==undefined) cnt[s]++;
   div.addEventListener("mouseenter",(e)=>{

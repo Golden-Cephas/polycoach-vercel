@@ -22,6 +22,31 @@
 //   GET  /api/admin?action=studentid&id=xxx
 
 const { connectDB, seedIfNeeded, User, Admin, Seat, Booking, Settings } = require("./_db");
+
+// Safe seat label: 1A-1E per row, BR1-BR7 for back row
+function makeSeatLabel(n){
+  if(n >= 66) return "BR" + (n - 65);
+  const row = Math.ceil(n / 5);
+  const col = n - (row - 1) * 5;
+  return row + ["A","B","C","D","E"][col - 1];
+}
+
+// Safe receipt number — X-Y-Z
+// X = seat label, Y = DDMMYY + last6 digits of phone, Z = daily index
+async function buildReceiptNumber(seatNum, phone, Booking){
+  const lbl = makeSeatLabel(seatNum);
+  const now  = new Date();
+  const dd   = String(now.getDate()).padStart(2,"0");
+  const mm   = String(now.getMonth()+1).padStart(2,"0");
+  const yy   = String(now.getFullYear()).slice(-2);
+  // Extract only digits from phone, take last 6, pad if short
+  const digits = String(phone||"").replace(/[^0-9]/g,"");
+  const l6     = digits.length >= 6 ? digits.slice(-6) : digits.padStart(6,"0");
+  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  const cnt = await Booking.countDocuments({ createdAt:{ $gte: todayStart } });
+  const Z   = String(cnt + 1).padStart(2,"0");
+  return { receiptNumber: lbl+"-"+dd+mm+yy+l6+"-"+Z, seatLabel: lbl };
+}
 const { setHeaders, requireAdmin } = require("./_auth");
 const bcrypt = require("bcrypt");
 
@@ -140,14 +165,9 @@ module.exports = async (req, res) => {
         // Generate receipt number if not set
         if (!b.receiptNumber) {
           const n=b.seatNumber;
-          const lbl=(n>=66)?"BR"+(n-65):(Math.ceil(n/5))+["A","B","C","D","E"][(n-(Math.ceil(n/5)-1)*5)-1];
-          const now=new Date();
-          const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
-          const l6=(b.phone||"000000").replace(/[^0-9]/g,"").slice(-6).padStart(6,"0");
-          const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
-          const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
-          b.receiptNumber=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt).padStart(2,"0");
-          b.seatLabel=lbl;
+          const {receiptNumber:rno, seatLabel:lbl} = await buildReceiptNumber(b.seatNumber, b.phone, Booking);
+          b.receiptNumber = rno;
+          b.seatLabel     = lbl;
         }
         // Pull departure info from settings if missing
         if(!b.departureDate||!b.departureVenue||!b.deposit){
@@ -246,13 +266,7 @@ module.exports = async (req, res) => {
           if (!existing) {
             const settings = await Settings.findOne();
             // Build receipt number X-Y-Z
-            const lbl=(seatN>=66)?"BR"+(seatN-65):(Math.ceil(seatN/5))+["A","B","C","D","E"][(seatN-(Math.ceil(seatN/5)-1)*5)-1];
-            const now=new Date();
-            const dd=String(now.getDate()).padStart(2,"0"),mm=String(now.getMonth()+1).padStart(2,"0"),yy=String(now.getFullYear()).slice(-2);
-            const l6=(phone||"000000").replace(/[^0-9]/g,"").slice(-6).padStart(6,"0");
-            const todayStart=new Date(now);todayStart.setHours(0,0,0,0);
-            const cnt=await Booking.countDocuments({createdAt:{$gte:todayStart}});
-            const receiptNo=lbl+"-"+dd+mm+yy+l6+"-"+String(cnt+1).padStart(2,"0");
+            const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, phone, Booking);
             const booking = await Booking.create({
               seatNumber:    seatN,
               passengerName,

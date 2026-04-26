@@ -98,7 +98,7 @@ tr:hover td{background:#fafafa;}
 
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:999;}
-.modal-box{background:#fff;border-radius:14px;padding:32px;max-width:460px;width:92%;box-shadow:0 20px 50px rgba(0,0,0,0.3);}
+.modal-box{background:#fff;border-radius:14px;padding:32px;max-width:450px;width:92%;box-shadow:0 20px 50px rgba(0,0,0,0.3);}
 .modal-box h3{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;color:var(--primary);margin-bottom:18px;font-weight:700;}
 .modal-actions{display:flex;gap:12px;margin-top:20px;}
 .btn-cancel{background:#eee;color:#333;padding:10px 20px;border-radius:6px;border:none;cursor:pointer;font-weight:700;}
@@ -1526,9 +1526,8 @@ async function downloadReceipt(id){
     const d = await r.json();
     if(!d.success){ alert("Could not load receipt."); return; }
     const rc = d.receipt;
-    const missing = !rc.passengerName || !rc.destination || !rc.departureDate || !rc.deposit || !rc.departureVenue;
-    if(missing){ openMissingFieldsPopup(id, rc); return; }
-    generateReceiptPDF(rc);
+    // Always open popup so admin can set/confirm deposit before download
+    openMissingFieldsPopup(id, rc);
   }catch(err){ alert("Receipt error: "+err.message); }
 }
 
@@ -1542,7 +1541,8 @@ async function loadQRImage(){
       resolve(c.toDataURL("image/png"));
     };
     img.onerror = ()=>resolve(null);
-    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/&t="+Date.now();
+    const seatParam = (typeof _qrSeat !== "undefined") ? _qrSeat : "";
+    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/Bust-Status-Lay.html%3Fseat%3D"+seatParam+"&t="+Date.now();
   });
 }
 
@@ -1585,6 +1585,7 @@ async function generateReceiptPDF(rc){
   const qrSize = 28;
   const qrX    = rightEdge - qrSize;
   const qrY    = pad + 7;
+  window._qrSeat = rc.seatNumber || "";
   const qr = await loadQRImage();
   if(qr){ try{ doc.addImage(qr,"PNG", qrX, qrY, qrSize, qrSize); }catch(e){} }
 
@@ -1625,18 +1626,23 @@ async function generateReceiptPDF(rc){
     doc.setTextColor(68,68,68);
     doc.text(label, x, y);
     const lw = doc.getTextWidth(label);
-    // Underline
-    doc.setDrawColor(221,221,221);
-    doc.setLineWidth(0.35);
-    doc.line(x + lw + 2, y + 1.5, lineEnd, y + 1.5);
-    // Value sitting on the line
+    const valueStartX = x + lw + 4;
+    // Value sitting on the line — drawn BEFORE the underline so text is clean
+    let valueEndX = valueStartX;
     if(value && String(value).trim()){
       doc.setFont("helvetica","normal");
       doc.setFontSize(fieldFontSize);
       doc.setTextColor(30,30,30);
-      const maxW = lineEnd - (x + lw + 4);
+      const maxW = lineEnd - valueStartX;
       const txt  = doc.splitTextToSize(String(value).trim(), maxW)[0];
-      doc.text(txt, x + lw + 4, y);
+      doc.text(txt, valueStartX, y);
+      valueEndX = valueStartX + doc.getTextWidth(txt) + 2;
+    }
+    // Underline only on the EMPTY portion after the value — no line over text
+    doc.setDrawColor(221,221,221);
+    doc.setLineWidth(0.35);
+    if(valueEndX < lineEnd){
+      doc.line(valueEndX, y + 1.5, lineEnd, y + 1.5);
     }
   }
 
