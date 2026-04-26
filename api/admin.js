@@ -348,6 +348,21 @@ module.exports = async (req, res) => {
         if(deposit)        b.deposit        = deposit;
         if(departureDate)  b.departureDate  = departureDate;
         if(departureVenue) b.departureVenue = departureVenue;
+        // Generate receipt number now if still missing
+        if(!b.receiptNumber){
+          const {receiptNumber,seatLabel} = await buildReceiptNumber(b.seatNumber, b.phone, Booking);
+          b.receiptNumber = receiptNumber;
+          b.seatLabel     = seatLabel;
+        }
+        // Pull departure info from settings if still missing
+        if(!b.departureDate||!b.departureVenue||!b.deposit){
+          const settings = await Settings.findOne();
+          if(settings){
+            if(!b.departureDate)  b.departureDate  = settings.departureDate  ||"";
+            if(!b.departureVenue) b.departureVenue = settings.departureVenue ||"";
+            if(!b.deposit)        b.deposit        = settings.bookingFee     ||"";
+          }
+        }
         await b.save();
         return res.json({ success: true });
       }
