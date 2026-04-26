@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel — PolyCoach</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="/js/popup.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
@@ -346,8 +347,16 @@ tr:hover td{background:#fafafa;}
     <h3>Add User Manually</h3>
     <div class="cg"><label>Full Name</label><input type="text" id="mu-name" class="settings-input" placeholder="Full Name"></div>
     <div class="cg"><label>Phone</label><input type="text" id="mu-phone" class="settings-input" placeholder="099..."></div>
-    <div class="cg"><label>Registration Number</label><input type="text" id="mu-reg" class="settings-input" placeholder="BEEE/22/EE/01"></div>
-    <div class="cg"><label>Password</label><input type="text" id="mu-pass" class="settings-input" placeholder="Temporary password"></div>
+    <div class="cg"><label>Program</label><input type="text" id="mu-prog" class="settings-input" placeholder="e.g. BEEE4"></div>
+    <div class="cg"><label>Destination</label>
+      <select id="mu-dest" class="settings-input">
+        <option value="">-- Choose --</option>
+        <option value="Mzuzu">Mzuzu</option>
+        <option value="Jenda">Jenda</option>
+        <option value="Mzimba">Mzimba</option>
+        <option value="Kasungu">Kasungu</option>
+      </select>
+    </div>
     <div class="modal-actions">
       <button class="btn-save" onclick="addUser()">ADD USER</button>
       <button class="btn-cancel" onclick="closeModal('addUserModal')">Cancel</button>
@@ -383,13 +392,22 @@ tr:hover td{background:#fafafa;}
 <script>
 let currentSeatNum=null;
 
-// Auth guard
-(async()=>{
-  const r=await fetch("/api/session");const d=await r.json();
-  if(!d.loggedIn||d.user.role!=="admin"){alert("Admin access only.");window.location.href="Book-Login.html";return;}
-  document.getElementById("adminWelcome").textContent="Welcome, "+d.user.fullName;
+// Self-contained auth helpers — never rely on popup.js load order
+function getToken(){ return localStorage.getItem("polycoachToken")||""; }
+function getUser(){ try{return JSON.parse(localStorage.getItem("polycoachUser")||"null");}catch{return null;} }
+function authHeaders(){ return {"Content-Type":"application/json","Authorization":"Bearer "+getToken()}; }
+
+// Auth guard — runs after full DOM ready
+document.addEventListener("DOMContentLoaded",function(){
+  const u=getUser();
+  const t=getToken();
+  if(!u||!t||u.role!=="admin"){
+    alert("Admin access only. Please login via View Bus Status.");
+    window.location.href="Status-Login.html";return;
+  }
+  document.getElementById("adminWelcome").textContent="Welcome, "+u.fullName;
   loadAll();
-})();
+});
 
 async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
@@ -409,32 +427,52 @@ function showPanel(name){
 
 /* ── BUS ── */
 async function loadBus(){
-  const r=await fetch("/api/seats");const seats=await r.json();
-  const map=document.getElementById("adminSeatMap");map.innerHTML="";
-  let cnt={available:0,pending:0,booked:0};
-  let counter=1;
-  for(let row=0;row<13;row++){
-    for(let col=1;col<=6;col++){
-      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
-      else if(counter<=65){renderAdminSeat(seats,counter,map,cnt);counter++;}
+  try{
+    const r=await fetch("/api/seats");
+    if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
+    const seats=await r.json();
+    const map=document.getElementById("adminSeatMap");
+    map.innerHTML="";
+    let cnt={available:0,pending:0,booked:0};
+    let counter=1;
+    // 13 rows x 5 seats (2 left + 3 right) = 65 seats
+    for(let row=0;row<13;row++){
+      for(let col=1;col<=6;col++){
+        if(col===3){
+          const a=document.createElement("div");
+          a.className="seat aisle-space";
+          map.appendChild(a);
+        } else if(counter<=65){
+          renderAdminSeat(seats,counter,map,cnt);
+          counter++;
+        }
+      }
     }
+    // Back row: seats 66-72
+    const back=document.createElement("div");
+    back.className="back-row-container";
+    while(counter<=72){
+      renderAdminSeat(seats,counter,back,cnt);
+      counter++;
+    }
+    map.appendChild(back);
+    document.getElementById("bs-avail").textContent=cnt.available;
+    document.getElementById("bs-pend").textContent=cnt.pending;
+    document.getElementById("bs-book").textContent=cnt.booked;
+  }catch(err){
+    console.error("loadBus error:",err);
+    document.getElementById("adminSeatMap").innerHTML='<p style="color:red;padding:10px;">Error loading bus: '+err.message+'</p>';
   }
-  const back=document.createElement("div");back.className="back-row-container";
-  for(let i=0;i<7;i++){renderAdminSeat(seats,counter,back,cnt);counter++;}
-  map.appendChild(back);
-  document.getElementById("bs-avail").textContent=cnt.available;
-  document.getElementById("bs-pend").textContent=cnt.pending;
-  document.getElementById("bs-book").textContent=cnt.booked;
 }
 
 function renderAdminSeat(seats,num,parent,cnt){
-  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const data=seats.find(s=>Number(s.number)===num)||{number:num,status:"available"};
   const div=document.createElement("div");
   const st=data.status==="taken"?"booked":data.status;
   div.className="seat "+st;
   div.textContent=num;
   if(cnt[st]!==undefined) cnt[st]++;
-  div.title=data.passengerName?`${data.passengerName} (${st})`:`Seat ${num} (${st})`;
+  div.title=data.passengerName?data.passengerName+" ("+st+")":`Seat ${num} (${st})`;
   div.onclick=()=>openSeatEditor(num,data);
   parent.appendChild(div);
 }
@@ -453,44 +491,36 @@ function openSeatEditor(num,data){
 }
 
 async function saveSeatEdit(){
-  const status=document.getElementById("editStatus").value;
-  const name=document.getElementById("editName").value.trim();
-  const dest=document.getElementById("editDest").value.trim();
-  if(status!=="available"&&!name){alert("Please enter an occupant name.");return;}
-  const btn=document.querySelector(".btn-save");
-  if(btn){btn.disabled=true;btn.textContent="Saving...";}
+  const status = document.getElementById("editStatus").value;
+  const name   = document.getElementById("editName").value.trim();
+  const dest   = document.getElementById("editDest").value.trim();
+  if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
   try{
-    const r=await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{
-      method:"POST",headers:authHeaders(),
-      body:JSON.stringify({status,passengerName:name,destination:dest})
+    const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum, {
+      method:"POST", headers:authHeaders(),
+      body:JSON.stringify({status, passengerName:name, destination:dest})
     });
-    const d=await r.json();
+    const d = await r.json();
     if(d.success){
-      await Promise.all([loadBus(),loadBookings(),loadUsers()]);
-      // If a booking was auto-created, switch to bookings panel so admin sees it
-      if(status==="booked"&&d.bookingCreated){
+      await Promise.all([loadBus(), loadBookings(), loadUsers()]);
+      if(status==="booked" && d.bookingCreated){
         showPanel("bookings");
-        // Brief highlight to show the new booking
         setTimeout(()=>{
-          const rows=document.querySelectorAll("#bookingsTbody tr");
-          if(rows.length>0){
-            rows[0].style.background="#e8f5e9";
-            setTimeout(()=>rows[0].style.background="",2000);
-          }
+          const rows = document.querySelectorAll("#bookingsTbody tr");
+          if(rows.length>0){ rows[0].style.background="#e8f5e9"; setTimeout(()=>rows[0].style.background="",2000); }
         },400);
       }
     } else {
-      alert(d.message||"Error updating seat.");
+      alert(d.message || "Error updating seat.");
     }
   }catch(err){
     alert("Server error: "+err.message);
   }
-  if(btn){btn.disabled=false;btn.textContent="UPDATE SEAT";}
 }
 
 async function clearSeat(){
   if(!confirm(`Reset Seat ${currentSeatNum} to Available?`)) return;
-  await fetch("/api/admin/seats/"+currentSeatNum,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+  await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
   document.getElementById("seatEditor").style.display="none";
   document.getElementById("consoleHint").style.display="block";
   loadBus();loadBookings();
@@ -499,7 +529,7 @@ async function clearSeat(){
 /* ── USERS ── */
 async function loadUsers(){
   try{
-    const r=await fetch("/api/admin/users");
+    const r=await fetch("/api/admin?action=users",{headers:authHeaders()});
     const users=await r.json();
     document.getElementById("us-total").textContent=users.length;
     const tbody=document.getElementById("usersTbody");
@@ -532,7 +562,7 @@ async function deleteUser(id,name){
   if(row) row.style.opacity="0.4";
   if(btn) btn.disabled=true;
   try{
-    const r=await fetch("/api/admin/users/"+id,{method:"DELETE"});
+    const r=await fetch("/api/admin?action=delete-user&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
     const d=await r.json();
     if(d.success){
       // Remove row from DOM immediately — no need to reload whole table
@@ -556,10 +586,10 @@ function closeModal(id){document.getElementById(id).style.display="none";}
 async function addUser(){
   const name=document.getElementById("mu-name").value.trim();
   const phone=document.getElementById("mu-phone").value.trim();
-  const reg=document.getElementById("mu-reg").value.trim();
-  const pass=document.getElementById("mu-pass").value.trim();
-  if(!name||!phone||!reg) return alert("Please fill all fields.");
-  const r=await fetch("/api/admin/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fullName:name,phone,regNumber:reg,password:pass||"changeme"})});
+  const prog=document.getElementById("mu-prog").value.trim();
+  const dest=document.getElementById("mu-dest").value;
+  if(!name||!phone) return alert("Name and phone are required.");
+  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,program:prog||"Admin Assigned",destination:dest||""})});
   const d=await r.json();
   if(d.success){closeModal("addUserModal");loadUsers();}
   else alert(d.message||"Error.");
@@ -567,16 +597,19 @@ async function addUser(){
 
 /* ── BOOKINGS ── */
 async function loadBookings(){
-  const r=await fetch("/api/admin/bookings");const bks=await r.json();
+  const r=await fetch("/api/admin?action=bookings",{headers:authHeaders()});const bks=await r.json();
   const pending=bks.filter(b=>b.status==="pending").length;
   const approved=bks.filter(b=>b.status==="approved").length;
   const rejected=bks.filter(b=>b.status==="rejected").length;
-  document.getElementById("bk-pending").textContent=pending;
-  document.getElementById("bk-approved").textContent=approved;
-  document.getElementById("bk-rejected").textContent=rejected;
+  const bkPendEl=document.getElementById("bk-pending");
+  const bkAppEl=document.getElementById("bk-approved");
+  const bkRejEl=document.getElementById("bk-rejected");
+  if(bkPendEl) bkPendEl.textContent=pending;
+  if(bkAppEl) bkAppEl.textContent=approved;
+  if(bkRejEl) bkRejEl.textContent=rejected;
   // Badge
   const badge=document.getElementById("pendingBadge");
-  badge.textContent=pending;badge.style.display=pending>0?"inline-block":"none";
+  if(badge){badge.textContent=pending;badge.style.display=pending>0?"inline-block":"none";}
   const tbody=document.getElementById("bookingsTbody");tbody.innerHTML="";
   if(!bks.length){tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No bookings yet.</td></tr>';return;}
   bks.forEach(b=>{
@@ -600,11 +633,11 @@ async function loadBookings(){
 }
 
 async function approveBooking(id){
-  await fetch("/api/admin/approve/"+id,{method:"POST"});
+  await fetch("/api/admin?action=approve&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
   loadBookings();loadBus();
 }
 async function rejectBooking(id){
-  await fetch("/api/admin/reject/"+id,{method:"POST"});
+  await fetch("/api/admin?action=reject&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
   loadBookings();loadBus();
 }
 async function deleteBooking(id){
@@ -612,7 +645,7 @@ async function deleteBooking(id){
   const row=document.getElementById("booking-row-"+id);
   if(row) row.style.opacity="0.4";
   try{
-    const r=await fetch("/api/admin/bookings/"+id,{method:"DELETE"});
+    const r=await fetch("/api/admin?action=delete-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
     const d=await r.json();
     if(d.success){
       if(row) row.remove();
@@ -638,7 +671,7 @@ async function viewProof(bookingId){
   const loading=document.getElementById("proofLoading");
   if(loading) loading.style.display="block";
   try{
-    const r=await fetch("/api/admin/bookings/"+bookingId+"/proof");
+    const r=await fetch("/api/admin?action=proof&id="+bookingId,{headers:authHeaders()});
     const d=await r.json();
     if(d.success){
       img.src=d.image;
@@ -656,7 +689,7 @@ async function viewProof(bookingId){
 
 async function viewStudentID(userId, name){
   try{
-    const r=await fetch("/api/admin/users/"+userId+"/studentid");
+    const r=await fetch("/api/admin?action=studentid&id="+userId,{headers:authHeaders()});
     const d=await r.json();
     if(d.success){
       const img=document.getElementById("proofImg");
@@ -675,13 +708,20 @@ function openAddBookingModal(){document.getElementById("addBookingModal").style.
 async function addBooking(){
   const name=document.getElementById("mb-name").value.trim();
   const phone=document.getElementById("mb-phone").value.trim();
-  const seat=document.getElementById("mb-seat").value;
+  const seatVal=document.getElementById("mb-seat").value.trim();
   const dest=document.getElementById("mb-dest").value.trim();
-  if(!name||!seat) return alert("Passenger name and seat are required.");
-  const r=await fetch("/api/admin/bookings/add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({passengerName:name,phone,seatNumber:Number(seat),destination:dest})});
-  const d=await r.json();
-  if(d.success){closeModal("addBookingModal");loadBookings();loadBus();}
-  else alert(d.message||"Error adding booking.");
+  if(!name){alert("Passenger name is required.");return;}
+  const seatNum=Number(seatVal);
+  if(!seatVal||isNaN(seatNum)||seatNum<1||seatNum>72){alert("Please enter a valid seat number between 1 and 72.");return;}
+  const btn=document.querySelector("#addBookingModal .btn-save");
+  btn.disabled=true;btn.textContent="Adding...";
+  try{
+    const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone:phone||"",seatNumber:seatNum,destination:dest})});
+    const d=await r.json();
+    if(d.success){closeModal("addBookingModal");loadBookings();loadBus();loadUsers();}
+    else alert(d.message||"Error adding booking.");
+  }catch(e){alert("Server error. Please try again.");}
+  btn.disabled=false;btn.textContent="ADD BOOKING";
 }
 
 /* ── SETTINGS ── */
@@ -706,7 +746,7 @@ async function saveSettings(){
     departureTime: document.getElementById("setTime").value.trim(),
     departureVenue:document.getElementById("setVenue").value.trim()
   };
-  const r=await fetch("/api/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
   const d=await r.json();
   const msg=document.getElementById("settingsSaved");
   if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
@@ -720,7 +760,7 @@ async function savePaymentDetails(){
   const acct    = document.getElementById("setAcctName").value.trim();
   if(!nb&&!airtel&&!tnm&&!acct){alert("Please enter at least one payment detail.");return;}
   const data={payNationalBank:nb,payAirtelMoney:airtel,payTNMMpamba:tnm,payAccountName:acct};
-  const r=await fetch("/api/admin/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
   const d=await r.json();
   const msg=document.getElementById("paymentSaved");
   if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
@@ -737,7 +777,7 @@ async function changePassword(){
   if(!curr||!newP||!confirm){showPassMsg("error","Please fill in all password fields.");return;}
   if(newP.length<4){showPassMsg("error","New password must be at least 4 characters.");return;}
   if(newP!==confirm){showPassMsg("error","New passwords do not match.");return;}
-  const r=await fetch("/api/admin/change-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({currentPassword:curr,newPassword:newP})});
+  const r=await fetch("/api/admin?action=change-password",{method:"POST",headers:authHeaders(),body:JSON.stringify({currentPassword:curr,newPassword:newP})});
   const d=await r.json();
   if(d.success){
     showPassMsg("success","✅ Password changed successfully! Use your new password next login.");
@@ -763,7 +803,7 @@ async function resetAdminPassword(){
   if(!target){msg.style.display="block";msg.style.background="#fdecea";msg.style.color="#b71c1c";msg.textContent="Please select an admin to reset.";return;}
   const name=document.getElementById("resetTarget").options[document.getElementById("resetTarget").selectedIndex].text;
   if(!confirm("Reset password for "+name+" to their default? They must be informed of the change.")) return;
-  const r=await fetch("/api/admin/reset-admin-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetPhone:target})});
+  const r=await fetch("/api/admin?action=reset-admin-password",{method:"POST",headers:authHeaders(),body:JSON.stringify({targetPhone:target})});
   const d=await r.json();
   msg.style.display="block";
   if(d.success){msg.style.background="#e6f4ea";msg.style.color="#2e7d32";msg.textContent="✅ "+d.message;}
@@ -783,7 +823,7 @@ function filterTable(tableId,query,col){
 async function resetAllSeats(){
   if(!confirm("WARNING: This will reset ALL 72 seats to available and clear all booking records. Are you absolutely sure?")) return;
   if(!confirm("Second confirmation: ALL booking data will be lost permanently. Continue?")) return;
-  const r=await fetch("/api/admin/reset-seats",{method:"POST"});
+  const r=await fetch("/api/admin?action=reset-seats",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
   const d=await r.json();
   if(d.success){alert("All seats have been reset.");loadAll();}
   else alert("Error resetting seats.");
@@ -1448,143 +1488,120 @@ async function downloadUsersPDF(){
 
 /* ── RECEIPT DOWNLOAD ── */
 
-let _pendingReceiptId=null;
+let _pendingReceiptId = null;
 
-function openMissingFieldsPopup(id,rc){
-  _pendingReceiptId=id;
-  document.getElementById("rf-name").value       =rc.passengerName||"";
-  document.getElementById("rf-phone").value      =rc.phone||"";
-  document.getElementById("rf-dest").value       =rc.destination||"";
-  document.getElementById("rf-from").value       =rc.departureVenue||"";
-  document.getElementById("rf-date").value       =rc.departureDate||"";
-  document.getElementById("rf-deposit").value    =rc.deposit||"";
-  document.getElementById("missingFieldsPopup").style.display="flex";
+function openMissingFieldsPopup(id, rc){
+  _pendingReceiptId = id;
+  document.getElementById("rf-name").value        = rc.passengerName  || "";
+  document.getElementById("rf-phone").value       = rc.phone          || "";
+  document.getElementById("rf-dest").value        = rc.destination    || "";
+  document.getElementById("rf-from").value        = rc.departureVenue || "";
+  document.getElementById("rf-date").value        = rc.departureDate  || "";
+  document.getElementById("rf-deposit").value     = rc.deposit        || "";
+  document.getElementById("missingFieldsPopup").style.display = "flex";
 }
 
 async function confirmMissingFields(){
-  const data={
-    passengerName: document.getElementById("rf-name").value.trim(),
-    phone:         document.getElementById("rf-phone").value.trim(),
-    destination:   document.getElementById("rf-dest").value.trim(),
-    departureVenue:document.getElementById("rf-from").value.trim(),
-    departureDate: document.getElementById("rf-date").value.trim(),
-    deposit:       document.getElementById("rf-deposit").value.trim(),
+  const data = {
+    passengerName:  document.getElementById("rf-name").value.trim(),
+    phone:          document.getElementById("rf-phone").value.trim(),
+    destination:    document.getElementById("rf-dest").value.trim(),
+    departureVenue: document.getElementById("rf-from").value.trim(),
+    departureDate:  document.getElementById("rf-date").value.trim(),
+    deposit:        document.getElementById("rf-deposit").value.trim(),
   };
-  if(!data.passengerName){alert("Name is required.");return;}
-  document.getElementById("missingFieldsPopup").style.display="none";
-  // Save updated fields then regenerate
-  await fetch("/api/admin?action=update-booking&id="+_pendingReceiptId,{
-    method:"POST",headers:authHeaders(),body:JSON.stringify(data)
+  if(!data.passengerName){ alert("Name is required."); return; }
+  document.getElementById("missingFieldsPopup").style.display = "none";
+  await fetch("/api/admin?action=update-booking&id="+_pendingReceiptId, {
+    method:"POST", headers:authHeaders(), body:JSON.stringify(data)
   }).catch(()=>{});
-  const r=await fetch("/api/admin?action=receipt&id="+_pendingReceiptId,{headers:authHeaders()});
-  const d=await r.json();
+  const r = await fetch("/api/admin?action=receipt&id="+_pendingReceiptId, {headers:authHeaders()});
+  const d = await r.json();
   if(d.success) generateReceiptPDF(d.receipt);
 }
 
 async function downloadReceipt(id){
   try{
-    const r=await fetch("/api/admin?action=receipt&id="+id,{headers:authHeaders()});
-    const d=await r.json();
-    if(!d.success){alert("Could not load receipt.");return;}
-    const rc=d.receipt;
-    const missing=!rc.passengerName||!rc.destination||!rc.departureDate||!rc.deposit||!rc.departureVenue;
-    if(missing){openMissingFieldsPopup(id,rc);return;}
+    const r = await fetch("/api/admin?action=receipt&id="+id, {headers:authHeaders()});
+    const d = await r.json();
+    if(!d.success){ alert("Could not load receipt."); return; }
+    const rc = d.receipt;
+    const missing = !rc.passengerName || !rc.destination || !rc.departureDate || !rc.deposit || !rc.departureVenue;
+    if(missing){ openMissingFieldsPopup(id, rc); return; }
     generateReceiptPDF(rc);
-  }catch(err){alert("Receipt error: "+err.message);}
+  }catch(err){ alert("Receipt error: "+err.message); }
 }
 
 async function loadQRImage(){
   return new Promise((resolve)=>{
-    const img=new Image();img.crossOrigin="anonymous";
-    img.onload=function(){
-      const c=document.createElement("canvas");
-      c.width=img.naturalWidth||200;c.height=img.naturalHeight||200;
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = function(){
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth||200; c.height = img.naturalHeight||200;
       c.getContext("2d").drawImage(img,0,0);
       resolve(c.toDataURL("image/png"));
     };
-    img.onerror=()=>resolve(null);
-    img.src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/&t="+Date.now();
+    img.onerror = ()=>resolve(null);
+    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/&t="+Date.now();
   });
 }
 
 async function generateReceiptPDF(rc){
-  const {jsPDF}=window.jspdf;
-  // A6 landscape — card size (148x105mm)
-  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:[148,105]});
-  const W=148,H=105;
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:"landscape", unit:"mm", format:[148,105]});
+  const W=148, H=105;
 
-  // White background
-  doc.setFillColor(255,255,255);doc.rect(0,0,W,H,"F");
+  doc.setFillColor(255,255,255); doc.rect(0,0,W,H,"F");
+  doc.setFillColor(11,41,77);   doc.rect(0,0,W,1.5,"F");
 
-  // Top navy accent line
-  doc.setFillColor(11,41,77);doc.rect(0,0,W,1.5,"F");
+  const logo = await loadLogo2().catch(()=>null);
+  let textX = 10;
+  if(logo){ try{ doc.addImage(logo,"PNG",10,5,15,15); textX=27; }catch(e){} }
 
-  // Logo
-  const logo=await loadLogo2().catch(()=>null);
-  let textX=10;
-  if(logo){try{doc.addImage(logo,"PNG",10,5,15,15);textX=27;}catch(e){}}
+  doc.setFont("times","bold"); doc.setFontSize(17); doc.setTextColor(51,51,51);
+  doc.text("POLYCOACH", textX, 15);
 
-  // Brand name
-  doc.setFont("times","bold");doc.setFontSize(17);doc.setTextColor(51,51,51);
-  doc.text("POLYCOACH",textX,15);
+  const qr = await loadQRImage();
+  if(qr){ try{ doc.addImage(qr,"PNG",W-30,3,22,22); }catch(e){} }
 
-  // QR code top-right
-  const qr=await loadQRImage();
-  if(qr){try{doc.addImage(qr,"PNG",W-30,3,22,22);}catch(e){
-    doc.setDrawColor(200,200,200);doc.rect(W-30,3,22,22);
-  }}
+  doc.setFont("times","normal"); doc.setFontSize(6); doc.setTextColor(120,120,120);
+  doc.text("Receipt No: "+(rc.receiptNumber||"—"), W-32, 3, {align:"right"});
 
-  // Receipt number top-right above QR
-  doc.setFont("times","normal");doc.setFontSize(6);doc.setTextColor(120,120,120);
-  doc.text("Receipt No: "+(rc.receiptNumber||"—"),W-32,3,{align:"right"});
+  doc.setFont("times","bold"); doc.setFontSize(8.5); doc.setTextColor(80,80,80);
+  doc.setCharSpace(2); doc.text("BOOKING RECEIPT",10,29); doc.setCharSpace(0);
 
-  // BOOKING RECEIPT label
-  doc.setFont("times","bold");doc.setFontSize(8.5);doc.setTextColor(80,80,80);
-  doc.setCharSpace(2);doc.text("BOOKING RECEIPT",10,29);doc.setCharSpace(0);
+  doc.setDrawColor(220,220,220); doc.setLineWidth(0.3); doc.line(10,32,W-10,32);
 
-  // Divider
-  doc.setDrawColor(220,220,220);doc.setLineWidth(0.3);doc.line(10,32,W-10,32);
-
-  // Field drawing helper
-  function drawField(label,value,x,y,w){
-    doc.setFont("times","bold");doc.setFontSize(7.5);doc.setTextColor(60,60,60);
-    doc.text(label,x,y);
-    const lw=doc.getTextWidth(label)+1;
-    doc.setDrawColor(210,210,210);doc.setLineWidth(0.25);
-    doc.line(x+lw,y+1,x+w,y+1);
+  function drawField(label, value, x, y, w){
+    doc.setFont("times","bold"); doc.setFontSize(7.5); doc.setTextColor(60,60,60);
+    doc.text(label, x, y);
+    const lw = doc.getTextWidth(label)+1;
+    doc.setDrawColor(210,210,210); doc.setLineWidth(0.25);
+    doc.line(x+lw, y+1, x+w, y+1);
     if(value){
-      doc.setFont("times","normal");doc.setFontSize(7.5);doc.setTextColor(30,30,30);
-      const maxW=w-lw-1;
-      const txt=doc.splitTextToSize(String(value),maxW)[0];
-      doc.text(txt,x+lw+1,y);
+      doc.setFont("times","normal"); doc.setFontSize(7.5); doc.setTextColor(30,30,30);
+      doc.text(doc.splitTextToSize(String(value), w-lw-1)[0], x+lw+1, y);
     }
   }
 
-  const fw=W-20; // full width
-  const lw=fw*0.52,rw=fw*0.44,rx=10+lw+4;
+  const fw=W-20, lw=fw*0.52, rw=fw*0.44, rx=10+lw+4;
+  drawField("Name:",    rc.passengerName||"",                    10,  40, fw);
+  drawField("Phone:",   rc.phone||"",                            10,  50, fw);
+  drawField("Date:",    rc.departureDate||"",                    10,  60, lw);
+  drawField("Seat No:", rc.seatLabel||(rc.seatNumber?("Seat "+rc.seatNumber):""), rx, 60, rw);
+  drawField("From:",    rc.departureVenue||"",                   10,  70, fw);
+  drawField("To:",      rc.destination||"",                      10,  80, fw);
+  drawField("Deposit:", rc.deposit||"",                          10,  90, fw);
 
-  drawField("Name:",   rc.passengerName||"",10,40,fw);
-  drawField("Phone:",  rc.phone||"",        10,50,fw);
-  drawField("Date:",   rc.departureDate||"",10,60,lw);
-  drawField("Seat No:",rc.seatLabel||("Seat "+rc.seatNumber),rx,60,rw);
-  drawField("From:",   rc.departureVenue||"",10,70,fw);
-  drawField("To:",     rc.destination||"",  10,80,fw);
-  drawField("Deposit:",rc.deposit||"",      10,90,fw);
-
-  // Footer divider
-  doc.setDrawColor(235,235,235);doc.setLineWidth(0.3);doc.line(10,95,W-10,95);
-
-  // Footer message
-  doc.setFont("times","italic");doc.setFontSize(6);doc.setTextColor(130,130,130);
+  doc.setDrawColor(235,235,235); doc.setLineWidth(0.3); doc.line(10,95,W-10,95);
+  doc.setFont("times","italic"); doc.setFontSize(6); doc.setTextColor(130,130,130);
   doc.text("Thanks for choosing Polycoach. We wish you all the best as you finish the semester.",10,99);
 
-  // Issue date bottom-right
-  const issued=new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
-  doc.setFont("times","normal");doc.setFontSize(5.5);doc.setTextColor(160,160,160);
-  doc.text(issued,W-10,103,{align:"right"});
+  const issued = new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+  doc.setFont("times","normal"); doc.setFontSize(5.5); doc.setTextColor(160,160,160);
+  doc.text(issued, W-10, 103, {align:"right"});
 
-  // Outer border
-  doc.setDrawColor(200,200,200);doc.setLineWidth(0.35);doc.rect(3,3,W-6,H-6);
+  doc.setDrawColor(200,200,200); doc.setLineWidth(0.35); doc.rect(3,3,W-6,H-6);
 
   const fname="PolyCoach-Receipt-"+(rc.seatLabel||rc.seatNumber)+"-"+(rc.passengerName||"").replace(/\s+/g,"-")+".pdf";
   doc.save(fname);
@@ -1592,7 +1609,9 @@ async function generateReceiptPDF(rc){
 
 /* ── LOGOUT ── *//* ── LOGOUT ── */
 async function adminLogout(){
-  await fetch("/api/logout");localStorage.clear();window.location.href="Home-Page.html";
+  localStorage.removeItem("polycoachToken");
+  localStorage.removeItem("polycoachUser");
+  window.location.href="Home-Page.html";
 }
 
 // Close modals on overlay click
