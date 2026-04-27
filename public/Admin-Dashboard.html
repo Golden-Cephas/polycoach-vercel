@@ -1542,21 +1542,24 @@ async function loadQRImage(){
 
 async function generateReceiptPDF(rc){
   const {jsPDF} = window.jspdf;
-  const W=120, H=188;
+
+  // Reduced height — eliminates the gap
+  const W=120, H=158;
   const doc = new jsPDF({orientation:"portrait",unit:"mm",format:[W,H]});
 
   doc.setFillColor(255,255,255);
   doc.rect(0,0,W,H,"F");
 
+  // Border
   const pad=7;
   doc.setDrawColor(204,204,204);
   doc.setLineWidth(0.4);
   doc.rect(pad,pad,W-pad*2,H-pad*2);
 
-  const ip=pad+8;
-  const re=W-ip;
+  const ip=pad+8; // left inner padding
+  const re=W-ip;  // right inner edge
 
-  // Logo + POLYCOACH
+  // ── HEADER: POLYCOACH top-left ──
   const logo = await loadLogo2().catch(()=>null);
   let nameX=ip;
   if(logo){ try{ doc.addImage(logo,"PNG",ip,pad+5,13,13); nameX=ip+16; }catch(e){} }
@@ -1565,35 +1568,37 @@ async function generateReceiptPDF(rc){
   doc.setTextColor(51,51,51);
   doc.text("POLYCOACH", nameX, pad+14);
 
-  // Receipt No: VALUE — both on same line, top-right
+  // ── RECEIPT NO top-right, above QR ──
   window._qrSeat = rc.seatNumber||"";
   const rno = (rc.receiptNumber||"").trim();
+  const qrSize=20;
+  const qrX=re-qrSize;
+  const qrY=pad+8;
+
+  // "Receipt No: VALUE" on one line, right-aligned, above QR
   doc.setFont("helvetica","normal");
-  doc.setFontSize(6.5);
+  doc.setFontSize(6);
   doc.setTextColor(102,102,102);
-  doc.text("Receipt No:", ip, pad+6);
-  // Value right after label on same line
+  doc.text("Receipt No:", qrX, pad+6, {align:"left"});
   if(rno){
     doc.setFont("helvetica","bold");
-    doc.setFontSize(6.5);
+    doc.setFontSize(6);
     doc.setTextColor(30,30,30);
     const lw = doc.getTextWidth("Receipt No: ");
-    doc.text(rno, ip+lw, pad+6);
+    doc.text(rno, qrX+lw, pad+6);
   } else {
-    // Blank line placeholder
     doc.setDrawColor(180,180,180);
-    doc.setLineWidth(0.25);
+    doc.setLineWidth(0.2);
     const lw2 = doc.getTextWidth("Receipt No: ");
-    doc.line(ip+lw2, pad+6.5, re, pad+6.5);
+    doc.line(qrX+lw2, pad+6.5, re, pad+6.5);
   }
 
-  // QR below receipt no
-  const qrSize=20;
+  // QR code
   const qr = await loadQRImage();
-  if(qr){ try{ doc.addImage(qr,"PNG",re-qrSize,pad+8,qrSize,qrSize); }catch(e){} }
+  if(qr){ try{ doc.addImage(qr,"PNG",qrX,qrY,qrSize,qrSize); }catch(e){} }
 
-  // BOOKING RECEIPT label
-  const labelY=pad+35;
+  // ── BOOKING RECEIPT label ──
+  const labelY=pad+33;
   doc.setFont("helvetica","bold");
   doc.setFontSize(8);
   doc.setTextColor(85,85,85);
@@ -1604,34 +1609,47 @@ async function generateReceiptPDF(rc){
   // Divider
   doc.setDrawColor(238,238,238);
   doc.setLineWidth(0.35);
-  doc.line(ip, labelY+4, re, labelY+4);
+  doc.line(ip, labelY+3.5, re, labelY+3.5);
 
-  // Fields — full underline first, label+value on top
-  const fs=8.5, gap=11.5;
-  let y=labelY+14;
+  // ── FIELDS ──
+  // Label (bold, NOT underlined) + underline starts after label + value on line
+  //   Name:_____value_______________________________
+  //        ^---- underline from here to right edge
+  const fs=8.5, gap=9.5;
+  let y=labelY+12;
 
-  function field(label,value,x1,x2){
-    doc.setDrawColor(221,221,221);
-    doc.setLineWidth(0.3);
-    doc.line(x1,y+1,x2,y+1);
+  function field(label, value, x1, x2){
+    // Label — bold, no underline
     doc.setFont("helvetica","bold");
     doc.setFontSize(fs);
     doc.setTextColor(68,68,68);
-    doc.text(label,x1,y);
-    if(value&&String(value).trim()){
-      const lw=doc.getTextWidth(label);
+    doc.text(label, x1, y);
+    const lw = doc.getTextWidth(label);
+    const lineStartX = x1+lw+1; // underline starts right after label
+
+    // Value — normal, sits on underline
+    if(value && String(value).trim()){
       doc.setFont("helvetica","normal");
       doc.setFontSize(fs);
       doc.setTextColor(30,30,30);
-      doc.text(doc.splitTextToSize(String(value).trim(),x2-(x1+lw+3))[0],x1+lw+3,y);
+      const maxW = x2 - lineStartX - 2;
+      const txt = doc.splitTextToSize(String(value).trim(), maxW)[0];
+      doc.text(txt, lineStartX+2, y);
     }
+
+    // Underline — from after label to right edge, below text baseline
+    doc.setDrawColor(200,200,200);
+    doc.setLineWidth(0.3);
+    doc.line(lineStartX, y+1.2, x2, y+1.2);
   }
 
   const mid=ip+(re-ip)*0.5;
+
   field("Name:",    rc.passengerName||"", ip,    re);    y+=gap;
   field("Phone:",   rc.phone||"",         ip,    re);    y+=gap;
+  // Split row
   const ry=y;
-  field("Date:",    rc.departureDate||"", ip,    mid-3);
+  field("Date:",    rc.departureDate||"",                    ip,    mid-3);
   y=ry;
   field("Seat No:", rc.seatNumber?String(rc.seatNumber):"", mid+3, re);
   y=ry+gap;
@@ -1639,11 +1657,11 @@ async function generateReceiptPDF(rc){
   field("To:",      rc.destination||"",   ip,    re);    y+=gap;
   field("Deposit:", rc.deposit||"",       ip,    re);
 
-  // Footer — fixed position near bottom, no floating gap
-  const footerLineY = H-pad-22;
+  // ── FOOTER — pinned tight below last field + small gap ──
+  const footerLineY = y + 8;
   doc.setDrawColor(240,240,240);
   doc.setLineWidth(0.3);
-  doc.line(ip,footerLineY,re,footerLineY);
+  doc.line(ip, footerLineY, re, footerLineY);
   doc.setFont("helvetica","italic");
   doc.setFontSize(6.5);
   doc.setTextColor(100,100,100);
@@ -1653,7 +1671,9 @@ async function generateReceiptPDF(rc){
   );
 
   // Issue date bottom-right
-  const issued=new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+  const issued=new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{
+    day:"numeric",month:"long",year:"numeric"
+  });
   doc.setFont("helvetica","normal");
   doc.setFontSize(5.5);
   doc.setTextColor(180,180,180);
