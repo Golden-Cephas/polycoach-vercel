@@ -96,6 +96,32 @@ document.addEventListener("mousemove",e=>{
   }
 });
 
+// Global function — accessible from onclick in HTML
+function closeQRPopup(){
+  const popup = document.getElementById("qrVerifyPopup");
+  if(popup) popup.style.display="none";
+  const seatNum = window._highlightSeat;
+  if(!seatNum) return;
+
+  function doHighlight(){
+    const allSeats = document.querySelectorAll(".seat[data-seat]");
+    if(!allSeats.length){ setTimeout(doHighlight,150); return; }
+    let found=false;
+    allSeats.forEach(el=>{
+      if(Number(el.dataset.seat)===seatNum){
+        found=true;
+        allSeats.forEach(s=>{ s.style.outline=""; s.style.zIndex=""; });
+        el.style.outline="3px solid #0099ff";
+        el.style.outlineOffset="3px";
+        el.style.zIndex="10";
+        el.scrollIntoView({behavior:"smooth",block:"center"});
+      }
+    });
+    if(!found) setTimeout(doHighlight,150);
+  }
+  doHighlight();
+}
+
 (async()=>{
   // No login required to view bus status
   // But if already logged in as admin, offer dashboard link
@@ -110,35 +136,6 @@ document.addEventListener("mousemove",e=>{
     }
   }catch(e){}
   await loadSeats();
-
-function closeQRPopup(){
-  document.getElementById("qrVerifyPopup").style.display="none";
-  if(!window._highlightSeat) return;
-  const seatNum = window._highlightSeat;
-
-  function doHighlight(){
-    const allSeats = document.querySelectorAll(".seat[data-seat]");
-    if(!allSeats.length){
-      // Seats not rendered yet — wait and retry
-      setTimeout(doHighlight, 100);
-      return;
-    }
-    let found = false;
-    allSeats.forEach(el=>{
-      if(Number(el.dataset.seat)===seatNum){
-        found = true;
-        // Remove any previous highlight
-        document.querySelectorAll(".seat[data-seat]").forEach(s=>s.style.outline="");
-        el.style.outline="3px solid #0099ff";
-        el.style.outlineOffset="3px";
-        el.style.zIndex="10";
-        el.scrollIntoView({behavior:"smooth",block:"center"});
-      }
-    });
-    if(!found) setTimeout(doHighlight, 100);
-  }
-  doHighlight();
-}
   // QR code scan — ?seat=X in URL
   const urlSeat = new URLSearchParams(window.location.search).get("seat");
   if(urlSeat){
