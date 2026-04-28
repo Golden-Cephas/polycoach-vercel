@@ -55,7 +55,31 @@ const DEFAULT_PASSWORDS = {
   "0881730203": "soyo1234"
 };
 
+// Auto-delete bookings 48h after their departure date to save space
+async function cleanExpiredBookings() {
+  try {
+    const bookings = await Booking.find({ departureDate: { $ne: "" } }).lean();
+    for (const b of bookings) {
+      if (!b.departureDate) continue;
+      // Parse departure date — handles "15 May 2026" format
+      const dep = new Date(b.departureDate);
+      if (isNaN(dep.getTime())) continue;
+      const expiry = new Date(dep.getTime() + 48 * 60 * 60 * 1000);
+      if (new Date() > expiry) {
+        await Booking.findByIdAndDelete(b._id);
+        // Release the seat
+        await Seat.findOneAndUpdate(
+          { number: b.seatNumber },
+          { status: "available", passengerName: null, destination: "", phone: "" }
+        );
+      }
+    }
+  } catch(e) { console.error("Cleanup error:", e.message); }
+}
+
 module.exports = async (req, res) => {
+  // Run cleanup on every admin request — lightweight, runs async
+  cleanExpiredBookings().catch(()=>{});
   setHeaders(res);
   if (req.method === "OPTIONS") return res.status(200).end();
 

@@ -140,28 +140,53 @@ function closeQRPopup(){
   const urlSeat = new URLSearchParams(window.location.search).get("seat");
   if(urlSeat){
     const seatNum = Number(urlSeat);
-    // Fetch seat data to get passenger name + booking details
     try{
-      const sr = await fetch("/api/seats");
-      const seats = await sr.json();
-      const seatData = seats.find(s=>Number(s.number)===seatNum);
-      const stR = await fetch("/api/settings");
-      const settings = await stR.json();
-      if(seatData){
-        // Show verification popup
-        const popup = document.getElementById("qrVerifyPopup");
-        if(popup){
-          document.getElementById("qv-name").textContent  = seatData.passengerName || "Passenger";
+      // Fetch booking details by seat number
+      const br = await fetch("/api/seats?booking="+seatNum);
+      const booking = await br.json();
+
+      if(!booking.found){
+        // No booking — show invalid popup
+        document.getElementById("qv-invalid-msg").textContent =
+          "No valid booking was found for seat "+seatNum+". Please contact an administrator for clarification.";
+        document.getElementById("qrInvalidPopup").style.display = "flex";
+      } else {
+        // Check expiry — 48 hours after departure date
+        const depStr = booking.departureDate;
+        let expired = false;
+        let noDate   = false;
+
+        if(!depStr || depStr.trim()===""){
+          noDate = true;
+        } else {
+          const dep    = new Date(depStr);
+          const expiry = new Date(dep.getTime() + 48*60*60*1000);
+          if(isNaN(dep.getTime())){
+            noDate = true;
+          } else if(new Date() > expiry){
+            expired = true;
+          }
+        }
+
+        if(noDate){
+          document.getElementById("qv-invalid-msg").textContent =
+            "This ticket has no departure date and cannot be verified. Please ask your administrator for clarification.";
+          document.getElementById("qrInvalidPopup").style.display = "flex";
+        } else if(expired){
+          document.getElementById("qv-expired-seat").textContent = seatNum;
+          document.getElementById("qrExpiredPopup").style.display = "flex";
+        } else {
+          // Valid — show verification popup
+          document.getElementById("qv-name").textContent  = booking.passengerName || "Passenger";
           document.getElementById("qv-seat").textContent  = seatNum;
-          document.getElementById("qv-from").textContent  = settings.departureVenue || "MUBAS";
-          document.getElementById("qv-to").textContent    = seatData.destination   || "";
-          document.getElementById("qv-date").textContent  = settings.departureDate  || "";
-          popup.style.display = "flex";
+          document.getElementById("qv-from").textContent  = booking.departureVenue || "MUBAS";
+          document.getElementById("qv-to").textContent    = booking.destination   || "";
+          document.getElementById("qv-date").textContent  = booking.departureDate || "";
+          document.getElementById("qrVerifyPopup").style.display = "flex";
+          window._highlightSeat = seatNum;
         }
       }
     }catch(e){ console.error("QR verify error:",e); }
-    // Highlight the seat after popup is dismissed
-    window._highlightSeat = seatNum;
   }
 })();
 
@@ -232,6 +257,39 @@ setInterval(loadSeats,30000);
     </div>
     <button onclick="closeQRPopup()" style="margin-top:22px;background:#0b294d;color:#fff;border:none;border-radius:8px;padding:13px 32px;font-size:1rem;font-weight:700;cursor:pointer;width:100%;">
       OK &mdash; View My Seat
+    </button>
+  </div>
+</div>
+
+<!-- EXPIRED TICKET POPUP -->
+<div id="qrExpiredPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:14px;padding:36px 30px;max-width:380px;width:100%;text-align:center;font-family:'Segoe UI',Arial,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-size:2.8rem;margin-bottom:12px;">&#128336;</div>
+    <h2 style="color:#c0392b;font-size:1.3rem;font-weight:800;margin-bottom:12px;">Ticket Expired</h2>
+    <p style="color:#555;font-size:0.93rem;line-height:1.7;margin-bottom:20px;">
+      The ticket for seat <strong id="qv-expired-seat" style="color:#0b294d;"></strong> has expired.<br>
+      This QR code is no longer valid &mdash; the departure date has passed.
+    </p>
+    <a href="https://wa.me/265981136268" target="_blank" style="display:block;background:#25D366;color:#fff;border-radius:8px;padding:13px;font-weight:700;font-size:0.95rem;text-decoration:none;margin-bottom:10px;">
+      &#128172; &nbsp;Contact PolyCoach on WhatsApp
+    </a>
+    <button onclick="document.getElementById('qrExpiredPopup').style.display='none';location.href='/Book-Login.html'" style="width:100%;padding:12px;background:#0b294d;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:0.9rem;cursor:pointer;margin-top:4px;">
+      Book a New Seat
+    </button>
+  </div>
+</div>
+
+<!-- INVALID TICKET POPUP -->
+<div id="qrInvalidPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:14px;padding:36px 30px;max-width:380px;width:100%;text-align:center;font-family:'Segoe UI',Arial,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-size:2.8rem;margin-bottom:12px;">&#9888;&#65039;</div>
+    <h2 style="color:#e67e22;font-size:1.3rem;font-weight:800;margin-bottom:12px;">Invalid Ticket</h2>
+    <p id="qv-invalid-msg" style="color:#555;font-size:0.93rem;line-height:1.7;margin-bottom:20px;"></p>
+    <a href="https://wa.me/265981136268" target="_blank" style="display:block;background:#25D366;color:#fff;border-radius:8px;padding:13px;font-weight:700;font-size:0.95rem;text-decoration:none;margin-bottom:10px;">
+      &#128172; &nbsp;Contact PolyCoach on WhatsApp
+    </a>
+    <button onclick="document.getElementById('qrInvalidPopup').style.display='none'" style="width:100%;padding:12px;background:#f0f2f5;color:#555;border:none;border-radius:8px;font-weight:700;font-size:0.9rem;cursor:pointer;margin-top:4px;">
+      Close
     </button>
   </div>
 </div>
