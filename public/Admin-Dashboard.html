@@ -198,8 +198,7 @@ tr:hover td{background:#fafafa;}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search name..." oninput="filterTable('usersTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddUserModal()"><i class="fa-solid fa-plus"></i> Add User</button>
-          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadUsersPDF()"><i class="fa-solid fa-file-pdf"></i> Registration List</button>
-          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusListPDF()"><i class="fa-solid fa-bus"></i> Seat List</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadUsersPDF()"><i class="fa-solid fa-file-pdf"></i> Download List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -496,32 +495,6 @@ async function saveSeatEdit(){
   const name   = document.getElementById("editName").value.trim();
   const dest   = document.getElementById("editDest").value.trim();
   if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
-
-  // ── Name-match check: does this exact name already exist on another seat? ──
-  if(status==="booked" && name){
-    const seatsRes = await fetch("/api/seats");
-    const allSeats = await seatsRes.json();
-    const matchSeat = allSeats.find(s=>
-      Number(s.number)!==currentSeatNum &&
-      s.passengerName &&
-      s.passengerName.trim().toLowerCase()===name.toLowerCase() &&
-      s.status!=="available"
-    );
-    if(matchSeat){
-      const choice = confirm(
-        name + " is currently assigned to Seat " + matchSeat.number + ".\n\n" +
-        "Click OK to SWITCH seats (Seat " + matchSeat.number + " and Seat " + currentSeatNum + ").\n" +
-        "Click Cancel if this is a different person with the same name."
-      );
-      if(choice){
-        // Switch the two seats
-        await switchSeats(currentSeatNum, matchSeat.number, name, matchSeat.passengerName, matchSeat.destination, dest);
-        return;
-      }
-      // Cancel = treat as different person, fall through to normal save
-    }
-  }
-
   try{
     const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum, {
       method:"POST", headers:authHeaders(),
@@ -542,20 +515,6 @@ async function saveSeatEdit(){
     }
   }catch(err){
     alert("Server error: "+err.message);
-  }
-}
-
-async function switchSeats(seatA, seatB, nameA, nameB, destA, destB){
-  // Swap two passengers between seats
-  try{
-    await Promise.all([
-      fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"booked",passengerName:nameA,destination:destB||""})}),
-      fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"booked",passengerName:nameB,destination:destA||""})})
-    ]);
-    await Promise.all([loadBus(),loadBookings(),loadUsers()]);
-    alert(nameA+" moved to Seat "+seatA+", "+nameB+" moved to Seat "+seatB+". Seats switched successfully.");
-  }catch(err){
-    alert("Switch failed: "+err.message);
   }
 }
 
@@ -912,6 +871,60 @@ function pdfFooter(doc) {
   }
 }
 
+async function downloadUsersPDF() {
+  const r = await fetch('/api/admin/users');
+  const users = await r.json();
+  if (!users.length) { alert('No registered users yet.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();
+
+  pdfHeader(doc, 'Registered Users');
+
+  // Date line
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Printed: ' + new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }), 14, 36);
+  doc.text('Total Students: ' + users.length, pw - 14, 36, { align: 'right' });
+
+  // Table
+  const rows = users.map((u, i) => [
+    i + 1,
+    u.fullName || '',
+    u.regNumber || '',
+    u.phone || ''
+  ]);
+
+  doc.autoTable({
+    startY: 40,
+    head: [['#', 'Full Name', 'Registration Number', 'Phone']],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [11, 41, 77],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 10
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [0, 0, 0]
+    },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    columnStyles: {
+      0: { cellWidth: 12, halign: 'center' },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 60 },
+      3: { cellWidth: 40 }
+    },
+    margin: { left: 14, right: 14, bottom: 22 },
+    didDrawPage: () => pdfHeader(doc, 'Registered Users')
+  });
+
+  pdfFooter(doc);
+  doc.save('PolyCoach_Registered_Users_' + new Date().toISOString().slice(0,10) + '.pdf');
+}
 
 async function downloadBusLayoutPDF() {
   const r = await fetch('/api/seats');
@@ -1399,145 +1412,286 @@ async function downloadBusLayoutPDF(){
    DOWNLOAD REGISTRATION LIST
 ════════════════════════════════════════ */
 async function downloadUsersPDF(){
-  // REGISTRATION LIST — online registrations only
-  // Columns: Name | Phone | Program | Destination
   const btn = event.currentTarget;
-  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
-    const r = await fetch("/api/admin?action=users",{headers:authHeaders()});
-    const users = await r.json();
-    const logo  = await loadLogo2();
+    const users   = await (await fetch("/api/admin/users")).json();
+    const logo    = await loadLogo2();
     const {jsPDF} = window.jspdf;
-    const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-    const pW  = doc.internal.pageSize.getWidth();
+    const doc     = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+    const pW      = doc.internal.pageSize.getWidth();
     const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
-    pdfHeader(doc,"Registration List",logo);
+    pdfHeader(doc, "Registration List", logo);
 
-    doc.setFont("times","italic"); doc.setFontSize(9); doc.setTextColor(90,90,90);
-    doc.text("Online registrations only — "+users.length+" student(s)", pW-14, 43, {align:"right"});
+    // Sub-info line
+    doc.setFont("times","italic");
+    doc.setFontSize(9);
+    doc.setTextColor(90,90,90);
+    doc.text("Total Students: " + users.length, pW - 14, 43, {align:"right"});
     doc.setTextColor(0,0,0);
 
-    const rows = users.map((u,i)=>[
-      String(i+1),
-      u.fullName    || "—",
-      u.phone       || "—",
-      u.program     || "—",
-      u.destination || "—"
+    // Table
+    const rows = users.map((u, i) => [
+      String(i + 1),
+      u.fullName    || "-",
+      u.program     || u.regNumber || "-",
+      u.phone       || "-",
+      u.destination || "-"
     ]);
 
     doc.autoTable({
       startY: 46,
-      head: [["#","Full Name","Phone","Program","Destination"]],
+      head: [["#", "Full Name", "Program", "Phone", "Destination"]],
       body: rows,
-      styles:{ font:"times", fontSize:10, cellPadding:{top:4,bottom:4,left:4,right:4}, textColor:[0,0,0], lineColor:[200,215,230], lineWidth:0.3 },
-      headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", fontSize:10, font:"times", cellPadding:{top:5,bottom:5,left:4,right:4} },
-      alternateRowStyles:{ fillColor:[240,246,255] },
-      columnStyles:{ 0:{cellWidth:12,halign:"center",fontStyle:"bold"}, 1:{cellWidth:58}, 2:{cellWidth:34}, 3:{cellWidth:38}, 4:{cellWidth:38} },
-      margin:{left:14,right:14,top:47,bottom:22},
-      didDrawPage:()=>{ pdfHeader(doc,"Registration List",logo); }
-    });
-
-    pdfFooter(doc,dateStr);
-    doc.save("PolyCoach-Registration-List-"+new Date().toISOString().slice(0,10)+".pdf");
-  }catch(err){
-    alert("Could not generate Registration List. Please try again.");
-    console.error(err);
-  }
-  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-file-pdf"></i> Download List';
-}
-
-async function downloadBusListPDF(){
-  // BOOKING/SEAT LIST — from bus layout, one row per seat
-  // Columns: Seat | Name | Number | Status | Deposit | Balance | Total
-  // Sorted by seat number, no duplicates, balance/total blank for manual pen
-  const btn = event.currentTarget;
-  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
-  try{
-    const [seatsRes, bookingsRes] = await Promise.all([
-      fetch("/api/seats"),
-      fetch("/api/admin?action=bookings",{headers:authHeaders()})
-    ]);
-    const seats    = await seatsRes.json();
-    const bookings = await bookingsRes.json();
-    const logo     = await loadLogo2();
-    const {jsPDF}  = window.jspdf;
-    const doc = new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
-    const pW  = doc.internal.pageSize.getWidth();
-    const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-
-    pdfHeader(doc,"Seat Booking List",logo);
-    doc.setFont("times","italic"); doc.setFontSize(9); doc.setTextColor(90,90,90);
-    const booked = seats.filter(s=>s.status!=="available").length;
-    doc.text("Booked/Pending: "+booked+" of 72 seats", pW-14, 43, {align:"right"});
-    doc.setTextColor(0,0,0);
-
-    // Build one row per occupied seat — sorted by seat number
-    const occupiedSeats = seats
-      .filter(s=>s.status!=="available")
-      .sort((a,b)=>Number(a.number)-Number(b.number));
-
-    // Get deposit from latest approved/pending booking for each seat
-    function depositForSeat(seatNum){
-      const bks = bookings.filter(b=>Number(b.seatNumber)===Number(seatNum));
-      if(!bks.length) return "";
-      // Prefer approved, then pending
-      const approved = bks.find(b=>b.status==="approved");
-      const pending  = bks.find(b=>b.status==="pending");
-      const b = approved || pending;
-      return b && b.deposit ? b.deposit : "";
-    }
-
-    function statusLabel(seat){
-      const bks = bookings.filter(b=>Number(b.seatNumber)===Number(seat.number));
-      const approved = bks.find(b=>b.status==="approved");
-      const pending  = bks.find(b=>b.status==="pending");
-      if(approved) return seat.status==="booked" ? "Booked" : "Approved";
-      if(pending)  return "Pending";
-      // Admin assigned directly — no booking record
-      if(seat.status==="booked") return "Admin Assigned";
-      return "Pending";
-    }
-
-    const rows = occupiedSeats.map(s=>[
-      String(s.number),
-      s.passengerName || "—",
-      s.phone         || "—",
-      statusLabel(s),
-      depositForSeat(s.number),
-      "",   // Balance — blank, filled manually
-      ""    // Total — blank, filled manually
-    ]);
-
-    doc.autoTable({
-      startY: 46,
-      head: [["Seat","Full Name","Phone No.","Status","Deposit","Balance","Amount Paid"]],
-      body: rows,
-      styles:{ font:"times", fontSize:9.5, cellPadding:{top:4,bottom:4,left:4,right:4}, textColor:[0,0,0], lineColor:[200,215,230], lineWidth:0.3 },
-      headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", fontSize:9.5, font:"times", cellPadding:{top:5,bottom:5,left:4,right:4} },
+      styles:{
+        font:        "times",
+        fontSize:    10.5,
+        cellPadding: {top:4, bottom:4, left:4, right:4},
+        textColor:   [0,0,0],
+        lineColor:   [200,215,230],
+        lineWidth:   0.3,
+        valign:      "middle"
+      },
+      headStyles:{
+        fillColor:  [11,41,77],
+        textColor:  [255,255,255],
+        fontStyle:  "bold",
+        fontSize:   10,
+        font:       "times",
+        cellPadding:{top:5, bottom:5, left:4, right:4}
+      },
       alternateRowStyles:{ fillColor:[240,246,255] },
       columnStyles:{
-        0:{cellWidth:16, halign:"center", fontStyle:"bold"},
-        1:{cellWidth:54},
-        2:{cellWidth:32},
-        3:{cellWidth:30},
-        4:{cellWidth:26, halign:"center"},
-        5:{cellWidth:26, halign:"center"},
-        6:{cellWidth:30, halign:"center"}
+        0:{cellWidth:10,  halign:"center", fontStyle:"bold"},
+        1:{cellWidth:58},
+        2:{cellWidth:30},
+        3:{cellWidth:36},
+        4:{cellWidth:38}
       },
-      margin:{left:14,right:14,top:47,bottom:22},
-      didDrawPage:()=>{ pdfHeader(doc,"Seat Booking List",logo); }
+      margin:{left:14, right:14, top:47, bottom:22},
+      didDrawPage: function(){
+        pdfHeader(doc, "Registration List", logo);
+      }
     });
 
-    pdfFooter(doc,dateStr);
-    doc.save("PolyCoach-Seat-List-"+new Date().toISOString().slice(0,10)+".pdf");
+    pdfFooter(doc, dateStr);
+    doc.save("PolyCoach-Registration-List-" + new Date().toISOString().slice(0,10) + ".pdf");
   }catch(err){
-    alert("Could not generate Seat List. Please try again.");
+    alert("Could not generate Registration List PDF. Please try again.");
     console.error(err);
   }
-  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-file-pdf"></i> Download Seat List';
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download List';
 }
 
+/* ── RECEIPT DOWNLOAD ── */
+
+let _pendingReceiptId = null;
+
+function openMissingFieldsPopup(id, rc){
+  _pendingReceiptId = id;
+  // Only ask for deposit — everything else is already saved
+  const depEl = document.getElementById("rf-deposit");
+  if(depEl) depEl.value = rc.deposit || "";
+  const popup = document.getElementById("missingFieldsPopup");
+  if(popup) popup.style.display = "flex";
+}
+
+async function confirmMissingFields(){
+  const deposit = (document.getElementById("rf-deposit")||{value:""}).value.trim();
+  if(!deposit){ alert("Please enter the deposit amount."); return; }
+  const popup = document.getElementById("missingFieldsPopup");
+  if(popup) popup.style.display = "none";
+  // Save deposit to booking record
+  await fetch("/api/admin?action=update-booking&id="+_pendingReceiptId, {
+    method:"POST", headers:authHeaders(), body:JSON.stringify({deposit})
+  }).catch(()=>{});
+  // Fetch updated receipt and generate
+  const r = await fetch("/api/admin?action=receipt&id="+_pendingReceiptId, {headers:authHeaders()});
+  const d = await r.json();
+  if(d.success) generateReceiptPDF(d.receipt);
+}
+
+async function downloadReceipt(id){
+  try{
+    const r = await fetch("/api/admin?action=receipt&id="+id, {headers:authHeaders()});
+    const d = await r.json();
+    if(!d.success){ alert("Could not load receipt."); return; }
+    const rc = d.receipt;
+    // Always open popup so admin can set/confirm deposit before download
+    openMissingFieldsPopup(id, rc);
+  }catch(err){ alert("Receipt error: "+err.message); }
+}
+
+async function loadQRImage(){
+  return new Promise((resolve)=>{
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = function(){
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth||200; c.height = img.naturalHeight||200;
+      c.getContext("2d").drawImage(img,0,0);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = ()=>resolve(null);
+    const seatParam = (typeof _qrSeat !== "undefined") ? _qrSeat : "";
+    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/Bust-Status-Lay.html%3Fseat%3D"+seatParam+"&t="+Date.now();
+  });
+}
+
+async function generateReceiptPDF(rc){
+  const {jsPDF} = window.jspdf;
+
+  // Reduced height — eliminates the gap
+  const W=120, H=158;
+  const doc = new jsPDF({orientation:"portrait",unit:"mm",format:[W,H]});
+
+  doc.setFillColor(255,255,255);
+  doc.rect(0,0,W,H,"F");
+
+  // Border
+  const pad=7;
+  doc.setDrawColor(204,204,204);
+  doc.setLineWidth(0.4);
+  doc.rect(pad,pad,W-pad*2,H-pad*2);
+
+  const ip=pad+8; // left inner padding
+  const re=W-ip;  // right inner edge
+
+  // ── HEADER: POLYCOACH top-left ──
+  const logo = await loadLogo2().catch(()=>null);
+  let nameX=ip;
+  if(logo){ try{ doc.addImage(logo,"PNG",ip,pad+5,13,13); nameX=ip+16; }catch(e){} }
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(15);
+  doc.setTextColor(51,51,51);
+  doc.text("POLYCOACH", nameX, pad+14);
+
+  // ── RECEIPT NO top-right, above QR ──
+  window._qrSeat = rc.seatNumber||"";
+  const rno = (rc.receiptNumber||"").trim();
+  const qrSize=20;
+  const qrX=re-qrSize;
+  const qrY=pad+8;
+
+  // "Receipt No: VALUE" — right edge of text aligns with right edge of QR
+  const rnoRightEdge = re; // QR right edge = re
+  if(rno){
+    // Draw value bold first, right-aligned to QR right edge
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(6);
+    doc.setTextColor(30,30,30);
+    const valW = doc.getTextWidth(rno);
+    // Draw label grey, immediately left of value
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(6);
+    doc.setTextColor(102,102,102);
+    const label = "Receipt No: ";
+    const labelW = doc.getTextWidth(label);
+    doc.text(label, rnoRightEdge - valW - labelW, pad+6);
+    doc.setFont("helvetica","bold");
+    doc.setTextColor(30,30,30);
+    doc.text(rno, rnoRightEdge - valW, pad+6);
+  } else {
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(6);
+    doc.setTextColor(102,102,102);
+    doc.text("Receipt No:", qrX, pad+6);
+    doc.setDrawColor(180,180,180);
+    doc.setLineWidth(0.2);
+    doc.line(qrX + doc.getTextWidth("Receipt No: "), pad+6.5, re, pad+6.5);
+  }
+
+  // QR code
+  const qr = await loadQRImage();
+  if(qr){ try{ doc.addImage(qr,"PNG",qrX,qrY,qrSize,qrSize); }catch(e){} }
+
+  // ── BOOKING RECEIPT label ──
+  const labelY=pad+33;
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(8);
+  doc.setTextColor(85,85,85);
+  doc.setCharSpace(1.8);
+  doc.text("BOOKING RECEIPT", ip, labelY);
+  doc.setCharSpace(0);
+
+  // Divider
+  doc.setDrawColor(238,238,238);
+  doc.setLineWidth(0.35);
+  doc.line(ip, labelY+3.5, re, labelY+3.5);
+
+  // ── FIELDS ──
+  // Label (bold, NOT underlined) + underline starts after label + value on line
+  //   Name:_____value_______________________________
+  //        ^---- underline from here to right edge
+  const fs=8.5, gap=9.5;
+  let y=labelY+12;
+
+  function field(label, value, x1, x2){
+    // Label — bold, no underline
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(fs);
+    doc.setTextColor(68,68,68);
+    doc.text(label, x1, y);
+    const lw = doc.getTextWidth(label);
+    const lineStartX = x1+lw+1; // underline starts right after label
+
+    // Value — normal, sits on underline
+    if(value && String(value).trim()){
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(fs);
+      doc.setTextColor(30,30,30);
+      const maxW = x2 - lineStartX - 2;
+      const txt = doc.splitTextToSize(String(value).trim(), maxW)[0];
+      doc.text(txt, lineStartX+2, y);
+    }
+
+    // Underline — from after label to right edge, below text baseline
+    doc.setDrawColor(200,200,200);
+    doc.setLineWidth(0.3);
+    doc.line(lineStartX, y+1.2, x2, y+1.2);
+  }
+
+  const mid=ip+(re-ip)*0.5;
+
+  field("Name:",    rc.passengerName||"", ip,    re);    y+=gap;
+  field("Phone:",   rc.phone||"",         ip,    re);    y+=gap;
+  // Split row
+  const ry=y;
+  field("Date:",    rc.departureDate||"",                    ip,    mid-3);
+  y=ry;
+  field("Seat No:", rc.seatNumber?String(rc.seatNumber):"", mid+3, re);
+  y=ry+gap;
+  field("From:",    rc.departureVenue||"",ip,    re);    y+=gap;
+  field("To:",      rc.destination||"",   ip,    re);    y+=gap;
+  field("Deposit:", rc.deposit||"",       ip,    re);
+
+  // ── FOOTER — pinned tight below last field + small gap ──
+  const footerLineY = y + 8;
+  doc.setDrawColor(240,240,240);
+  doc.setLineWidth(0.3);
+  doc.line(ip, footerLineY, re, footerLineY);
+  doc.setFont("helvetica","italic");
+  doc.setFontSize(6.5);
+  doc.setTextColor(100,100,100);
+  doc.text(
+    "Thanks for choosing Polycoach. We wish you all the best as you finish the semester.",
+    ip, footerLineY+6, {maxWidth:re-ip}
+  );
+
+  // Issue date bottom-right
+  const issued=new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{
+    day:"numeric",month:"long",year:"numeric"
+  });
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(5.5);
+  doc.setTextColor(180,180,180);
+  doc.text(issued, re, H-pad-4, {align:"right"});
+
+  const fname="PolyCoach-Receipt-Seat"+(rc.seatNumber||"")+"-"+(rc.passengerName||"").replace(/\s+/g,"-")+".pdf";
+  doc.save(fname);
+}
 
 /* ── LOGOUT ── *//* ── LOGOUT ── */
 async function adminLogout(){
