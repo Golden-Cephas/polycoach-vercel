@@ -514,19 +514,7 @@ async function saveSeatEdit(){
   const dest   = document.getElementById("editDest").value.trim();
   if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
 
-  // ── Name-exists check: is this person already in bookings/pending? ──
-  if((status==="booked" || status==="pending") && name){
-    const existBk = await nameExistsInBookings(name);
-    if(existBk){
-      const go = confirm(
-        name + " already has a booking on Seat " + existBk.seatNumber +
-        " (" + existBk.status + ").\nProceed assigning another seat to this person?"
-      );
-      if(!go) return;
-    }
-  }
-
-  // ── Name-match check: does this exact name already exist on another seat? ──
+  // ── Name conflict check: existing booking or same name on another seat? ──
   if((status==="booked" || status==="pending") && name){
     const seatsRes = await fetch("/api/seats");
     const allSeats = await seatsRes.json();
@@ -537,17 +525,14 @@ async function saveSeatEdit(){
       s.status!=="available"
     );
     if(matchSeat){
-      const choice = confirm(
-        name + " is currently assigned to Seat " + matchSeat.number + ".\n\n" +
-        "Click OK to SWITCH seats (Seat " + matchSeat.number + " and Seat " + currentSeatNum + ").\n" +
-        "Click Cancel if this is a different person with the same name."
-      );
-      if(choice){
-        // Switch the two seats
+      // Name already exists on another seat — show 3-option popup
+      const decision = await showNameConflictPopup(name, matchSeat);
+      if(decision==="cancel") return;
+      if(decision==="switch"){
         await switchSeats(currentSeatNum, matchSeat.number, name, matchSeat.passengerName, matchSeat.destination, dest);
         return;
       }
-      // Cancel = treat as different person, fall through to normal save
+      // "new-entry" — fall through to normal save
     }
   }
 
@@ -572,6 +557,22 @@ async function saveSeatEdit(){
   }catch(err){
     alert("Server error: "+err.message);
   }
+}
+
+
+function showNameConflictPopup(name, matchSeat){
+  return new Promise((resolve)=>{
+    document.getElementById("ncpName").textContent    = name;
+    document.getElementById("ncpSeatNum").textContent = matchSeat.number;
+    document.getElementById("ncpStatus").textContent  = matchSeat.status;
+    document.getElementById("ncpCurSeat").textContent = currentSeatNum;
+    window._ncpResolve = resolve;
+    document.getElementById("nameConflictPopup").style.display = "flex";
+  });
+}
+function _ncpChoice(val){
+  document.getElementById("nameConflictPopup").style.display = "none";
+  if(window._ncpResolve){ window._ncpResolve(val); window._ncpResolve=null; }
 }
 
 async function switchSeats(seatA, seatB, nameA, nameB, destA, destB){
@@ -1862,6 +1863,27 @@ document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click
         <i class="fa-solid fa-file-pdf"></i>&nbsp; Download Receipt
       </button>
       <button onclick="document.getElementById('missingFieldsPopup').style.display='none'" style="padding:13px 16px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="nameConflictPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.35);font-family:'Lato',Arial,sans-serif;">
+    <h3 style="color:#0b294d;margin:0 0 8px 0;font-family:'Barlow Condensed',Arial,sans-serif;font-size:1.35rem;">Name Already Exists</h3>
+    <p style="color:#555;font-size:0.88rem;margin-bottom:20px;line-height:1.5;">
+      <strong id="ncpName"></strong> is already on Seat <strong id="ncpSeatNum"></strong>
+      (<span id="ncpStatus"></span>). What would you like to do?
+    </p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="_ncpChoice('switch')" style="padding:13px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;transition:background 0.2s;" onmouseover="this.style.background='#0099ff'" onmouseout="this.style.background='#0b294d'">
+        <i class="fa-solid fa-arrow-right-arrow-left"></i>&nbsp; Switch Seat — move them to Seat <span id="ncpCurSeat"></span>
+      </button>
+      <button onclick="_ncpChoice('new-entry')" style="padding:13px;background:#198754;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;transition:background 0.2s;" onmouseover="this.style.background='#157347'" onmouseout="this.style.background='#198754'">
+        <i class="fa-solid fa-user-plus"></i>&nbsp; New Entry — different person, same name
+      </button>
+      <button onclick="_ncpChoice('cancel')" style="padding:13px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;">
+        <i class="fa-solid fa-xmark"></i>&nbsp; Cancel — go back and check
+      </button>
     </div>
   </div>
 </div>
