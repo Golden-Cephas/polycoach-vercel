@@ -1565,12 +1565,14 @@ async function downloadBusListPDF(){
   const btn = event.currentTarget;
   btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
-    const [seatsRes, bookingsRes] = await Promise.all([
+    const [seatsRes, bookingsRes, settingsRes] = await Promise.all([
       fetch("/api/seats"),
-      fetch("/api/admin?action=bookings",{headers:authHeaders()})
+      fetch("/api/admin?action=bookings",{headers:authHeaders()}),
+      fetch("/api/settings")
     ]);
     const seats    = await seatsRes.json();
     const bookings = await bookingsRes.json();
+    const settings = await settingsRes.json();
     const logo     = await loadLogo2();
     const {jsPDF}  = window.jspdf;
     const doc = new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
@@ -1614,7 +1616,7 @@ async function downloadBusListPDF(){
       String(s.number),
       s.passengerName || "—",
       s.phone         || "—",
-      s.origin        || "—",
+      settings.departureVenue || "—",
       s.destination   || "—",
       statusLabel(s),
       depositForSeat(s.number),
