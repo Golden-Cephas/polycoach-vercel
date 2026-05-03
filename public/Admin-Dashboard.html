@@ -515,7 +515,7 @@ async function saveSeatEdit(){
   if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
 
   // ── Name-exists check: is this person already in bookings/pending? ──
-  if(status==="booked" && name){
+  if((status==="booked" || status==="pending") && name){
     const existBk = await nameExistsInBookings(name);
     if(existBk){
       const go = confirm(
@@ -527,7 +527,7 @@ async function saveSeatEdit(){
   }
 
   // ── Name-match check: does this exact name already exist on another seat? ──
-  if(status==="booked" && name){
+  if((status==="booked" || status==="pending") && name){
     const seatsRes = await fetch("/api/seats");
     const allSeats = await seatsRes.json();
     const matchSeat = allSeats.find(s=>
