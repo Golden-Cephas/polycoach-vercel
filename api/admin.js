@@ -276,6 +276,14 @@ module.exports = async (req, res) => {
         seat.phone         = phone || seat.phone || "";
         await seat.save();
 
+        // If clearing seat, cancel its active booking
+        if(!status || status === "available"){
+          await Booking.findOneAndUpdate(
+            { seatNumber: seatN, status: { $ne: "rejected" } },
+            { status: "rejected" }
+          );
+        }
+
         let bookingCreated = false;
         let bookingId      = null;
 
