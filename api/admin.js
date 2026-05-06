@@ -300,7 +300,7 @@ module.exports = async (req, res) => {
               seatNumber:    seatN,
               passengerName,
               destination:   destination||"",
-              phone:         phone||"",
+              phone:         resolvedPhone||"",
               program:       "",
               receiptNumber: receiptNo,
               seatLabel:     lbl,
