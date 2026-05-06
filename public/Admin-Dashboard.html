@@ -596,8 +596,9 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
-      // seatA is empty — clear old seat first, then assign to new seat
-      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+      // seatA is empty — reset old seat exactly like admin clicking Reset Seat, then assign to new seat
+      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:null,destination:"",phone:""})});
+      await loadBus(); await loadBookings();
       await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
