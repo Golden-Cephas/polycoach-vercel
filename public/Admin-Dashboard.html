@@ -576,25 +576,24 @@ function _ncpChoice(val){
 }
 
 async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, statusB){
-  // seatA = seat admin is currently editing (destination seat for the person)
-  // seatB = seat the person currently sits on (their old seat)
-  // nameA = name being assigned (the person being moved)
-  // nameB = whoever is on seatA right now (may be empty if seat was available)
+  // seatA = seat admin is currently editing (the new seat for nameA)
+  // seatB = nameA's current/old seat
+  // statusA = status admin is assigning (travels with nameA to seatA)
+  // statusB = status of seatA's current occupant (travels with nameB to seatB)
   try{
     if(nameB){
-      // seatA is occupied — exchange the two passengers, each keeps their own status
-      await Promise.all([
-        fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})}),
-        fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})})
-      ]);
+      // seatA is occupied — first clear both seats, then assign, to avoid booking conflicts
+      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+      // Now assign each passenger to their new seat with their correct status
+      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})});
+      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
-      // seatA is empty — move person to new seat, clear old seat
-      await Promise.all([
-        fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})}),
-        fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})})
-      ]);
+      // seatA is empty — clear old seat first, then assign to new seat
+      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
     }
