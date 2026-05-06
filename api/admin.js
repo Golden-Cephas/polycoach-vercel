@@ -304,24 +304,19 @@ module.exports = async (req, res) => {
           // Auto-register passenger
           const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
           if (!nameExists) {
-            await User.create({ fullName: passengerName.trim(), phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
+            await User.create({ fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: destination||"" });
           }
           // Create booking record if none exists for this seat
           const existing = await Booking.findOne({ seatNumber: seatN, status: { $ne: "rejected" } });
           if (!existing) {
             const settings = await Settings.findOne();
             // Build receipt number X-Y-Z — resolve phone from User if not supplied
-            let resolvedPhone = phone || "";
-            if(!resolvedPhone){
-              const linkedUser = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
-              if(linkedUser) resolvedPhone = linkedUser.phone || "";
-            }
-            const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, resolvedPhone, Booking);
+            const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, phone||"", Booking);
             const booking = await Booking.create({
               seatNumber:    seatN,
               passengerName,
               destination:   destination||"",
-              phone:         resolvedPhone||"",
+              phone:         phone||"",
               program:       "",
               receiptNumber: receiptNo,
               seatLabel:     lbl,
@@ -400,15 +395,9 @@ module.exports = async (req, res) => {
         if(departureVenue) b.departureVenue = departureVenue;
         // Generate receipt number now if still missing
         if(!b.receiptNumber){
-          let resolvedPhone = b.phone || "";
-          if(!resolvedPhone && b.passengerName){
-            const linkedUser = await User.findOne({ fullName: { $regex: "^"+b.passengerName.trim()+"$", $options: "i" } });
-            if(linkedUser) resolvedPhone = linkedUser.phone || "";
-          }
-          const {receiptNumber,seatLabel} = await buildReceiptNumber(b.seatNumber, resolvedPhone, Booking);
+          const {receiptNumber,seatLabel} = await buildReceiptNumber(b.seatNumber, b.phone||"", Booking);
           b.receiptNumber = receiptNumber;
           b.seatLabel     = seatLabel;
-          b.phone         = b.phone || resolvedPhone; // persist if was missing
         }
         // Pull departure info from settings if still missing
         if(!b.departureDate||!b.departureVenue||!b.deposit){
