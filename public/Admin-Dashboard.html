@@ -529,7 +529,12 @@ async function saveSeatEdit(){
       const decision = await showNameConflictPopup(name, matchSeat);
       if(decision==="cancel") return;
       if(decision==="switch"){
-        await switchSeats(currentSeatNum, matchSeat.number, name, matchSeat.passengerName, dest, matchSeat.destination, status, matchSeat.status);
+        // nameOnNewSeat = whoever is currently on the seat admin is editing (not Person A)
+        const newSeatRes  = await fetch("/api/seats");
+        const allSeatsNow = await newSeatRes.json();
+        const newSeatData = allSeatsNow.find(s=>Number(s.number)===currentSeatNum);
+        const nameOnNewSeat = (newSeatData && newSeatData.status!=="available") ? newSeatData.passengerName : null;
+        await switchSeats(currentSeatNum, matchSeat.number, name, nameOnNewSeat, dest, matchSeat.destination, status, matchSeat.status);
         return;
       }
       // "new-entry" — fall through to normal save
