@@ -587,19 +587,14 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
   // statusB = status of seatA's current occupant (travels with nameB to seatB)
   try{
     if(nameB){
-      // seatA is occupied — first clear both seats, then assign, to avoid booking conflicts
-      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
-      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
-      // Now assign each passenger to their new seat with their correct status
-      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})});
+      // seatA is occupied — assign each person to their new seat, clearing the other seat atomically
+      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
       await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
-      // seatA is empty — reset old seat exactly like admin clicking Reset Seat, then assign to new seat
-      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:null,destination:"",phone:""})});
-      await loadBus(); await loadBookings();
-      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||""})});
+      // seatA is empty — assign to new seat and tell backend to clear old seat by number
+      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
     }

@@ -284,6 +284,19 @@ module.exports = async (req, res) => {
           );
         }
 
+        // If this assignment is part of a seat switch, also clear the old seat by its number
+        const clearSeatNum = req.body.clearSeatNum ? Number(req.body.clearSeatNum) : null;
+        if(clearSeatNum && clearSeatNum !== seatN){
+          await Seat.findOneAndUpdate(
+            { number: clearSeatNum },
+            { status: "available", passengerName: null, destination: "", phone: "" }
+          );
+          await Booking.findOneAndUpdate(
+            { seatNumber: clearSeatNum, status: { $ne: "rejected" } },
+            { status: "rejected" }
+          );
+        }
+
         let bookingCreated = false;
         let bookingId      = null;
 
