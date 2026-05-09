@@ -1067,7 +1067,7 @@ function pdfFooter(doc) {
 async function downloadBusLayoutPDF() {
   const r = await fetch('/api/seats');
   const rawSeats = await r.json();
-  // Only show booked seats — pending and available treated as available
+  // Bookings & Approvals layout — show only booked seats, rest as available
   const seats = rawSeats.map(s => s.status === 'booked' ? s : {...s, status:'available', passengerName:null});
 
   const { jsPDF } = window.jspdf;
