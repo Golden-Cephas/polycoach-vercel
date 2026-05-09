@@ -1368,8 +1368,9 @@ function drawSeatPDF(doc, seats, num, x, y, w, h){
    Page height auto-calculated to fit
    the full bus — nothing cut off
 ════════════════════════════════════════ */
-async function buildBusLayoutPDF(){
-  const seats    = await (await fetch("/api/seats")).json();
+async function buildBusLayoutPDF(bookedOnly=false){
+  const rawSeats = await (await fetch("/api/seats")).json();
+  const seats    = bookedOnly ? rawSeats.map(s => s.status==="booked" ? s : {...s, status:"available", passengerName:null}) : rawSeats;
   const settings = await (await fetch("/api/settings")).json();
   const logo     = await loadLogo2();
   const {jsPDF}  = window.jspdf;
@@ -1538,7 +1539,7 @@ async function downloadBusLayoutPDF(){
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
-    const doc = await buildBusLayoutPDF();
+    const doc = await buildBusLayoutPDF(true);
     doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
