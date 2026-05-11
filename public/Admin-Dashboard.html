@@ -739,12 +739,13 @@ async function loadBookings(){
     const bid=b._id||b.id;
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
+    const statusLabel=b.status==="approved"?"BOOKED":b.status.toUpperCase();
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
     <td>${b.program||"—"}</td>
     <td><strong>Seat ${b.seatNumber}</strong></td>
     <td>${b.destination||"—"}</td>
     <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
-    <td><span class="${badgeClass}">${b.status.toUpperCase()}</span></td>
+    <td><span class="${badgeClass}">${statusLabel}</span></td>
     <td style="display:flex;gap:5px;flex-wrap:wrap;">
       <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditBookingModal('${bid}','${b.passengerName}','${b.phone||""}','${b.seatNumber}','${b.destination||""}','${b.program||""}')"><i class="fa-solid fa-pen"></i></button>
       ${b.status==="pending"?`<button class="btn btn-approve" onclick="approveBooking('${b._id||b.id}')"><i class="fa-solid fa-check"></i></button><button class="btn btn-reject" onclick="rejectBooking('${b._id||b.id}')"><i class="fa-solid fa-xmark"></i></button>`:""}
@@ -1648,10 +1649,9 @@ async function downloadBusListPDF(){
       const bks = bookings.filter(b=>Number(b.seatNumber)===Number(seat.number));
       const approved = bks.find(b=>b.status==="approved");
       const pending  = bks.find(b=>b.status==="pending");
-      if(approved) return seat.status==="booked" ? "Booked" : "Approved";
+      if(approved) return "Booked";
       if(pending)  return "Pending";
-      // Admin assigned directly — no booking record
-      if(seat.status==="booked") return "Admin Assigned";
+      if(seat.status==="booked") return "Booked";
       return "Pending";
     }
 
