@@ -51,6 +51,7 @@ const Seat = model("Seat", new mongoose.Schema({
   status:        { type: String, enum: ["available","pending","booked"], default: "available" },
   passengerName: { type: String, default: null },
   destination:   { type: String, default: "" },
+  origin:        { type: String, default: "" },
   phone:         { type: String, default: "" },
 }));
 
@@ -58,6 +59,7 @@ const Booking = model("Booking", new mongoose.Schema({
   seatNumber:     Number,
   passengerName:  String,
   destination:    String,
+  origin:         { type: String, default: "" },
   phone:          { type: String, default: "" },
   program:        { type: String, default: "" },
   receiptNumber:  { type: String, default: "" },
@@ -76,6 +78,7 @@ const Settings = model("Settings", new mongoose.Schema({
   departureDate:   { type: String, default: "15 March 2025" },
   departureTime:   { type: String, default: "18:00 hrs" },
   departureVenue:  { type: String, default: "MUBAS Main Gate" },
+  tripMode:        { type: String, default: "holiday" },
   payNationalBank: { type: String, default: "1012168938" },
   payAirtelMoney:  { type: String, default: "0999 261 665" },
   payTNMMpamba:    { type: String, default: "0881 730 203" },
