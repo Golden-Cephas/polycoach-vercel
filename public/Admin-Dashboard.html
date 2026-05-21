@@ -177,7 +177,7 @@ tr:hover td{background:#fafafa;}
               <option value="booked">Booked (Red)</option>
             </select>
           </div>
-          <div class="cg"><label>Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
+          <div class="cg"><label id="editDestLabel">Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
           <div style="display:flex;gap:10px;margin-top:6px;">
             <button class="btn-save" style="flex:2;" onclick="saveSeatEdit()">UPDATE SEAT</button>
             <button class="btn btn-delete" onclick="clearSeat()">RESET</button>
@@ -252,6 +252,12 @@ tr:hover td{background:#fafafa;}
           <input class="settings-input" type="text" id="setFee" placeholder="K5,000">
         </div>
         <div>
+          <label class="settings-label">Trip Mode</label>
+          <select class="settings-input" id="setTripMode" onchange="onTripModeChange()">
+            <option value="holiday">🏖 Holiday — Common Departure, Individual Destinations</option>
+            <option value="backtoschool">🎓 Back to School — Individual Origins, Common Destination</option>
+          </select>
+
           <label class="settings-label">Departure Date</label>
           <input class="settings-input" type="text" id="setDate" placeholder="15 March 2025">
         </div>
@@ -260,7 +266,7 @@ tr:hover td{background:#fafafa;}
           <input class="settings-input" type="text" id="setTime" placeholder="18:00 hrs">
         </div>
         <div class="full">
-          <label class="settings-label">Departure Venue</label>
+          <label class="settings-label" id="venueLabel">Departure Venue</label>
           <input class="settings-input" type="text" id="setVenue" placeholder="MUBAS Main Gate">
         </div>
       </div>
@@ -427,7 +433,7 @@ document.addEventListener("DOMContentLoaded",function(){
   loadAll();
 });
 
-async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
+async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);applyTripModeUI(window._tripMode||"holiday");}
 
 /* ── PANELS ── */
 const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings"};
@@ -500,7 +506,9 @@ function openSeatEditor(num,data){
   document.getElementById("editSeatNum").textContent=num;
   document.getElementById("editName").value=data.passengerName||"";
   document.getElementById("editStatus").value=data.status==="taken"?"booked":(data.status||"available");
-  document.getElementById("editDest").value=data.destination||"";
+  const isHolidayEd = (window._tripMode || "holiday") === "holiday";
+  document.getElementById("editDest").value = isHolidayEd ? (data.destination||"") : (data.origin||"");
+  applyTripModeUI(window._tripMode || "holiday");
   document.getElementById("consoleHint").style.display="none";
   document.getElementById("seatEditor").style.display="block";
   // Highlight
@@ -547,9 +555,16 @@ async function saveSeatEdit(){
       phone = await showPhonePopup(name);
       if(phone === null) return; // admin cancelled
     }
+    const isHoliday = (window._tripMode || "holiday") === "holiday";
     const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum, {
       method:"POST", headers:authHeaders(),
-      body:JSON.stringify({status, passengerName:name, destination:dest, phone})
+      body:JSON.stringify({
+        status,
+        passengerName: name,
+        destination:   isHoliday ? dest : "",
+        origin:        isHoliday ? "" : dest,
+        phone
+      })
     });
     const d = await r.json();
     if(d.success){
@@ -739,13 +754,12 @@ async function loadBookings(){
     const bid=b._id||b.id;
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
-    const statusLabel=b.status==="approved"?"BOOKED":b.status.toUpperCase();
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
     <td>${b.program||"—"}</td>
     <td><strong>Seat ${b.seatNumber}</strong></td>
     <td>${b.destination||"—"}</td>
     <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
-    <td><span class="${badgeClass}">${statusLabel}</span></td>
+    <td><span class="${badgeClass}">${b.status.toUpperCase()}</span></td>
     <td style="display:flex;gap:5px;flex-wrap:wrap;">
       <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditBookingModal('${bid}','${b.passengerName}','${b.phone||""}','${b.seatNumber}','${b.destination||""}','${b.program||""}')"><i class="fa-solid fa-pen"></i></button>
       ${b.status==="pending"?`<button class="btn btn-approve" onclick="approveBooking('${b._id||b.id}')"><i class="fa-solid fa-check"></i></button><button class="btn btn-reject" onclick="rejectBooking('${b._id||b.id}')"><i class="fa-solid fa-xmark"></i></button>`:""}
@@ -918,6 +932,33 @@ async function addBooking(){
 }
 
 /* ── SETTINGS ── */
+
+/* ── TRIP MODE ── */
+function getTripMode(){
+  const el = document.getElementById("setTripMode");
+  return el ? el.value : (window._tripMode || "holiday");
+}
+
+function onTripModeChange(){
+  const mode = getTripMode();
+  window._tripMode = mode;
+  applyTripModeUI(mode);
+}
+
+function applyTripModeUI(mode){
+  const isHoliday = mode === "holiday";
+  // Settings venue label
+  const venueLabel = document.getElementById("venueLabel");
+  if(venueLabel) venueLabel.textContent = isHoliday ? "Departure Venue (Common)" : "Common Destination";
+  const venueInput = document.getElementById("setVenue");
+  if(venueInput) venueInput.placeholder = isHoliday ? "e.g. MUBAS Main Gate" : "e.g. Lilongwe";
+  // Seat editor label
+  const destLabel = document.getElementById("editDestLabel");
+  if(destLabel) destLabel.textContent = isHoliday ? "Destination" : "Origin";
+  const destInput = document.getElementById("editDest");
+  if(destInput) destInput.placeholder = isHoliday ? "e.g. Mzuzu" : "e.g. Mzuzu";
+}
+
 async function loadSettings(){
   const r=await fetch("/api/settings");const s=await r.json();
   document.getElementById("setLabel").value   = s.bookingLabel   || "";
@@ -929,6 +970,11 @@ async function loadSettings(){
   document.getElementById("setAirtel").value  = s.payAirtelMoney   || "";
   document.getElementById("setTNM").value     = s.payTNMMpamba     || "";
   document.getElementById("setAcctName").value= s.payAccountName   || "";
+  const mode = s.tripMode || "holiday";
+  window._tripMode = mode;
+  const modeEl = document.getElementById("setTripMode");
+  if(modeEl) modeEl.value = mode;
+  applyTripModeUI(mode);
 }
 
 async function saveSettings(){
@@ -937,7 +983,8 @@ async function saveSettings(){
     bookingFee:    document.getElementById("setFee").value.trim(),
     departureDate: document.getElementById("setDate").value.trim(),
     departureTime: document.getElementById("setTime").value.trim(),
-    departureVenue:document.getElementById("setVenue").value.trim()
+    departureVenue:document.getElementById("setVenue").value.trim(),
+    tripMode:      getTripMode()
   };
   const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
   const d=await r.json();
@@ -1068,7 +1115,7 @@ function pdfFooter(doc) {
 async function downloadBusLayoutPDF() {
   const r = await fetch('/api/seats');
   const rawSeats = await r.json();
-  // Bookings & Approvals layout — show only booked seats, rest as available
+  // Only show booked seats — pending and available treated as available
   const seats = rawSeats.map(s => s.status === 'booked' ? s : {...s, status:'available', passengerName:null});
 
   const { jsPDF } = window.jspdf;
@@ -1369,9 +1416,8 @@ function drawSeatPDF(doc, seats, num, x, y, w, h){
    Page height auto-calculated to fit
    the full bus — nothing cut off
 ════════════════════════════════════════ */
-async function buildBusLayoutPDF(bookedOnly=false){
-  const rawSeats = await (await fetch("/api/seats")).json();
-  const seats    = bookedOnly ? rawSeats.map(s => s.status==="booked" ? s : {...s, status:"available", passengerName:null}) : rawSeats;
+async function buildBusLayoutPDF(){
+  const seats    = await (await fetch("/api/seats")).json();
   const settings = await (await fetch("/api/settings")).json();
   const logo     = await loadLogo2();
   const {jsPDF}  = window.jspdf;
@@ -1540,7 +1586,7 @@ async function downloadBusLayoutPDF(){
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
-    const doc = await buildBusLayoutPDF(true);
+    const doc = await buildBusLayoutPDF();
     doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
@@ -1649,18 +1695,21 @@ async function downloadBusListPDF(){
       const bks = bookings.filter(b=>Number(b.seatNumber)===Number(seat.number));
       const approved = bks.find(b=>b.status==="approved");
       const pending  = bks.find(b=>b.status==="pending");
-      if(approved) return "Booked";
+      if(approved) return seat.status==="booked" ? "Booked" : "Approved";
       if(pending)  return "Pending";
-      if(seat.status==="booked") return "Booked";
+      // Admin assigned directly — no booking record
+      if(seat.status==="booked") return "Admin Assigned";
       return "Pending";
     }
 
+    const listMode = settings.tripMode || "holiday";
+    const isHolidayList = listMode === "holiday";
     const rows = occupiedSeats.map(s=>[
       String(s.number),
       s.passengerName || "—",
       s.phone         || "—",
-      settings.departureVenue || "—",
-      s.destination   || "—",
+      isHolidayList ? (settings.departureVenue || "—") : (s.origin || "—"),
+      isHolidayList ? (s.destination || "—")           : (settings.departureVenue || "—"),
       statusLabel(s),
       depositForSeat(s.number),
       "",   // Balance — blank, filled manually
@@ -1852,8 +1901,11 @@ async function generateReceiptPDF(rc){
   y=ry;
   field("Seat No:", rc.seatNumber?String(rc.seatNumber):"", mid+3, re);
   y=ry+gap;
-  field("From:",    rc.departureVenue||"",ip,    re);    y+=gap;
-  field("To:",      rc.destination||"",   ip,    re);    y+=gap;
+  const isHolidayRc = (rc.tripMode || "holiday") === "holiday";
+  const fromVal = isHolidayRc ? (rc.departureVenue||"") : (rc.origin||rc.departureVenue||"");
+  const toVal   = isHolidayRc ? (rc.destination||"")    : (rc.departureVenue||"");
+  field("From:",  fromVal, ip, re);    y+=gap;
+  field("To:",    toVal,   ip, re);    y+=gap;
   field("Deposit:", rc.deposit||"",       ip,    re);
 
   const footerLineY = y + 8;
