@@ -960,7 +960,7 @@ function applyTripModeUI(mode){
 }
 
 async function loadSettings(){
-  const r=await fetch("/api/settings");const s=await r.json();
+  const r=await fetch("/api/admin?action=settings",{headers:authHeaders()});const s=await r.json();
   document.getElementById("setLabel").value   = s.bookingLabel   || "";
   document.getElementById("setFee").value     = s.bookingFee     || "";
   document.getElementById("setDate").value    = s.departureDate  || "";
