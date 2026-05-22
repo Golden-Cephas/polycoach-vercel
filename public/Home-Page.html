@@ -7,20 +7,32 @@
 <link rel="stylesheet" href="/css/Home-Page.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
+/* ── HERO ── */
 .hero{background-image:linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.5)),url('/Images/Background1.png');background-size:cover;background-position:center;min-height:620px;display:flex;align-items:center;}
 .hero-content{padding:0 24px;}
 .hero h1{font-family:'Barlow Condensed',sans-serif;font-size:clamp(2.4rem,6vw,4.2rem);font-weight:900;color:#fff;text-transform:uppercase;line-height:1.05;text-shadow:2px 2px 12px rgba(0,0,0,0.6);}
 .hero p{font-size:1.15rem;color:#eee;margin-top:12px;max-width:560px;text-shadow:1px 1px 6px rgba(0,0,0,0.5);}
-.search-bar{background:rgba(20,20,20,0.88);padding:22px 24px;border-radius:12px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:32px;max-width:720px;backdrop-filter:blur(6px);}
+
+/* ── BUS CARDS (departure info) ── */
+.bus-info-row{display:flex;gap:16px;flex-wrap:wrap;margin-top:28px;max-width:780px;}
+.bus-info-card{background:rgba(20,20,20,0.88);padding:18px 22px;border-radius:12px;backdrop-filter:blur(6px);flex:1;min-width:280px;}
+.bus-info-card .bus-tag{color:#0099ff;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;}
+.bus-info-card .fields{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
 .sb-group{display:flex;flex-direction:column;}
 .sb-group label{color:#aaa;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
-.sb-group input{background:#fff;border:none;border-radius:5px;padding:11px 14px;font-weight:700;color:#222;font-size:0.92rem;font-family:'Lato',sans-serif;min-width:130px;}
-.view-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:12px 26px;font-weight:700;font-size:0.95rem;cursor:pointer;height:42px;white-space:nowrap;transition:background 0.2s;}
+.sb-group input{background:#fff;border:none;border-radius:5px;padding:11px 14px;font-weight:700;color:#222;font-size:0.92rem;font-family:'Lato',sans-serif;min-width:120px;}
+.view-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:12px 26px;font-weight:700;font-size:0.95rem;cursor:pointer;height:42px;white-space:nowrap;transition:background 0.2s;margin-top:14px;}
 .view-btn:hover{background:#007acc;}
+
+/* ── SECTION TITLES ── */
 .section-title{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:1px;padding:48px 0 8px;}
 .section-sub{text-align:center;color:var(--muted);margin-bottom:36px;font-size:1rem;}
-.routes{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;padding:0 20px 48px;}
-.bus-card{width:300px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.09);transition:transform 0.2s,box-shadow 0.2s;}
+
+/* ── ROUTE CAROUSEL ── */
+.routes-wrapper{padding:0 20px 48px;overflow:hidden;position:relative;}
+.routes{display:flex;gap:22px;justify-content:center;flex-wrap:nowrap;transition:opacity 0.5s ease;}
+.routes.fade{opacity:0;}
+.bus-card{width:300px;flex-shrink:0;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.09);transition:transform 0.2s,box-shadow 0.2s;}
 .bus-card:hover{transform:translateY(-5px);box-shadow:0 14px 35px rgba(0,0,0,0.15);}
 .card-img{position:relative;height:180px;overflow:hidden;}
 .card-img img{width:100%;height:100%;object-fit:cover;}
@@ -31,6 +43,13 @@
 .price-amount{font-size:1.5rem;font-weight:900;color:var(--primary);font-family:'Barlow Condensed',sans-serif;}
 .book-btn{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:7px;font-weight:700;cursor:pointer;transition:background 0.2s;}
 .book-btn:hover{background:var(--accent);}
+
+/* ── CAROUSEL DOTS ── */
+.carousel-dots{display:flex;justify-content:center;gap:8px;margin-top:12px;padding-bottom:12px;}
+.dot{width:9px;height:9px;border-radius:50%;background:#ccc;cursor:pointer;transition:background 0.3s;}
+.dot.active{background:var(--primary);}
+
+/* ── FEATURES ── */
 .features{display:flex;justify-content:center;gap:30px;flex-wrap:wrap;padding:48px 20px;background:#fff;}
 .feature{display:flex;align-items:flex-start;gap:18px;flex:1;min-width:240px;max-width:300px;}
 .feat-icon i{font-size:2.2rem;color:var(--primary);}
@@ -38,7 +57,12 @@
 .feature:hover .feat-icon{transform:translateY(-4px);}
 .feat-text h3{font-size:1rem;font-weight:800;text-transform:uppercase;color:#111;}
 .feat-text p{font-size:0.9rem;color:#777;margin-top:5px;line-height:1.5;}
-@media(max-width:640px){.search-bar{flex-direction:column;}.view-btn{width:100%;}}
+
+@media(max-width:640px){
+  .bus-info-row{flex-direction:column;}
+  .view-btn{width:100%;}
+  .bus-card{width:85vw;}
+}
 </style>
 </head>
 <body>
@@ -56,36 +80,28 @@
   </div>
 </div>
 
+<!-- HERO -->
 <div class="hero">
   <div class="container hero-content" style="max-width:1100px;margin:0 auto;width:100%;">
     <h1>Welcome to<br>PolyCoach</h1>
     <p>Travel home the easy way — organised by students, for students.</p>
-    <div class="search-bar" id="searchBar">
-      <div class="sb-group">
-        <label>Departure</label>
-        <input type="text" id="depVenue" readonly>
-      </div>
-      <div class="sb-group">
-        <label>Date</label>
-        <input type="text" id="depDate" readonly>
-      </div>
-      <div class="sb-group">
-        <label>Time</label>
-        <input type="text" id="depTime" readonly>
-      </div>
-      <button class="view-btn" onclick="location.href='Bust-Status-Lay.html'">VIEW BUS STATUS</button>
-    </div>
+
+    <!-- Two bus departure cards -->
+    <div class="bus-info-row" id="busInfoRow"></div>
+    <button class="view-btn" onclick="location.href='Bust-Status-Lay.html'">VIEW BUS STATUS</button>
   </div>
 </div>
 
-<div class="section-title">Where are you heading to this holiday?</div>
-<p class="section-sub">Select your destination and book your seat today</p>
-<div class="routes" id="routeCards">
-  <div class="bus-card"><div class="card-img"><img src="/Images/Mzuzu.jpg" alt="Mzuzu"><div class="card-overlay"><h2>Mzuzu</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl1">Booking Fee</div><div class="price-amount" id="fee1">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
-  <div class="bus-card"><div class="card-img"><img src="/Images/Mzimba.png" alt="Mzimba"><div class="card-overlay"><h2>Mzimba</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl2">Booking Fee</div><div class="price-amount" id="fee2">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
-  <div class="bus-card"><div class="card-img"><img src="/Images/Jenda.jpg" alt="Jenda"><div class="card-overlay"><h2>Jenda</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl3">Booking Fee</div><div class="price-amount" id="fee3">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
+<!-- ROUTE SECTION -->
+<div class="section-title" id="sectionTitle">Where are you heading to this holiday?</div>
+<p class="section-sub" id="sectionSub">Select your destination and book your seat today</p>
+
+<div class="routes-wrapper">
+  <div class="routes" id="routeCards"></div>
+  <div class="carousel-dots" id="carouselDots"></div>
 </div>
 
+<!-- FEATURES -->
 <div class="section-title" style="background:#fff;padding-bottom:4px;">Why Book With Us?</div>
 <div class="features">
   <div class="feature"><div class="feat-icon"><i class="fa-solid fa-cookie-bite"></i></div><div class="feat-text"><h3>Free Snacks</h3><p>Don't travel hungry — enjoy complimentary treats on every journey.</p></div></div>
@@ -119,17 +135,131 @@
 
 <script src="/js/popup.js"></script>
 <script>
-fetch("/api/settings").then(r=>r.json()).then(s=>{
-  document.getElementById("depVenue").value=s.departureVenue||"MUBAS";
-  document.getElementById("depDate").value=s.departureDate||"15 March 2025";
-  document.getElementById("depTime").value=s.departureTime||"18:00 hrs";
-  const label=s.bookingLabel||"Booking Fee";
-  const fee=s.bookingFee||"K5,000";
-  [1,2,3].forEach(i=>{
-    document.getElementById("fee"+i).textContent=fee;
-    document.getElementById("lbl"+i).textContent=label;
+/* ── ALL ROUTES ── */
+const ALL_ROUTES = [
+  { name:"Mzuzu",     img:"/Images/Mzuzu.jpg"     },
+  { name:"Mzimba",    img:"/Images/Mzimba.png"    },
+  { name:"Jenda",     img:"/Images/Jenda.jpg"     },
+  { name:"Karonga",   img:"/Images/Karonga.jpg"   },
+  { name:"Rumphi",    img:"/Images/Rumphi.jpg"    },
+  { name:"Nkhata Bay",img:"/Images/NkhataBay.jpg" },
+  { name:"Chitipa",   img:"/Images/Chitipa.jpg"   },
+  { name:"Kasungu",   img:"/Images/Kasungu.jpg"   },
+];
+
+const CARDS_PER_PAGE = 3;
+let currentPage = 0;
+let totalPages  = Math.ceil(ALL_ROUTES.length / CARDS_PER_PAGE);
+let carouselTimer = null;
+let bookingLabel = "Booking Fee";
+let bookingFee   = "K5,000";
+
+/* ── RENDER CAROUSEL PAGE ── */
+function renderPage(page, animate){
+  const container = document.getElementById("routeCards");
+  const start = page * CARDS_PER_PAGE;
+  const slice = ALL_ROUTES.slice(start, start + CARDS_PER_PAGE);
+
+  function draw(){
+    container.innerHTML = slice.map(r=>`
+      <div class="bus-card">
+        <div class="card-img">
+          <img src="${r.img}" alt="${r.name}" onerror="this.src='/Images/Background1.png'">
+          <div class="card-overlay"><h2>${r.name}</h2></div>
+        </div>
+        <div class="card-footer">
+          <div>
+            <div class="price-label">${bookingLabel}</div>
+            <div class="price-amount">${bookingFee}</div>
+          </div>
+          <button class="book-btn" onclick="location.href='Book-Login.html'">Book</button>
+        </div>
+      </div>
+    `).join("");
+    container.classList.remove("fade");
+  }
+
+  if(animate){
+    container.classList.add("fade");
+    setTimeout(draw, 500);
+  } else {
+    draw();
+  }
+
+  // Update dots
+  document.querySelectorAll(".dot").forEach((d,i)=>{
+    d.classList.toggle("active", i===page);
   });
-}).catch(()=>{});
+  currentPage = page;
+}
+
+/* ── BUILD DOTS ── */
+function buildDots(){
+  const dotsEl = document.getElementById("carouselDots");
+  dotsEl.innerHTML = "";
+  for(let i=0;i<totalPages;i++){
+    const d = document.createElement("div");
+    d.className = "dot" + (i===0?" active":"");
+    d.onclick = ()=>{ clearInterval(carouselTimer); goToPage(i); startTimer(); };
+    dotsEl.appendChild(d);
+  }
+}
+
+function goToPage(page){ renderPage(page, true); }
+
+function startTimer(){
+  carouselTimer = setInterval(()=>{
+    const next = (currentPage+1) % totalPages;
+    renderPage(next, true);
+  }, 4000);
+}
+
+/* ── RENDER BUS INFO CARDS ── */
+function renderBusInfo(s){
+  const row = document.getElementById("busInfoRow");
+  const buses = [
+    { id:"bus1", name:s.bus1Name||"Bus 1", venue:s.bus1Venue||s.departureVenue||"", date:s.bus1Date||s.departureDate||"", time:s.bus1Time||s.departureTime||"" },
+    { id:"bus2", name:s.bus2Name||"Bus 2", venue:s.bus2Venue||"",                   date:s.bus2Date||"",                   time:s.bus2Time||"" },
+  ];
+  row.innerHTML = buses.map(b=>`
+    <div class="bus-info-card">
+      <div class="bus-tag"><i class="fa-solid fa-bus"></i> &nbsp;${b.name}</div>
+      <div class="fields">
+        <div class="sb-group"><label>Departure</label><input type="text" value="${b.venue}" readonly></div>
+        <div class="sb-group"><label>Date</label><input type="text" value="${b.date}" readonly></div>
+        <div class="sb-group"><label>Time</label><input type="text" value="${b.time}" readonly></div>
+      </div>
+    </div>
+  `).join("");
+}
+
+/* ── APPLY TRIP MODE ── */
+function applyTripMode(mode){
+  const isHoliday = mode !== "backtoschool";
+  document.getElementById("sectionTitle").textContent = isHoliday
+    ? "Where are you heading to this holiday?"
+    : "Where are you travelling from?";
+  document.getElementById("sectionSub").textContent = isHoliday
+    ? "Select your destination and book your seat today"
+    : "Select your origin and book your seat today";
+}
+
+/* ── FETCH SETTINGS & INIT ── */
+fetch("/api/settings").then(r=>r.json()).then(s=>{
+  bookingLabel = s.bookingLabel || "Booking Fee";
+  bookingFee   = s.bookingFee   || "K5,000";
+
+  renderBusInfo(s);
+  applyTripMode(s.tripMode||"holiday");
+
+  buildDots();
+  renderPage(0, false);
+  startTimer();
+}).catch(()=>{
+  buildDots();
+  renderPage(0, false);
+  startTimer();
+});
 </script>
 </body>
 </html>
