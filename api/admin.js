@@ -456,13 +456,14 @@ module.exports = async (req, res) => {
 
       // Edit user credentials
       if (action === "edit-user" && id) {
-        const { fullName, phone, program, destination } = req.body;
+        const { fullName, phone, program, destination, origin } = req.body;
         const user = await User.findById(id);
         if (!user) return res.status(404).json({ success: false });
         if(fullName)     user.fullName    = fullName;
         if(phone)        user.phone       = phone;
         if(program)      user.program     = program;
-        if(destination)  user.destination = destination;
+        if(destination !== undefined)  user.destination = destination;
+        if(origin !== undefined)       user.origin      = origin;
         await user.save();
         return res.json({ success: true });
       }
