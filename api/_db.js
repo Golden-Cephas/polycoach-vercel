@@ -32,11 +32,13 @@ function model(name, schema) {
 const User = model("User", new mongoose.Schema({
   fullName:    { type: String, required: true },
   phone:       { type: String, required: true, unique: true },
+  busId:       { type: String, default: "bus1" },
   program:     { type: String, default: "" },
   destination: { type: String, default: "" },
+  origin:      { type: String, default: "" },
   regNumber:   { type: String, default: null },
   password:    { type: String, default: null },
-  studentID:   { type: String, default: null }, // Cloudinary URL
+  studentID:   { type: String, default: null },
   createdAt:   { type: Date, default: Date.now }
 }));
 
@@ -47,7 +49,8 @@ const Admin = model("Admin", new mongoose.Schema({
 }));
 
 const Seat = model("Seat", new mongoose.Schema({
-  number:        { type: Number, required: true, unique: true },
+  number:        { type: Number, required: true },
+  busId:         { type: String, default: "bus1" },
   status:        { type: String, enum: ["available","pending","booked"], default: "available" },
   passengerName: { type: String, default: null },
   destination:   { type: String, default: "" },
@@ -57,6 +60,7 @@ const Seat = model("Seat", new mongoose.Schema({
 
 const Booking = model("Booking", new mongoose.Schema({
   seatNumber:     Number,
+  busId:          { type: String, default: "bus1" },
   passengerName:  String,
   destination:    String,
   origin:         { type: String, default: "" },
@@ -75,10 +79,15 @@ const Booking = model("Booking", new mongoose.Schema({
 const Settings = model("Settings", new mongoose.Schema({
   bookingLabel:    { type: String, default: "Booking Fee" },
   bookingFee:      { type: String, default: "K5,000" },
-  departureDate:   { type: String, default: "15 March 2025" },
-  departureTime:   { type: String, default: "18:00 hrs" },
-  departureVenue:  { type: String, default: "MUBAS Main Gate" },
   tripMode:        { type: String, default: "holiday" },
+  bus1Name:        { type: String, default: "Bus 1" },
+  bus2Name:        { type: String, default: "Bus 2" },
+  bus1Venue:       { type: String, default: "MUBAS Main Gate" },
+  bus2Venue:       { type: String, default: "MUBAS Main Gate" },
+  bus1Date:        { type: String, default: "15 March 2025" },
+  bus2Date:        { type: String, default: "15 March 2025" },
+  bus1Time:        { type: String, default: "18:00 hrs" },
+  bus2Time:        { type: String, default: "18:00 hrs" },
   payNationalBank: { type: String, default: "1012168938" },
   payAirtelMoney:  { type: String, default: "0999 261 665" },
   payTNMMpamba:    { type: String, default: "0881 730 203" },
@@ -96,11 +105,22 @@ const DEFAULT_ADMINS = [
 ];
 
 async function seedIfNeeded() {
-  // Seats
-  if (await Seat.countDocuments() === 0) {
+  // Seats — 72 per bus
+  const seatCount = await Seat.countDocuments();
+  if (seatCount === 0) {
     const seats = [];
-    for (let i = 1; i <= 72; i++) seats.push({ number: i });
+    for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus1" });
+    for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus2" });
     await Seat.insertMany(seats);
+  } else if (seatCount === 72) {
+    // Migrate existing seats to bus1, add bus2 seats
+    await Seat.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
+    const bus2Count = await Seat.countDocuments({ busId: "bus2" });
+    if (bus2Count === 0) {
+      const seats = [];
+      for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus2" });
+      await Seat.insertMany(seats);
+    }
   }
   // Admins
   for (const a of DEFAULT_ADMINS) {

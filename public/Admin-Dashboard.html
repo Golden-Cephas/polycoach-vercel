@@ -75,6 +75,10 @@ tr:hover td{background:#fafafa;}
 .cg{margin-bottom:14px;}
 .cg label{display:block;font-size:0.78rem;font-weight:700;text-transform:uppercase;color:#666;margin-bottom:5px;letter-spacing:0.4px;}
 .cg input,.cg select{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:0.9rem;font-family:'Lato',sans-serif;}
+.bus-switcher{display:flex;gap:8px;align-items:center;margin-bottom:14px;}
+.bus-btn{padding:7px 18px;border-radius:20px;border:2px solid #0b294d;background:#fff;color:#0b294d;font-weight:700;font-size:0.85rem;cursor:pointer;transition:all 0.2s;font-family:'Barlow Condensed',Arial,sans-serif;letter-spacing:0.5px;}
+.bus-btn.active{background:#0b294d;color:#fff;}
+.bus-btn:hover:not(.active){background:#e8f0fb;}
 .bus-exterior-admin{background:#f8f9fa;padding:16px;border-radius:30px 30px 10px 10px;border:4px solid #333;}
 .bus-grid{display:grid;grid-template-columns:repeat(2,1fr) 28px repeat(3,1fr);gap:5px;}
 .seat{height:34px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:700;cursor:pointer;transition:all 0.15s;border:2px solid transparent;}
@@ -150,9 +154,13 @@ tr:hover td{background:#fafafa;}
     </div>
     <div class="bus-admin-grid">
       <div class="bus-wrap">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-          <h3 style="margin:0;">Click a seat to edit it</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h3 style="margin:0;" id="busLayoutTitle">Click a seat to edit it</h3>
           <button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadBusPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
+        </div>
+        <div class="bus-switcher">
+          <button class="bus-btn active" id="layoutBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
+          <button class="bus-btn" id="layoutBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
         </div>
         <div class="bus-exterior-admin">
           <div class="driver-row"><i class="fa-solid fa-dharmachakra"></i> <span>Driver</span></div>
@@ -177,7 +185,7 @@ tr:hover td{background:#fafafa;}
               <option value="booked">Booked (Red)</option>
             </select>
           </div>
-          <div class="cg"><label id="editDestLabel">Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
+          <div class="cg"><label>Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
           <div style="display:flex;gap:10px;margin-top:6px;">
             <button class="btn-save" style="flex:2;" onclick="saveSeatEdit()">UPDATE SEAT</button>
             <button class="btn btn-delete" onclick="clearSeat()">RESET</button>
@@ -194,17 +202,22 @@ tr:hover td{background:#fafafa;}
     </div>
     <div class="table-card">
       <div class="table-card-header">
-        <h3>Registered Users</h3>
+        <h3 id="usersTitle">Registered Users</h3>
+        <div class="bus-switcher" style="margin:8px 0;">
+          <button class="bus-btn active" id="usersBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
+          <button class="bus-btn" id="usersBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
+        </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search name..." oninput="filterTable('usersTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddUserModal()"><i class="fa-solid fa-plus"></i> Add User</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadUsersPDF()"><i class="fa-solid fa-file-pdf"></i> Registration List</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusListPDF()"><i class="fa-solid fa-bus"></i> Seat List</button>
+          <button class="btn" style="background:#c0392b;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="resetUsersList()"><i class="fa-solid fa-trash"></i> Reset List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
         <table id="usersTable">
-          <thead><tr><th>Full Name</th><th>Phone</th><th>Program</th><th>Destination</th><th>Date</th><th>Action</th></tr></thead>
+          <thead><tr><th>Full Name</th><th>Phone</th><th>Bus</th><th>Origin</th><th>Destination</th><th>Date</th><th>Action</th></tr></thead>
           <tbody id="usersTbody"></tbody>
         </table>
       </div>
@@ -221,6 +234,10 @@ tr:hover td{background:#fafafa;}
     <div class="table-card">
       <div class="table-card-header">
         <h3>Bookings &amp; Approvals</h3>
+        <div class="bus-switcher" style="margin-top:8px;">
+          <button class="bus-btn active" id="bookingsBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
+          <button class="bus-btn" id="bookingsBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
+        </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
@@ -257,17 +274,44 @@ tr:hover td{background:#fafafa;}
             <option value="holiday">Holiday</option>
             <option value="backtoschool">Back to School</option>
           </select>
-
-          <label class="settings-label">Departure Date</label>
-          <input class="settings-input" type="text" id="setDate" placeholder="15 March 2025">
+        </div>
+      </div>
+      <h3 style="margin-top:20px;">Bus 1</h3>
+      <div class="settings-grid">
+        <div>
+          <label class="settings-label">Bus 1 Name</label>
+          <input class="settings-input" type="text" id="setBus1Name" placeholder="e.g. Coach 1">
         </div>
         <div>
-          <label class="settings-label">Departure Time</label>
-          <input class="settings-input" type="text" id="setTime" placeholder="18:00 hrs">
+          <label class="settings-label">Bus 1 Departure Date</label>
+          <input class="settings-input" type="text" id="setBus1Date" placeholder="15 March 2025">
+        </div>
+        <div>
+          <label class="settings-label">Bus 1 Departure Time</label>
+          <input class="settings-input" type="text" id="setBus1Time" placeholder="18:00 hrs">
         </div>
         <div class="full">
-          <label class="settings-label" id="venueLabel">Departure Venue</label>
-          <input class="settings-input" type="text" id="setVenue" placeholder="MUBAS Main Gate">
+          <label class="settings-label" id="venueLabel">Bus 1 Departure Venue</label>
+          <input class="settings-input" type="text" id="setBus1Venue" placeholder="MUBAS Main Gate">
+        </div>
+      </div>
+      <h3 style="margin-top:20px;">Bus 2</h3>
+      <div class="settings-grid">
+        <div>
+          <label class="settings-label">Bus 2 Name</label>
+          <input class="settings-input" type="text" id="setBus2Name" placeholder="e.g. Coach 2">
+        </div>
+        <div>
+          <label class="settings-label">Bus 2 Departure Date</label>
+          <input class="settings-input" type="text" id="setBus2Date" placeholder="15 March 2025">
+        </div>
+        <div>
+          <label class="settings-label">Bus 2 Departure Time</label>
+          <input class="settings-input" type="text" id="setBus2Time" placeholder="18:00 hrs">
+        </div>
+        <div class="full">
+          <label class="settings-label" id="bus2VenueLabel">Bus 2 Departure Venue</label>
+          <input class="settings-input" type="text" id="setBus2Venue" placeholder="MUBAS Main Gate">
         </div>
       </div>
       <button class="btn-save" style="margin-top:20px;" onclick="saveSettings()">SAVE TRIP SETTINGS</button>
@@ -415,6 +459,8 @@ tr:hover td{background:#fafafa;}
 
 <script>
 let currentSeatNum=null;
+let currentBusId="bus1";
+let _busNames={bus1:"Bus 1",bus2:"Bus 2"};
 
 // Self-contained auth helpers — never rely on popup.js load order
 function getToken(){ return localStorage.getItem("polycoachToken")||""; }
@@ -433,7 +479,7 @@ document.addEventListener("DOMContentLoaded",function(){
   loadAll();
 });
 
-async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);applyTripModeUI(window._tripMode||"holiday");}
+async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
 /* ── PANELS ── */
 const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings"};
@@ -450,9 +496,48 @@ function showPanel(name){
 }
 
 /* ── BUS ── */
+/* ── TRIP MODE ── */
+function getTripMode(){
+  const el = document.getElementById("setTripMode");
+  return el ? el.value : (window._tripMode || "holiday");
+}
+function onTripModeChange(){
+  const mode = getTripMode();
+  window._tripMode = mode;
+  applyTripModeUI(mode);
+}
+function applyTripModeUI(mode){
+  const isHoliday = mode === "holiday";
+  const venueLabel = document.getElementById("venueLabel");
+  if(venueLabel) venueLabel.textContent = isHoliday ? "Bus 1 Departure Venue" : "Bus 1 Common Destination";
+  const bus2VenueLabel = document.getElementById("bus2VenueLabel");
+  if(bus2VenueLabel) bus2VenueLabel.textContent = isHoliday ? "Bus 2 Departure Venue" : "Bus 2 Common Destination";
+  const destLabel = document.getElementById("editDestLabel");
+  if(destLabel) destLabel.textContent = isHoliday ? "Destination" : "Origin";
+  const destInput = document.getElementById("editDest");
+  if(destInput) destInput.placeholder = isHoliday ? "e.g. Mzuzu" : "e.g. Mzuzu";
+}
+
+/* ── BUS SWITCHER ── */
+function switchBus(busId){
+  currentBusId = busId;
+  // Update all switcher buttons
+  ["layout","bookings","users"].forEach(panel=>{
+    const b1 = document.getElementById(panel+"Bus1Btn");
+    const b2 = document.getElementById(panel+"Bus2Btn");
+    if(b1){ b1.classList.toggle("active", busId==="bus1"); b1.textContent=_busNames.bus1||"Bus 1"; }
+    if(b2){ b2.classList.toggle("active", busId==="bus2"); b2.textContent=_busNames.bus2||"Bus 2"; }
+  });
+  // Update bus layout title
+  const layoutTitle = document.getElementById("busLayoutTitle");
+  if(layoutTitle) layoutTitle.textContent="Click a seat to edit it — "+(_busNames[busId]||busId);
+  // Reload bus-specific panels
+  loadBus(); loadBookings(); loadUsers();
+}
+
 async function loadBus(){
   try{
-    const r=await fetch("/api/seats");
+    const r=await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
     if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
     const seats=await r.json();
     const map=document.getElementById("adminSeatMap");
@@ -506,9 +591,7 @@ function openSeatEditor(num,data){
   document.getElementById("editSeatNum").textContent=num;
   document.getElementById("editName").value=data.passengerName||"";
   document.getElementById("editStatus").value=data.status==="taken"?"booked":(data.status||"available");
-  const isHolidayEd = (window._tripMode || "holiday") === "holiday";
-  document.getElementById("editDest").value = isHolidayEd ? (data.destination||"") : (data.origin||"");
-  applyTripModeUI(window._tripMode || "holiday");
+  document.getElementById("editDest").value=data.destination||"";
   document.getElementById("consoleHint").style.display="none";
   document.getElementById("seatEditor").style.display="block";
   // Highlight
@@ -524,7 +607,7 @@ async function saveSeatEdit(){
 
   // ── Name conflict check: existing booking or same name on another seat? ──
   if((status==="booked" || status==="pending") && name){
-    const seatsRes = await fetch("/api/seats");
+    const seatsRes = await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
     const allSeats = await seatsRes.json();
     const matchSeat = allSeats.find(s=>
       Number(s.number)!==currentSeatNum &&
@@ -538,7 +621,7 @@ async function saveSeatEdit(){
       if(decision==="cancel") return;
       if(decision==="switch"){
         // nameOnNewSeat = whoever is currently on the seat admin is editing (not Person A)
-        const newSeatRes  = await fetch("/api/seats");
+        const newSeatRes  = await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
         const allSeatsNow = await newSeatRes.json();
         const newSeatData = allSeatsNow.find(s=>Number(s.number)===currentSeatNum);
         const nameOnNewSeat = (newSeatData && newSeatData.status!=="available") ? newSeatData.passengerName : null;
@@ -555,16 +638,9 @@ async function saveSeatEdit(){
       phone = await showPhonePopup(name);
       if(phone === null) return; // admin cancelled
     }
-    const isHoliday = (window._tripMode || "holiday") === "holiday";
-    const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum, {
+    const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum+"&busId="+currentBusId, {
       method:"POST", headers:authHeaders(),
-      body:JSON.stringify({
-        status,
-        passengerName: name,
-        destination:   isHoliday ? dest : "",
-        origin:        isHoliday ? "" : dest,
-        phone
-      })
+      body:JSON.stringify({status, passengerName:name, destination:dest, phone})
     });
     const d = await r.json();
     if(d.success){
@@ -628,13 +704,13 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
   try{
     if(nameB){
       // seatA is occupied — assign each person to their new seat, clearing the other seat atomically
-      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
-      await fetch("/api/admin?action=edit-seat&num="+seatB,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})});
+      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
+      await fetch("/api/admin?action=edit-seat&num="+seatB+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
       // seatA is empty — assign to new seat and tell backend to clear old seat by number
-      await fetch("/api/admin?action=edit-seat&num="+seatA,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
+      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
     }
@@ -645,7 +721,7 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
 
 async function clearSeat(){
   if(!confirm(`Reset Seat ${currentSeatNum} to Available?`)) return;
-  await fetch("/api/admin?action=edit-seat&num="+currentSeatNum,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+  await fetch("/api/admin?action=edit-seat&num="+currentSeatNum+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
   document.getElementById("seatEditor").style.display="none";
   document.getElementById("consoleHint").style.display="block";
   loadBus();loadBookings();
@@ -654,24 +730,31 @@ async function clearSeat(){
 /* ── USERS ── */
 async function loadUsers(){
   try{
-    const r=await fetch("/api/admin?action=users",{headers:authHeaders()});
+    const r=await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
     const users=await r.json();
     document.getElementById("us-total").textContent=users.length;
+    // Update users panel title with bus name
+    const uTitle=document.getElementById("usersTitle");
+    if(uTitle) uTitle.textContent="Registered Users — "+(_busNames[currentBusId]||currentBusId);
     const tbody=document.getElementById("usersTbody");
     tbody.innerHTML="";
     if(!users.length){
-      tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px;">No users registered yet.</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">No users registered yet.</td></tr>';
       return;
     }
     users.forEach(u=>{
-      // Use _id (MongoDB field) not .id
       const uid = u._id || u.id;
       const tr=document.createElement("tr");
       tr.id="user-row-"+uid;
-      tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${u.phone}</td><td>${u.program||u.regNumber||"—"}</td>
+      tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${u.phone}</td>
+      <td>${_busNames[u.busId||"bus1"]||u.busId||"Bus 1"}</td>
+      <td>${u.origin||"—"}</td>
       <td>${u.destination||"—"}</td>
       <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
-      <td><button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button></td>`;
+      <td style="display:flex;gap:5px;">
+        <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${u.phone}','${u.origin||""}','${u.destination||""}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button>
+      </td>`;
       tbody.appendChild(tr);
     });
   }catch(err){
@@ -714,15 +797,47 @@ async function addUser(){
   const prog=document.getElementById("mu-prog").value.trim();
   const dest=document.getElementById("mu-dest").value;
   if(!name||!phone) return alert("Name and phone are required.");
-  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,program:prog||"Admin Assigned",destination:dest||""})});
+  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,program:prog||"Admin Assigned",destination:dest||"",busId:currentBusId})});
   const d=await r.json();
   if(d.success){closeModal("addUserModal");loadUsers();}
   else alert(d.message||"Error.");
 }
 
+
+async function resetUsersList(){
+  const busName = _busNames[currentBusId]||currentBusId;
+  if(!confirm("Reset the entire registration list for "+busName+"? This cannot be undone.")) return;
+  const r=await fetch("/api/admin?action=reset-users",{method:"POST",headers:authHeaders(),body:JSON.stringify({busId:currentBusId})});
+  const d=await r.json();
+  if(d.success){ loadUsers(); alert(busName+" registration list has been reset."); }
+  else alert("Reset failed.");
+}
+
+let _editUserId=null;
+function openEditUserModal(id,name,phone,origin,dest){
+  _editUserId=id;
+  document.getElementById("eu-name").value=name||"";
+  document.getElementById("eu-phone").value=phone||"";
+  document.getElementById("eu-origin").value=origin||"";
+  document.getElementById("eu-dest").value=dest||"";
+  document.getElementById("editUserModal").style.display="flex";
+}
+async function saveEditUser(){
+  if(!_editUserId) return;
+  const name=document.getElementById("eu-name").value.trim();
+  const phone=document.getElementById("eu-phone").value.trim();
+  const origin=document.getElementById("eu-origin").value.trim();
+  const dest=document.getElementById("eu-dest").value.trim();
+  if(!name||!phone) return alert("Name and phone are required.");
+  const r=await fetch("/api/admin?action=edit-user&id="+_editUserId,{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,origin,destination:dest})});
+  const d=await r.json();
+  if(d.success){closeModal("editUserModal");loadUsers();}
+  else alert(d.message||"Error updating user.");
+}
+
 /* ── BOOKINGS ── */
 async function loadBookings(){
-  const r=await fetch("/api/admin?action=bookings",{headers:authHeaders()});let bks=await r.json();
+  const r=await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()});let bks=await r.json();
   const pending=bks.filter(b=>b.status==="pending").length;
   const approved=bks.filter(b=>b.status==="approved").length;
   const rejected=bks.filter(b=>b.status==="rejected").length;
@@ -755,7 +870,7 @@ async function loadBookings(){
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
-    <td>${b.program||"—"}</td>
+    <td>${_busNames[b.busId||"bus1"]||"Bus 1"}</td>
     <td><strong>Seat ${b.seatNumber}</strong></td>
     <td>${b.destination||"—"}</td>
     <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
@@ -880,7 +995,7 @@ async function saveEditBooking(){
       closeModal("editBookingModal");
       // Also update the seat record if seat number matches
       if(seat){
-        await fetch("/api/admin?action=edit-seat&num="+seat,{
+        await fetch("/api/admin?action=edit-seat&num="+seat+"&busId="+currentBusId,{
           method:"POST", headers:authHeaders(),
           body:JSON.stringify({status:"booked",passengerName:name,destination:dest,phone})
         });
@@ -894,9 +1009,14 @@ async function saveEditBooking(){
 }
 // Check if exact name exists in any current booking or pending
 async function nameExistsInBookings(name){
-  const r = await fetch("/api/admin?action=bookings",{headers:authHeaders()});
-  const bks = await r.json();
-  return bks.find(b=>
+  // Check across both buses
+  const [r1,r2] = await Promise.all([
+    fetch("/api/admin?action=bookings&busId=bus1",{headers:authHeaders()}),
+    fetch("/api/admin?action=bookings&busId=bus2",{headers:authHeaders()})
+  ]);
+  const [bks1,bks2] = await Promise.all([r1.json(),r2.json()]);
+  const allBks = [...bks1,...bks2];
+  return allBks.find(b=>
     b.passengerName &&
     b.passengerName.trim().toLowerCase()===name.toLowerCase() &&
     b.status!=="rejected"
@@ -932,65 +1052,60 @@ async function addBooking(){
 }
 
 /* ── SETTINGS ── */
-
-/* ── TRIP MODE ── */
-function getTripMode(){
-  const el = document.getElementById("setTripMode");
-  return el ? el.value : (window._tripMode || "holiday");
-}
-
-function onTripModeChange(){
-  const mode = getTripMode();
-  window._tripMode = mode;
-  applyTripModeUI(mode);
-}
-
-function applyTripModeUI(mode){
-  const isHoliday = mode === "holiday";
-  // Settings venue label
-  const venueLabel = document.getElementById("venueLabel");
-  if(venueLabel) venueLabel.textContent = isHoliday ? "Departure Venue (Common)" : "Common Destination";
-  const venueInput = document.getElementById("setVenue");
-  if(venueInput) venueInput.placeholder = isHoliday ? "e.g. MUBAS Main Gate" : "e.g. Lilongwe";
-  // Seat editor label
-  const destLabel = document.getElementById("editDestLabel");
-  if(destLabel) destLabel.textContent = isHoliday ? "Destination" : "Origin";
-  const destInput = document.getElementById("editDest");
-  if(destInput) destInput.placeholder = isHoliday ? "e.g. Mzuzu" : "e.g. Mzuzu";
-}
-
 async function loadSettings(){
-  const r=await fetch("/api/admin?action=settings",{headers:authHeaders()});const s=await r.json();
-  document.getElementById("setLabel").value   = s.bookingLabel   || "";
-  document.getElementById("setFee").value     = s.bookingFee     || "";
-  document.getElementById("setDate").value    = s.departureDate  || "";
-  document.getElementById("setTime").value    = s.departureTime  || "";
-  document.getElementById("setVenue").value   = s.departureVenue || "";
-  document.getElementById("setNB").value      = s.payNationalBank  || "";
-  document.getElementById("setAirtel").value  = s.payAirtelMoney   || "";
-  document.getElementById("setTNM").value     = s.payTNMMpamba     || "";
-  document.getElementById("setAcctName").value= s.payAccountName   || "";
+  const r=await fetch("/api/settings");const s=await r.json();
+  document.getElementById("setLabel").value    = s.bookingLabel   || "";
+  document.getElementById("setFee").value      = s.bookingFee     || "";
+  document.getElementById("setBus1Name").value = s.bus1Name       || "Bus 1";
+  document.getElementById("setBus2Name").value = s.bus2Name       || "Bus 2";
+  document.getElementById("setBus1Date").value = s.bus1Date       || "";
+  document.getElementById("setBus2Date").value = s.bus2Date       || "";
+  document.getElementById("setBus1Time").value = s.bus1Time       || "";
+  document.getElementById("setBus2Time").value = s.bus2Time       || "";
+  document.getElementById("setBus1Venue").value= s.bus1Venue      || "";
+  document.getElementById("setBus2Venue").value= s.bus2Venue      || "";
+  document.getElementById("setNB").value       = s.payNationalBank  || "";
+  document.getElementById("setAirtel").value   = s.payAirtelMoney   || "";
+  document.getElementById("setTNM").value      = s.payTNMMpamba     || "";
+  document.getElementById("setAcctName").value = s.payAccountName   || "";
   const mode = s.tripMode || "holiday";
   window._tripMode = mode;
+  _busNames = { bus1: s.bus1Name||"Bus 1", bus2: s.bus2Name||"Bus 2" };
   const modeEl = document.getElementById("setTripMode");
   if(modeEl) modeEl.value = mode;
   applyTripModeUI(mode);
+  // Update switcher button labels without reloading data
+  ["layout","bookings","users"].forEach(panel=>{
+    const b1 = document.getElementById(panel+"Bus1Btn");
+    const b2 = document.getElementById(panel+"Bus2Btn");
+    if(b1){ b1.textContent=_busNames.bus1||"Bus 1"; b1.classList.toggle("active",currentBusId==="bus1"); }
+    if(b2){ b2.textContent=_busNames.bus2||"Bus 2"; b2.classList.toggle("active",currentBusId==="bus2"); }
+  });
 }
 
 async function saveSettings(){
   const data={
     bookingLabel:  document.getElementById("setLabel").value.trim(),
     bookingFee:    document.getElementById("setFee").value.trim(),
-    departureDate: document.getElementById("setDate").value.trim(),
-    departureTime: document.getElementById("setTime").value.trim(),
-    departureVenue:document.getElementById("setVenue").value.trim(),
-    tripMode:      getTripMode()
+    tripMode:      getTripMode(),
+    bus1Name:      document.getElementById("setBus1Name").value.trim(),
+    bus2Name:      document.getElementById("setBus2Name").value.trim(),
+    bus1Date:      document.getElementById("setBus1Date").value.trim(),
+    bus2Date:      document.getElementById("setBus2Date").value.trim(),
+    bus1Time:      document.getElementById("setBus1Time").value.trim(),
+    bus2Time:      document.getElementById("setBus2Time").value.trim(),
+    bus1Venue:     document.getElementById("setBus1Venue").value.trim(),
+    bus2Venue:     document.getElementById("setBus2Venue").value.trim(),
   };
+  _busNames = { bus1: data.bus1Name||"Bus 1", bus2: data.bus2Name||"Bus 2" };
   const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
   const d=await r.json();
   const msg=document.getElementById("settingsSaved");
-  if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
-  else alert("Error saving settings.");
+  if(d.success){
+    msg.style.display="block";
+    setTimeout(()=>msg.style.display="none",3000);
+    switchBus(currentBusId); // refresh bus name labels
+  } else alert("Error saving settings.");
 }
 
 async function savePaymentDetails(){
@@ -1063,7 +1178,7 @@ function filterTable(tableId,query,col){
 async function resetAllSeats(){
   if(!confirm("WARNING: This will reset ALL 72 seats to available and clear all booking records. Are you absolutely sure?")) return;
   if(!confirm("Second confirmation: ALL booking data will be lost permanently. Continue?")) return;
-  const r=await fetch("/api/admin?action=reset-seats",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  const r=await fetch("/api/admin?action=reset-seats",{method:"POST",headers:authHeaders(),body:JSON.stringify({busId:currentBusId})});
   const d=await r.json();
   if(d.success){alert("All seats have been reset.");loadAll();}
   else alert("Error resetting seats.");
@@ -1248,7 +1363,7 @@ async function downloadBusLayoutPDF() {
   doc.text('BACK ROW', pw/2, backY - 2, { align:'center' });
 
   pdfFooter(doc);
-  doc.save('PolyCoach_Bus_Layout_' + new Date().toISOString().slice(0,10) + '.pdf');
+  doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
 }
 
 /* ── PDF HELPERS ── */
@@ -1416,9 +1531,11 @@ function drawSeatPDF(doc, seats, num, x, y, w, h){
    Page height auto-calculated to fit
    the full bus — nothing cut off
 ════════════════════════════════════════ */
-async function buildBusLayoutPDF(){
-  const seats    = await (await fetch("/api/seats")).json();
+async function buildBusLayoutPDF(bookedOnly=false){
+  const rawSeats = await (await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()})).json();
+  const seats    = bookedOnly ? rawSeats.map(s => s.status==="booked" ? s : {...s, status:"available", passengerName:null}) : rawSeats;
   const settings = await (await fetch("/api/settings")).json();
+  const busName  = _busNames[currentBusId]||currentBusId;
   const logo     = await loadLogo2();
   const {jsPDF}  = window.jspdf;
 
@@ -1568,7 +1685,7 @@ async function downloadBusPDF(){
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
     const doc = await buildBusLayoutPDF();
-    doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
     console.error(err);
@@ -1587,7 +1704,7 @@ async function downloadBusLayoutPDF(){
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
     const doc = await buildBusLayoutPDF();
-    doc.save("PolyCoach-Bus-Layout-" + new Date().toISOString().slice(0,10) + ".pdf");
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
     console.error(err);
@@ -1600,52 +1717,68 @@ async function downloadBusLayoutPDF(){
    DOWNLOAD REGISTRATION LIST
 ════════════════════════════════════════ */
 async function downloadUsersPDF(){
-  // REGISTRATION LIST — online registrations only
-  // Columns: Name | Phone | Program | Destination
   const btn = event.currentTarget;
   btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
-    const r = await fetch("/api/admin?action=users",{headers:authHeaders()});
+    const busName = _busNames[currentBusId]||currentBusId;
+    const r = await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
     const users = await r.json();
+    const settings = await (await fetch("/api/settings")).json();
+    const busDateKey = currentBusId+"Date";
+    const depDate = settings[busDateKey]||settings.departureDate||"";
     const logo  = await loadLogo2();
     const {jsPDF} = window.jspdf;
-    const doc = new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const doc = new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
     const pW  = doc.internal.pageSize.getWidth();
     const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
-    pdfHeader(doc,"Registration List",logo);
+    pdfHeader(doc,busName,logo);
 
-    doc.setFont("times","italic"); doc.setFontSize(9); doc.setTextColor(90,90,90);
-    doc.text("Online registrations only — "+users.length+" student(s)", pW-14, 43, {align:"right"});
+    // Bus name on top line, Registration List below
+    doc.setFont("times","bold"); doc.setFontSize(11); doc.setTextColor(11,41,77);
+    doc.text("Registration List", 14, 44);
+    doc.setFont("times","normal"); doc.setFontSize(9); doc.setTextColor(90,90,90);
+    doc.text(users.length+" student(s) — Departure: "+depDate, pW-14, 44, {align:"right"});
     doc.setTextColor(0,0,0);
 
     const rows = users.map((u,i)=>[
       String(i+1),
       u.fullName    || "—",
       u.phone       || "—",
-      u.program     || "—",
-      u.destination || "—"
+      u.origin      || "—",
+      u.destination || "—",
+      busName,
+      depDate
     ]);
 
     doc.autoTable({
-      startY: 46,
-      head: [["#","Full Name","Phone","Program","Destination"]],
+      startY: 48,
+      head: [["#","Full Name","Phone","Origin","Destination","Bus","Departure Date"]],
       body: rows,
-      styles:{ font:"times", fontSize:10, cellPadding:{top:4,bottom:4,left:4,right:4}, textColor:[0,0,0], lineColor:[200,215,230], lineWidth:0.3 },
-      headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", fontSize:10, font:"times", cellPadding:{top:5,bottom:5,left:4,right:4} },
+      styles:{ font:"times", fontSize:9.5, cellPadding:{top:4,bottom:4,left:3,right:3}, textColor:[0,0,0], lineColor:[200,215,230], lineWidth:0.3 },
+      headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", fontSize:9.5, font:"times", cellPadding:{top:5,bottom:5,left:3,right:3} },
       alternateRowStyles:{ fillColor:[240,246,255] },
-      columnStyles:{ 0:{cellWidth:12,halign:"center",fontStyle:"bold"}, 1:{cellWidth:58}, 2:{cellWidth:34}, 3:{cellWidth:38}, 4:{cellWidth:38} },
-      margin:{left:14,right:14,top:47,bottom:22},
-      didDrawPage:()=>{ pdfHeader(doc,"Registration List",logo); }
+      columnStyles:{
+        0:{cellWidth:12,halign:"center",fontStyle:"bold"},
+        1:{cellWidth:60},
+        2:{cellWidth:32},
+        3:{cellWidth:36},
+        4:{cellWidth:36},
+        5:{cellWidth:30},
+        6:{cellWidth:36}
+      },
+      margin:{left:14,right:14,top:49,bottom:22},
+      didDrawPage:()=>{ pdfHeader(doc,busName,logo); }
     });
 
     pdfFooter(doc,dateStr);
-    doc.save("PolyCoach-Registration-List-"+new Date().toISOString().slice(0,10)+".pdf");
+    const fname = busName.replace(/\s+/g,"-")+"-Registration-List-"+new Date().toISOString().slice(0,10)+".pdf";
+    doc.save(fname);
   }catch(err){
     alert("Could not generate Registration List. Please try again.");
     console.error(err);
   }
-  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-file-pdf"></i> Download List';
+  btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-file-pdf"></i> Registration List';
 }
 
 async function downloadBusListPDF(){
@@ -1655,9 +1788,10 @@ async function downloadBusListPDF(){
   const btn = event.currentTarget;
   btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
+    const busName = _busNames[currentBusId]||currentBusId;
     const [seatsRes, bookingsRes, settingsRes] = await Promise.all([
-      fetch("/api/seats"),
-      fetch("/api/admin?action=bookings",{headers:authHeaders()}),
+      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
+      fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()}),
       fetch("/api/settings")
     ]);
     const seats    = await seatsRes.json();
@@ -1669,7 +1803,7 @@ async function downloadBusListPDF(){
     const pW  = doc.internal.pageSize.getWidth();
     const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
-    pdfHeader(doc,"Seat Booking List",logo);
+    pdfHeader(doc,busName+" — Seat Booking List",logo);
     doc.setFont("times","italic"); doc.setFontSize(9); doc.setTextColor(90,90,90);
     const booked = seats.filter(s=>s.status!=="available").length;
     doc.text("Booked/Pending: "+booked+" of 72 seats", pW-14, 43, {align:"right"});
@@ -1702,14 +1836,12 @@ async function downloadBusListPDF(){
       return "Pending";
     }
 
-    const listMode = settings.tripMode || "holiday";
-    const isHolidayList = listMode === "holiday";
     const rows = occupiedSeats.map(s=>[
       String(s.number),
       s.passengerName || "—",
       s.phone         || "—",
-      isHolidayList ? (settings.departureVenue || "—") : (s.origin || "—"),
-      isHolidayList ? (s.destination || "—")           : (settings.departureVenue || "—"),
+      settings.departureVenue || "—",
+      s.destination   || "—",
       statusLabel(s),
       depositForSeat(s.number),
       "",   // Balance — blank, filled manually
@@ -1739,7 +1871,7 @@ async function downloadBusListPDF(){
     });
 
     pdfFooter(doc,dateStr);
-    doc.save("PolyCoach-Seat-List-"+new Date().toISOString().slice(0,10)+".pdf");
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seat-List-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate Seat List. Please try again.");
     console.error(err);
@@ -1821,7 +1953,11 @@ async function generateReceiptPDF(rc){
   doc.setFont("helvetica","bold");
   doc.setFontSize(15);
   doc.setTextColor(51,51,51);
-  doc.text("POLYCOACH", nameX, pad+14);
+  doc.text("POLYCOACH", nameX, pad+12);
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100,100,100);
+  doc.text(rc.busName||"Bus 1", nameX, pad+18);
 
   window._qrSeat = rc.seatNumber||"";
   const rno = (rc.receiptNumber||"").trim();
@@ -1992,6 +2128,20 @@ document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button onclick="_sppConfirm()" style="flex:2;padding:12px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">CONFIRM BOOKING</button>
       <button onclick="_sppCancel()" style="flex:1;padding:12px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editUserModal" style="display:none;">
+  <div class="modal">
+    <h3>Edit User</h3>
+    <div class="cg"><label>Full Name</label><input type="text" id="eu-name" placeholder="Full Name"></div>
+    <div class="cg"><label>Phone</label><input type="tel" id="eu-phone" placeholder="Phone Number"></div>
+    <div class="cg"><label>Origin</label><input type="text" id="eu-origin" placeholder="e.g. Mzuzu"></div>
+    <div class="cg"><label>Destination</label><input type="text" id="eu-dest" placeholder="e.g. Lilongwe"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn-save" style="flex:2;" onclick="saveEditUser()">SAVE CHANGES</button>
+      <button class="btn" style="flex:1;background:#f0f2f5;color:#555;" onclick="closeModal('editUserModal')">Cancel</button>
     </div>
   </div>
 </div>
