@@ -414,17 +414,9 @@ tr:hover td{background:#fafafa;}
   <div class="modal-box">
     <h3>Add User Manually</h3>
     <div class="cg"><label>Full Name</label><input type="text" id="mu-name" class="settings-input" placeholder="Full Name"></div>
-    <div class="cg"><label>Phone</label><input type="text" id="mu-phone" class="settings-input" placeholder="099..."></div>
-    <div class="cg"><label>Program</label><input type="text" id="mu-prog" class="settings-input" placeholder="e.g. BEEE4"></div>
-    <div class="cg"><label>Destination</label>
-      <select id="mu-dest" class="settings-input">
-        <option value="">-- Choose --</option>
-        <option value="Mzuzu">Mzuzu</option>
-        <option value="Jenda">Jenda</option>
-        <option value="Mzimba">Mzimba</option>
-        <option value="Kasungu">Kasungu</option>
-      </select>
-    </div>
+    <div class="cg"><label>Phone <span style="font-weight:400;color:#aaa;font-size:0.8rem;">(optional)</span></label><input type="tel" id="mu-phone" class="settings-input" placeholder="e.g. 0991234567"></div>
+    <div class="cg"><label id="mu-origin-label">Origin</label><input type="text" id="mu-origin" class="settings-input" placeholder="e.g. Mzuzu"></div>
+    <div class="cg"><label id="mu-dest-label">Destination</label><input type="text" id="mu-dest" class="settings-input" placeholder="e.g. Lilongwe"></div>
     <div class="modal-actions">
       <button class="btn-save" onclick="addUser()">ADD USER</button>
       <button class="btn-cancel" onclick="closeModal('addUserModal')">Cancel</button>
@@ -746,13 +738,14 @@ async function loadUsers(){
       const uid = u._id || u.id;
       const tr=document.createElement("tr");
       tr.id="user-row-"+uid;
-      tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${u.phone}</td>
+      const displayPhone = u.phone && !u.phone.startsWith("admin-") ? u.phone : "—";
+      tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${displayPhone}</td>
       <td>${_busNames[u.busId||"bus1"]||u.busId||"Bus 1"}</td>
       <td>${u.origin||"—"}</td>
       <td>${u.destination||"—"}</td>
       <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
       <td style="display:flex;gap:5px;">
-        <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${u.phone}','${u.origin||""}','${u.destination||""}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${displayPhone==="—"?"":u.phone}','${u.origin||""}','${u.destination||""}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button>
       </td>`;
       tbody.appendChild(tr);
@@ -789,15 +782,26 @@ async function deleteUser(id,name){
   }
 }
 
-function openAddUserModal(){document.getElementById("addUserModal").style.display="flex";}
+function openAddUserModal(){
+  const isHoliday = (window._tripMode||"holiday")==="holiday";
+  document.getElementById("mu-origin-label").textContent = "Origin";
+  document.getElementById("mu-dest-label").textContent   = isHoliday ? "Destination" : "Destination";
+  document.getElementById("mu-name").value  = "";
+  document.getElementById("mu-phone").value = "";
+  document.getElementById("mu-origin").value= "";
+  document.getElementById("mu-dest").value  = "";
+  document.getElementById("addUserModal").style.display="flex";
+}
 function closeModal(id){document.getElementById(id).style.display="none";}
 async function addUser(){
-  const name=document.getElementById("mu-name").value.trim();
-  const phone=document.getElementById("mu-phone").value.trim();
-  const prog=document.getElementById("mu-prog").value.trim();
-  const dest=document.getElementById("mu-dest").value;
-  if(!name||!phone) return alert("Name and phone are required.");
-  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,program:prog||"Admin Assigned",destination:dest||"",busId:currentBusId})});
+  const name   = document.getElementById("mu-name").value.trim();
+  const phone  = document.getElementById("mu-phone").value.trim();
+  const origin = document.getElementById("mu-origin").value.trim();
+  const dest   = document.getElementById("mu-dest").value.trim();
+  if(!name) return alert("Full name is required.");
+  // Phone is optional — use placeholder if empty so unique constraint is met
+  const phoneVal = phone || ("admin-"+Date.now());
+  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone:phoneVal,origin:origin||"",destination:dest||"",program:"Admin Assigned",busId:currentBusId})});
   const d=await r.json();
   if(d.success){closeModal("addUserModal");loadUsers();}
   else alert(d.message||"Error.");
@@ -1741,10 +1745,17 @@ async function downloadUsersPDF(){
     doc.text(users.length+" student(s) — Departure: "+depDate, pW-14, 43, {align:"right"});
     doc.setTextColor(0,0,0);
 
+    function maskPhone(p){
+      if(!p || p.startsWith("admin-")) return "—";
+      const d = p.replace(/[^0-9]/g,"");
+      if(d.length < 5) return p;
+      const hidden = d.length - 5; // digits between first 4 and last 1
+      return d.slice(0,4)+"*".repeat(hidden)+d.slice(-1);
+    }
     const rows = users.map((u,i)=>[
       String(i+1),
       u.fullName    || "—",
-      u.phone       || "—",
+      maskPhone(u.phone),
       u.origin      || "—",
       u.destination || "—",
       busName,
