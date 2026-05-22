@@ -105,23 +105,38 @@ const DEFAULT_ADMINS = [
 ];
 
 async function seedIfNeeded() {
+  // Drop old unique index on number (pre-two-bus) — safe to call repeatedly
+  try {
+    await mongoose.connection.collection("seats").dropIndex("number_1");
+  } catch(e) { /* already dropped — fine */ }
+
   // Seats — 72 per bus
-  const seatCount = await Seat.countDocuments();
-  if (seatCount === 0) {
+  const bus1Count = await Seat.countDocuments({ busId: "bus1" });
+  const bus2Count = await Seat.countDocuments({ busId: "bus2" });
+  const untagged  = await Seat.countDocuments({ busId: { $exists: false } });
+
+  // Tag any untagged seats as bus1
+  if (untagged > 0) {
+    await Seat.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
+  }
+
+  // Create bus1 seats if none exist
+  if (bus1Count === 0 && untagged === 0) {
     const seats = [];
     for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus1" });
+    await Seat.insertMany(seats);
+  }
+
+  // Create bus2 seats if none exist
+  if (bus2Count === 0) {
+    const seats = [];
     for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus2" });
     await Seat.insertMany(seats);
-  } else if (seatCount === 72) {
-    // Migrate existing seats to bus1, add bus2 seats
-    await Seat.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
-    const bus2Count = await Seat.countDocuments({ busId: "bus2" });
-    if (bus2Count === 0) {
-      const seats = [];
-      for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus2" });
-      await Seat.insertMany(seats);
-    }
   }
+  // Migrate existing bookings and users to bus1
+  await Booking.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
+  await User.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
+
   // Admins
   for (const a of DEFAULT_ADMINS) {
     if (!await Admin.findOne({ phone: a.phone })) {
