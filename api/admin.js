@@ -266,10 +266,10 @@ module.exports = async (req, res) => {
 
       // Add user manually
       if (action === "add-user") {
-        const { fullName, phone, program, destination } = req.body;
+        const { fullName, phone, program, destination, origin } = req.body;
         if (!fullName || !phone) return res.json({ success: false, message: "Name and phone required." });
         if (await User.findOne({ phone })) return res.json({ success: false, message: "Phone already exists." });
-        await User.create({ busId, fullName, phone, program: program||"Admin Assigned", destination: destination||"" });
+        await User.create({ busId, fullName, phone, program: program||"Admin Assigned", destination: destination||"", origin: origin||"" });
         return res.json({ success: true });
       }
 
