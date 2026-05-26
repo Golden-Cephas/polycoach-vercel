@@ -13,6 +13,10 @@
 #msg{margin-top:14px;padding:12px;border-radius:6px;font-weight:700;display:none;}
 #msg.success{background:#e6f4ea;color:#2e7d32;}
 #msg.error{background:#fdecea;color:var(--danger);}
+.bus-chooser{display:flex;gap:10px;margin-top:6px;}
+.bus-choice{flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:0.9rem;color:#555;transition:all 0.2s;background:#fff;}
+.bus-choice.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
+.common-field input{background:#f0f4ff;color:#555;cursor:default;}
 @media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
 </style>
 </head>
@@ -41,35 +45,62 @@
       <form id="regForm">
         <div class="reg-grid">
 
+          <!-- Full Name -->
           <div class="input-group full">
             <label>Full Name</label>
             <input type="text" id="name" placeholder="Enter your full name" required>
           </div>
 
-          <div class="input-group full">
-            <label>Program</label>
-            <input type="text" id="program" placeholder="e.g. BEEE4, BCS3, BARCH2" required>
-            <span class="reg-hint">Your course and year e.g. BEEE4</span>
-          </div>
-
+          <!-- Phone -->
           <div class="input-group full">
             <label>Phone Number</label>
-            <input type="tel" id="phone" placeholder="099..." required>
+            <input type="tel" id="phone" placeholder="e.g. 0991234567" required>
           </div>
 
+          <!-- Bus chooser -->
           <div class="input-group full">
-            <label>Destination</label>
-            <select id="destination" required>
+            <label>Choose Your Bus <span style="color:var(--danger);">*</span></label>
+            <div class="bus-chooser">
+              <div class="bus-choice" id="busChoice1" onclick="chooseBus('bus1')">
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel1">Bus 1</span>
+              </div>
+              <div class="bus-choice" id="busChoice2" onclick="chooseBus('bus2')">
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel2">Bus 2</span>
+              </div>
+            </div>
+            <input type="hidden" id="busId" value="">
+          </div>
+
+          <!-- Common field (read-only, from settings) -->
+          <div class="input-group full common-field">
+            <label id="commonLabel">Departure Venue</label>
+            <input type="text" id="commonField" readonly>
+          </div>
+
+          <!-- Origin (manual) — shown in back-to-school mode -->
+          <div class="input-group full" id="originGroup" style="display:none;">
+            <label id="originLabel">Origin</label>
+            <select id="origin">
+              <option value="" disabled selected>-- Choose Origin --</option>
+              <option>Mzuzu</option><option>Mzimba</option><option>Jenda</option>
+              <option>Karonga</option><option>Rumphi</option><option>Nkhata Bay</option>
+              <option>Chitipa</option><option>Kasungu</option>
+            </select>
+          </div>
+
+          <!-- Destination (manual) — shown in holiday mode -->
+          <div class="input-group full" id="destGroup">
+            <label id="destLabel">Destination</label>
+            <select id="destination">
               <option value="" disabled selected>-- Choose Destination --</option>
-              <option value="Mzuzu">Mzuzu</option>
-              <option value="Jenda">Jenda</option>
-              <option value="Mzimba">Mzimba</option>
-              <option value="Kasungu">Kasungu</option>
+              <option>Mzuzu</option><option>Mzimba</option><option>Jenda</option>
+              <option>Karonga</option><option>Rumphi</option><option>Nkhata Bay</option>
+              <option>Chitipa</option><option>Kasungu</option>
             </select>
           </div>
 
         </div>
-        <button type="submit" class="submit-btn">REGISTER NOW</button>
+        <button type="submit" class="submit-btn" style="margin-top:18px;">REGISTER NOW</button>
         <div id="msg"></div>
         <div class="login-footer">
           <p>Already registered? <a href="Book-Login.html">Click here to book</a></p>
@@ -95,45 +126,100 @@
     </div>
   </div>
 </div>
-<div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
+
+<div id="popupOverlay" class="popup-overlay">
+  <div class="popup-box"><div id="popupContent"></div>
+  <button class="close-btn" onclick="closePopup()">Close</button></div>
+</div>
 
 <script src="/js/popup.js"></script>
 <script>
+let _settings = {};
+let _selectedBus = "";
+
+/* ── Load settings and apply trip mode ── */
+fetch("/api/settings").then(r=>r.json()).then(s=>{
+  _settings = s;
+  applyTripMode(s.tripMode||"holiday");
+  // Set bus labels from settings
+  document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
+  document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
+}).catch(()=>{});
+
+function applyTripMode(mode){
+  const isHoliday = mode !== "backtoschool";
+  // Common field label and value updated when bus is chosen
+  document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Common Destination";
+  // Show/hide origin and destination fields
+  document.getElementById("originGroup").style.display  = isHoliday ? "none"  : "block";
+  document.getElementById("destGroup").style.display    = isHoliday ? "block" : "none";
+}
+
+function chooseBus(busId){
+  _selectedBus = busId;
+  document.getElementById("busId").value = busId;
+  document.getElementById("busChoice1").classList.toggle("selected", busId==="bus1");
+  document.getElementById("busChoice2").classList.toggle("selected", busId==="bus2");
+  // Fill common field with this bus's venue
+  const isHoliday = (_settings.tripMode||"holiday") !== "backtoschool";
+  const venueKey  = busId+"Venue";
+  const dateKey   = busId+"Date";
+  const venue     = _settings[venueKey] || _settings.departureVenue || "";
+  document.getElementById("commonField").value = venue;
+}
+
+/* ── Form submit ── */
 document.getElementById("regForm").addEventListener("submit", async function(e){
   e.preventDefault();
-  const msg  = document.getElementById("msg");
-  const btn  = this.querySelector("button[type=submit]");
-  const name = document.getElementById("name").value.trim();
-  const prog = document.getElementById("program").value.trim();
-  const phone= document.getElementById("phone").value.trim();
-  const dest = document.getElementById("destination").value;
+  const msg   = document.getElementById("msg");
+  const btn   = this.querySelector("button[type=submit]");
+  const name  = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const busId = document.getElementById("busId").value;
+  const isHoliday = (_settings.tripMode||"holiday") !== "backtoschool";
+  const origin= isHoliday ? "" : (document.getElementById("origin").value||"");
+  const dest  = isHoliday ? (document.getElementById("destination").value||"") : "";
 
-  if(!name||!prog||!phone||!dest){
-    msg.className="error";msg.style.display="block";
-    msg.textContent="Please fill in all fields.";return;
+  if(!name||!phone){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please enter your name and phone number."; return;
+  }
+  if(!busId){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please choose your bus."; return;
+  }
+  if(isHoliday && !dest){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select your destination."; return;
+  }
+  if(!isHoliday && !origin){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select your origin."; return;
   }
 
-  btn.disabled=true;btn.textContent="Registering...";
+  btn.disabled=true; btn.textContent="Registering...";
   msg.style.display="none";
 
   try{
-    const r=await fetch("/api/register",{
+    const r = await fetch("/api/register",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name,program:prog,phone,destination:dest})
+      body:JSON.stringify({name, phone, busId, origin, destination:dest})
     });
-    const d=await r.json();
+    const d = await r.json();
     if(d.success){
+      // Save bus choice for the booking flow
+      localStorage.setItem("polycoachBus", busId);
       window.location.href="Thanks-Remark1.html";
     } else {
-      msg.className="error";msg.style.display="block";
+      msg.className="error"; msg.style.display="block";
       msg.textContent=d.message||"Registration failed. Please try again.";
-      btn.disabled=false;btn.textContent="REGISTER NOW";
+      btn.disabled=false; btn.textContent="REGISTER NOW";
     }
   }catch{
-    msg.className="error";msg.style.display="block";
+    msg.className="error"; msg.style.display="block";
     msg.textContent="Server error. Please try again.";
-    btn.disabled=false;btn.textContent="REGISTER NOW";
+    btn.disabled=false; btn.textContent="REGISTER NOW";
   }
 });
 </script>

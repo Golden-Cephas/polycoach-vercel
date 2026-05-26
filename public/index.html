@@ -3,42 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PolyCoach — Student Bus Booking</title>
+<title>Register — PolyCoach</title>
 <link rel="stylesheet" href="/css/Home-Page.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
-.hero{background-image:linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.5)),url('/Images/Background1.png');background-size:cover;background-position:center;min-height:620px;display:flex;align-items:center;}
-.hero-content{padding:0 24px;}
-.hero h1{font-family:'Barlow Condensed',sans-serif;font-size:clamp(2.4rem,6vw,4.2rem);font-weight:900;color:#fff;text-transform:uppercase;line-height:1.05;text-shadow:2px 2px 12px rgba(0,0,0,0.6);}
-.hero p{font-size:1.15rem;color:#eee;margin-top:12px;max-width:560px;text-shadow:1px 1px 6px rgba(0,0,0,0.5);}
-.search-bar{background:rgba(20,20,20,0.88);padding:22px 24px;border-radius:12px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-top:32px;max-width:720px;backdrop-filter:blur(6px);}
-.sb-group{display:flex;flex-direction:column;}
-.sb-group label{color:#aaa;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
-.sb-group input{background:#fff;border:none;border-radius:5px;padding:11px 14px;font-weight:700;color:#222;font-size:0.92rem;font-family:'Lato',sans-serif;min-width:130px;}
-.view-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:12px 26px;font-weight:700;font-size:0.95rem;cursor:pointer;height:42px;white-space:nowrap;transition:background 0.2s;}
-.view-btn:hover{background:#007acc;}
-.section-title{text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:1px;padding:48px 0 8px;}
-.section-sub{text-align:center;color:var(--muted);margin-bottom:36px;font-size:1rem;}
-.routes{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;padding:0 20px 48px;}
-.bus-card{width:300px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.09);transition:transform 0.2s,box-shadow 0.2s;}
-.bus-card:hover{transform:translateY(-5px);box-shadow:0 14px 35px rgba(0,0,0,0.15);}
-.card-img{position:relative;height:180px;overflow:hidden;}
-.card-img img{width:100%;height:100%;object-fit:cover;}
-.card-overlay{position:absolute;inset:0;background:rgba(11,41,77,0.55);display:flex;align-items:flex-end;padding:14px;}
-.card-overlay h2{color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:900;}
-.card-footer{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;}
-.price-label{font-size:0.75rem;color:var(--muted);font-weight:700;text-transform:uppercase;}
-.price-amount{font-size:1.5rem;font-weight:900;color:var(--primary);font-family:'Barlow Condensed',sans-serif;}
-.book-btn{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:7px;font-weight:700;cursor:pointer;transition:background 0.2s;}
-.book-btn:hover{background:var(--accent);}
-.features{display:flex;justify-content:center;gap:30px;flex-wrap:wrap;padding:48px 20px;background:#fff;}
-.feature{display:flex;align-items:flex-start;gap:18px;flex:1;min-width:240px;max-width:300px;}
-.feat-icon i{font-size:2.2rem;color:var(--primary);}
-.feat-icon{transition:transform 0.2s;}
-.feature:hover .feat-icon{transform:translateY(-4px);}
-.feat-text h3{font-size:1rem;font-weight:800;text-transform:uppercase;color:#111;}
-.feat-text p{font-size:0.9rem;color:#777;margin-top:5px;line-height:1.5;}
-@media(max-width:640px){.search-bar{flex-direction:column;}.view-btn{width:100%;}}
+.reg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.reg-grid .full{grid-column:span 2;}
+.reg-hint{font-size:0.78rem;color:var(--muted);margin-top:4px;}
+#msg{margin-top:14px;padding:12px;border-radius:6px;font-weight:700;display:none;}
+#msg.success{background:#e6f4ea;color:#2e7d32;}
+#msg.error{background:#fdecea;color:var(--danger);}
+.bus-chooser{display:flex;gap:10px;margin-top:6px;}
+.bus-choice{flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:0.9rem;color:#555;transition:all 0.2s;background:#fff;}
+.bus-choice.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
+.common-field input{background:#f0f4ff;color:#555;cursor:default;}
+@media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
 </style>
 </head>
 <body>
@@ -56,41 +35,79 @@
   </div>
 </div>
 
-<div class="hero">
-  <div class="container hero-content" style="max-width:1100px;margin:0 auto;width:100%;">
-    <h1>Welcome to<br>PolyCoach</h1>
-    <p>Travel home the easy way — organised by students, for students.</p>
-    <div class="search-bar" id="searchBar">
-      <div class="sb-group">
-        <label>Departure</label>
-        <input type="text" id="depVenue" readonly>
-      </div>
-      <div class="sb-group">
-        <label>Date</label>
-        <input type="text" id="depDate" readonly>
-      </div>
-      <div class="sb-group">
-        <label>Time</label>
-        <input type="text" id="depTime" readonly>
-      </div>
-      <button class="view-btn" onclick="location.href='Bust-Status-Lay.html'">VIEW BUS STATUS</button>
+<div class="Page-Body-Hero">
+  <div class="page-card-container" style="max-width:520px;">
+    <div class="page-hero-title">
+      <h1>Student Registration</h1>
+      <p>Use your details to create your PolyCoach account.</p>
+    </div>
+    <div class="form-card">
+      <form id="regForm">
+        <div class="reg-grid">
+
+          <!-- Full Name -->
+          <div class="input-group full">
+            <label>Full Name</label>
+            <input type="text" id="name" placeholder="Enter your full name" required>
+          </div>
+
+          <!-- Phone -->
+          <div class="input-group full">
+            <label>Phone Number</label>
+            <input type="tel" id="phone" placeholder="e.g. 0991234567" required>
+          </div>
+
+          <!-- Bus chooser -->
+          <div class="input-group full">
+            <label>Choose Your Bus <span style="color:var(--danger);">*</span></label>
+            <div class="bus-chooser">
+              <div class="bus-choice" id="busChoice1" onclick="chooseBus('bus1')">
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel1">Bus 1</span>
+              </div>
+              <div class="bus-choice" id="busChoice2" onclick="chooseBus('bus2')">
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel2">Bus 2</span>
+              </div>
+            </div>
+            <input type="hidden" id="busId" value="">
+          </div>
+
+          <!-- Common field (read-only, from settings) -->
+          <div class="input-group full common-field">
+            <label id="commonLabel">Departure Venue</label>
+            <input type="text" id="commonField" readonly>
+          </div>
+
+          <!-- Origin (manual) — shown in back-to-school mode -->
+          <div class="input-group full" id="originGroup" style="display:none;">
+            <label id="originLabel">Origin</label>
+            <select id="origin">
+              <option value="" disabled selected>-- Choose Origin --</option>
+              <option>Mzuzu</option><option>Mzimba</option><option>Jenda</option>
+              <option>Karonga</option><option>Rumphi</option><option>Nkhata Bay</option>
+              <option>Chitipa</option><option>Kasungu</option>
+            </select>
+          </div>
+
+          <!-- Destination (manual) — shown in holiday mode -->
+          <div class="input-group full" id="destGroup">
+            <label id="destLabel">Destination</label>
+            <select id="destination">
+              <option value="" disabled selected>-- Choose Destination --</option>
+              <option>Mzuzu</option><option>Mzimba</option><option>Jenda</option>
+              <option>Karonga</option><option>Rumphi</option><option>Nkhata Bay</option>
+              <option>Chitipa</option><option>Kasungu</option>
+            </select>
+          </div>
+
+        </div>
+        <button type="submit" class="submit-btn" style="margin-top:18px;">REGISTER NOW</button>
+        <div id="msg"></div>
+        <div class="login-footer">
+          <p>Already registered? <a href="Book-Login.html">Click here to book</a></p>
+        </div>
+      </form>
     </div>
   </div>
-</div>
-
-<div class="section-title">Where are you heading?</div>
-<p class="section-sub">Select your destination and book your seat today</p>
-<div class="routes" id="routeCards">
-  <div class="bus-card"><div class="card-img"><img src="/Images/Mzuzu.jpg" alt="Mzuzu"><div class="card-overlay"><h2>Mzuzu</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl1">Booking Fee</div><div class="price-amount" id="fee1">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
-  <div class="bus-card"><div class="card-img"><img src="/Images/Mzimba.png" alt="Mzimba"><div class="card-overlay"><h2>Mzimba</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl2">Booking Fee</div><div class="price-amount" id="fee2">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
-  <div class="bus-card"><div class="card-img"><img src="/Images/Jenda.jpg" alt="Jenda"><div class="card-overlay"><h2>Jenda</h2></div></div><div class="card-footer"><div><div class="price-label" id="lbl3">Booking Fee</div><div class="price-amount" id="fee3">K5,000</div></div><button class="book-btn" onclick="location.href='Book-Login.html'">Book</button></div></div>
-</div>
-
-<div class="section-title" style="background:#fff;padding-bottom:4px;">Why Book With Us?</div>
-<div class="features">
-  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-cookie-bite"></i></div><div class="feat-text"><h3>Free Snacks</h3><p>Don't travel hungry — enjoy complimentary treats on every journey.</p></div></div>
-  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-tags"></i></div><div class="feat-text"><h3>Fair Prices</h3><p>Student-friendly fares so you save your cash for the holiday fun.</p></div></div>
-  <div class="feature"><div class="feat-icon"><i class="fa-solid fa-wifi"></i></div><div class="feat-text"><h3>Free Wi-Fi</h3><p>Stay connected and entertained throughout your journey.</p></div></div>
 </div>
 
 <div class="Home-Page-Footer">
@@ -101,7 +118,7 @@
     <button class="Footer-Button" onclick="openPopup('contact')">Contact</button>
   </div>
   <div class="Home-Right-Footer">
-    <div class="Footer-Text">Social Media</div>
+    <div class="Footer-Text">Social Media:</div>
     <div class="Social-Container">
       <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
       <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
@@ -111,25 +128,100 @@
 </div>
 
 <div id="popupOverlay" class="popup-overlay">
-  <div class="popup-box">
-    <div id="popupContent"></div>
-    <button class="close-btn" onclick="closePopup()">Close</button>
-  </div>
+  <div class="popup-box"><div id="popupContent"></div>
+  <button class="close-btn" onclick="closePopup()">Close</button></div>
 </div>
 
 <script src="/js/popup.js"></script>
 <script>
+let _settings = {};
+let _selectedBus = "";
+
+/* ── Load settings and apply trip mode ── */
 fetch("/api/settings").then(r=>r.json()).then(s=>{
-  document.getElementById("depVenue").value=s.departureVenue||"MUBAS";
-  document.getElementById("depDate").value=s.departureDate||"15 March 2025";
-  document.getElementById("depTime").value=s.departureTime||"18:00 hrs";
-  const label=s.bookingLabel||"Booking Fee";
-  const fee=s.bookingFee||"K5,000";
-  [1,2,3].forEach(i=>{
-    document.getElementById("fee"+i).textContent=fee;
-    document.getElementById("lbl"+i).textContent=label;
-  });
+  _settings = s;
+  applyTripMode(s.tripMode||"holiday");
+  // Set bus labels from settings
+  document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
+  document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
 }).catch(()=>{});
+
+function applyTripMode(mode){
+  const isHoliday = mode !== "backtoschool";
+  // Common field label and value updated when bus is chosen
+  document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Common Destination";
+  // Show/hide origin and destination fields
+  document.getElementById("originGroup").style.display  = isHoliday ? "none"  : "block";
+  document.getElementById("destGroup").style.display    = isHoliday ? "block" : "none";
+}
+
+function chooseBus(busId){
+  _selectedBus = busId;
+  document.getElementById("busId").value = busId;
+  document.getElementById("busChoice1").classList.toggle("selected", busId==="bus1");
+  document.getElementById("busChoice2").classList.toggle("selected", busId==="bus2");
+  // Fill common field with this bus's venue
+  const isHoliday = (_settings.tripMode||"holiday") !== "backtoschool";
+  const venueKey  = busId+"Venue";
+  const dateKey   = busId+"Date";
+  const venue     = _settings[venueKey] || _settings.departureVenue || "";
+  document.getElementById("commonField").value = venue;
+}
+
+/* ── Form submit ── */
+document.getElementById("regForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const msg   = document.getElementById("msg");
+  const btn   = this.querySelector("button[type=submit]");
+  const name  = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const busId = document.getElementById("busId").value;
+  const isHoliday = (_settings.tripMode||"holiday") !== "backtoschool";
+  const origin= isHoliday ? "" : (document.getElementById("origin").value||"");
+  const dest  = isHoliday ? (document.getElementById("destination").value||"") : "";
+
+  if(!name||!phone){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please enter your name and phone number."; return;
+  }
+  if(!busId){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please choose your bus."; return;
+  }
+  if(isHoliday && !dest){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select your destination."; return;
+  }
+  if(!isHoliday && !origin){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select your origin."; return;
+  }
+
+  btn.disabled=true; btn.textContent="Registering...";
+  msg.style.display="none";
+
+  try{
+    const r = await fetch("/api/register",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name, phone, busId, origin, destination:dest})
+    });
+    const d = await r.json();
+    if(d.success){
+      // Save bus choice for the booking flow
+      localStorage.setItem("polycoachBus", busId);
+      window.location.href="Thanks-Remark1.html";
+    } else {
+      msg.className="error"; msg.style.display="block";
+      msg.textContent=d.message||"Registration failed. Please try again.";
+      btn.disabled=false; btn.textContent="REGISTER NOW";
+    }
+  }catch{
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Server error. Please try again.";
+    btn.disabled=false; btn.textContent="REGISTER NOW";
+  }
+});
 </script>
 </body>
 </html>
