@@ -28,21 +28,10 @@
   <div class="page-card-container">
     <div class="page-hero-title">
       <h1>Book Your Seat</h1>
-      <p>Fill in your details to proceed with your booking.</p>
+      <p>Enter your registered name and phone number to continue.</p>
     </div>
     <div class="form-card">
       <form id="bookForm">
-
-        <div class="input-group">
-          <label>Destination</label>
-          <select id="destination" required>
-            <option value="" disabled selected>-- Choose Destination --</option>
-            <option value="Mzuzu">Mzuzu</option>
-            <option value="Jenda">Jenda</option>
-            <option value="Mzimba">Mzimba</option>
-            <option value="Kasungu">Kasungu</option>
-          </select>
-        </div>
 
         <div class="input-group">
           <label>Full Name</label>
@@ -52,11 +41,6 @@
         <div class="input-group">
           <label>Phone Number</label>
           <input type="tel" id="phone" placeholder="099..." required>
-        </div>
-
-        <div class="input-group">
-          <label>Program</label>
-          <input type="text" id="program" placeholder="e.g. BEEE4, BCS3" required>
         </div>
 
         <button type="submit" class="submit-btn" id="proceedBtn">PROCEED</button>
@@ -88,6 +72,22 @@
   </div>
 </div>
 
+<!-- NOT REGISTERED POPUP -->
+<div id="notRegisteredPopup" class="popup-overlay">
+  <div class="popup-box">
+    <h2>Not Registered</h2>
+    <p id="notRegisteredMsg">We couldn't find your name on our registration list. Please register first before booking a seat.</p>
+    <div class="booking-popup-btns">
+      <button class="popup-btn" onclick="location.href='Register.html'">
+        <i class="fa-solid fa-user-plus"></i> &nbsp;Register Now
+      </button>
+      <button class="popup-btn" style="background:#555;" onclick="closeNotRegisteredPopup()">
+        <i class="fa-solid fa-arrow-left"></i> &nbsp;Go Back
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="Home-Page-Footer">
   <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
   <div class="Home-Mid-Footer">
@@ -105,46 +105,62 @@
 
 <script src="/js/popup.js"></script>
 <script>
+function closeNotRegisteredPopup(){
+  document.getElementById("notRegisteredPopup").style.display="none";
+}
+
 document.getElementById("bookForm").addEventListener("submit", async function(e){
   e.preventDefault();
   const err  = document.getElementById("errMsg");
   const btn  = document.getElementById("proceedBtn");
-  const dest = document.getElementById("destination").value;
   const name = document.getElementById("fullName").value.trim();
   const phone= document.getElementById("phone").value.trim();
-  const prog = document.getElementById("program").value.trim();
 
-  if(!dest||!name||!phone||!prog){
+  if(!name || !phone){
     err.style.display="block";
-    err.textContent="Please fill in all fields to continue.";
+    err.textContent="Please enter your full name and phone number.";
     return;
   }
 
-  btn.disabled=true;btn.textContent="Please wait...";err.style.display="none";
+  btn.disabled=true; btn.textContent="Checking..."; err.style.display="none";
 
   try{
-    const r=await fetch("/api/booking-session",{
+    const r = await fetch("/api/booking-session",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({fullName:name,phone,program:prog,destination:dest})
+      body:JSON.stringify({name, phone})
     });
-    const d=await r.json();
+    const d = await r.json();
+
     if(d.success){
-      // Store in localStorage for use on other pages
-      localStorage.setItem("polycoachUser",JSON.stringify({fullName:name,phone,program:prog,role:"user"}));
-      localStorage.setItem("selectedDestination",dest);
+      // Registration found — store full user record from DB in localStorage
+      localStorage.setItem("polycoachUser", JSON.stringify({
+        fullName:    d.user.name,
+        phone:       d.user.phone,
+        busId:       d.user.busId,
+        origin:      d.user.origin      || "",
+        destination: d.user.destination || "",
+        program:     d.user.program     || "",
+        role:        "user"
+      }));
+      localStorage.setItem("polycoachBus", d.user.busId || "bus1");
       openBookingPopup();
-      btn.disabled=false;btn.textContent="PROCEED";
+    } else if(d.notFound){
+      // Not on registration list — show friendly popup
+      document.getElementById("notRegisteredMsg").textContent =
+        "We couldn't find \"" + name + "\" on our registration list. " +
+        "Please register first before booking a seat.";
+      document.getElementById("notRegisteredPopup").style.display="flex";
     } else {
       err.style.display="block";
-      err.textContent=d.message||"Something went wrong. Please try again.";
-      btn.disabled=false;btn.textContent="PROCEED";
+      err.textContent = d.message || "Something went wrong. Please try again.";
     }
-  }catch{
+  } catch{
     err.style.display="block";
     err.textContent="Server error. Please try again.";
-    btn.disabled=false;btn.textContent="PROCEED";
   }
+
+  btn.disabled=false; btn.textContent="PROCEED";
 });
 </script>
 </body>
