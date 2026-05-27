@@ -212,8 +212,9 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
     if(!upData.secure_url) throw new Error("Upload failed - no URL returned.");
     progressFill.style.width="100%";
 
-    // Step 3: Store Cloudinary URL in localStorage for book-seat
+    // Step 3: Store Cloudinary URL and busId in localStorage for book-seat
     localStorage.setItem("paymentProofUrl",upData.secure_url);
+    if(u&&u.busId) localStorage.setItem("polycoachBus", u.busId);
 
     showMsg("success","✅ Payment proof uploaded! Redirecting to seat selection...");
     setTimeout(()=>window.location.href="Bus-Lay.html",1500);
