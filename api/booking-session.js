@@ -15,21 +15,16 @@ module.exports = async (req, res) => {
     return res.json({ success: false, message: "Name and phone are required." });
 
   try {
-    // Search across both buses — match by phone first (exact), then fall back to name match
-    let user = await User.findOne({ phone: phone.trim() });
-
-    if (!user) {
-      // Try case-insensitive name match as fallback
-      user = await User.findOne({
-        fullName: { $regex: "^" + name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", $options: "i" }
-      });
-    }
+    // Both name AND phone must match the same record
+    const user = await User.findOne({
+      phone: phone.trim(),
+      fullName: { $regex: "^" + name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", $options: "i" }
+    });
 
     if (!user) {
       return res.json({ success: false, notFound: true });
     }
 
-    // Return the student's full registration record
     return res.json({
       success: true,
       user: {

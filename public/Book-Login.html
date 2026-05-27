@@ -9,7 +9,12 @@
 <style>
 #errMsg{display:none;background:#fdecea;color:var(--danger);border-radius:6px;padding:12px;margin-top:12px;font-weight:700;font-size:0.9rem;}
 .booking-popup-btns{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
-#otherPassengerName{display:none;margin-top:10px;width:100%;padding:12px;border:1px solid #ddd;border-radius:6px;font-size:1rem;font-family:'Lato',sans-serif;}
+.other-fields{display:none;flex-direction:column;gap:10px;margin-top:6px;}
+.other-fields input,.other-fields select{width:100%;padding:12px;border:1px solid #ddd;border-radius:6px;font-size:1rem;font-family:'Lato',sans-serif;box-sizing:border-box;}
+.other-label{font-size:0.82rem;font-weight:700;color:#555;margin-bottom:3px;}
+.bus-chooser-popup{display:flex;gap:8px;}
+.bus-choice-popup{flex:1;padding:10px;border:2px solid #ddd;border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:0.85rem;color:#555;transition:all 0.2s;background:#fff;}
+.bus-choice-popup.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
 </style>
 </head>
 <body>
@@ -60,14 +65,53 @@
     <h2>Who are you booking for?</h2>
     <p>Choose how you want to reserve the seat.</p>
     <div class="booking-popup-btns">
+
       <button class="popup-btn" onclick="bookForMyself()">
         <i class="fa-solid fa-user"></i> &nbsp;Book for Myself
       </button>
-      <button class="popup-btn" style="background:#555;" onclick="showOtherInput()">
+
+      <button class="popup-btn" style="background:#555;" onclick="showOtherFields()">
         <i class="fa-solid fa-user-plus"></i> &nbsp;Book for Someone Else
       </button>
-      <input type="text" id="otherPassengerName" placeholder="Enter passenger full name">
-      <button class="popup-confirm-btn" onclick="bookForSomeone()">Continue →</button>
+
+      <!-- Fields revealed when booking for someone else -->
+      <div id="otherFields" class="other-fields">
+
+        <div>
+          <div class="other-label">Passenger Full Name</div>
+          <input type="text" id="otherName" placeholder="Enter their full name">
+        </div>
+
+        <div>
+          <div class="other-label">Passenger Phone</div>
+          <input type="tel" id="otherPhone" placeholder="e.g. 0991234567">
+        </div>
+
+        <div id="otherDestWrap">
+          <div class="other-label" id="otherDestLabel">Destination</div>
+          <select id="otherDest">
+            <option value="" disabled selected>-- Choose --</option>
+            <option>Mzuzu</option><option>Mzimba</option><option>Jenda</option>
+            <option>Karonga</option><option>Rumphi</option><option>Nkhata Bay</option>
+            <option>Chitipa</option><option>Kasungu</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="other-label">Choose Bus</div>
+          <div class="bus-chooser-popup">
+            <div class="bus-choice-popup" id="popBus1" onclick="choosePopupBus('bus1')">
+              <i class="fa-solid fa-bus"></i>&nbsp; <span id="popBusLabel1">Bus 1</span>
+            </div>
+            <div class="bus-choice-popup" id="popBus2" onclick="choosePopupBus('bus2')">
+              <i class="fa-solid fa-bus"></i>&nbsp; <span id="popBusLabel2">Bus 2</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="popup-confirm-btn" id="otherContinueBtn" onclick="bookForSomeone()">Continue →</button>
+      </div>
+
     </div>
   </div>
 </div>
@@ -76,12 +120,12 @@
 <div id="notRegisteredPopup" class="popup-overlay">
   <div class="popup-box">
     <h2>Not Registered</h2>
-    <p id="notRegisteredMsg">We couldn't find your name on our registration list. Please register first before booking a seat.</p>
+    <p id="notRegisteredMsg">We couldn't find your details on our registration list. Please register first before booking a seat.</p>
     <div class="booking-popup-btns">
       <button class="popup-btn" onclick="location.href='Register.html'">
         <i class="fa-solid fa-user-plus"></i> &nbsp;Register Now
       </button>
-      <button class="popup-btn" style="background:#555;" onclick="closeNotRegisteredPopup()">
+      <button class="popup-btn" style="background:#555;" onclick="document.getElementById('notRegisteredPopup').style.display='none'">
         <i class="fa-solid fa-arrow-left"></i> &nbsp;Go Back
       </button>
     </div>
@@ -105,10 +149,29 @@
 
 <script src="/js/popup.js"></script>
 <script>
-function closeNotRegisteredPopup(){
-  document.getElementById("notRegisteredPopup").style.display="none";
+let _settings = {};
+let _selectedPopupBus = "";
+
+/* ── Load settings for bus names and trip mode ── */
+fetch("/api/settings").then(r=>r.json()).then(s=>{
+  _settings = s;
+  document.getElementById("popBusLabel1").textContent = s.bus1Name || "Bus 1";
+  document.getElementById("popBusLabel2").textContent = s.bus2Name || "Bus 2";
+  const isHoliday = (s.tripMode || "holiday") !== "backtoschool";
+  document.getElementById("otherDestLabel").textContent = isHoliday ? "Destination" : "From";
+}).catch(()=>{});
+
+function choosePopupBus(busId){
+  _selectedPopupBus = busId;
+  document.getElementById("popBus1").classList.toggle("selected", busId === "bus1");
+  document.getElementById("popBus2").classList.toggle("selected", busId === "bus2");
 }
 
+function showOtherFields(){
+  document.getElementById("otherFields").style.display = "flex";
+}
+
+/* ── Main form submit — check registration ── */
 document.getElementById("bookForm").addEventListener("submit", async function(e){
   e.preventDefault();
   const err  = document.getElementById("errMsg");
@@ -133,7 +196,6 @@ document.getElementById("bookForm").addEventListener("submit", async function(e)
     const d = await r.json();
 
     if(d.success){
-      // Registration found — store full user record from DB in localStorage
       localStorage.setItem("polycoachUser", JSON.stringify({
         fullName:    d.user.name,
         phone:       d.user.phone,
@@ -146,22 +208,75 @@ document.getElementById("bookForm").addEventListener("submit", async function(e)
       localStorage.setItem("polycoachBus", d.user.busId || "bus1");
       openBookingPopup();
     } else if(d.notFound){
-      // Not on registration list — show friendly popup
       document.getElementById("notRegisteredMsg").textContent =
         "We couldn't find \"" + name + "\" on our registration list. " +
         "Please register first before booking a seat.";
-      document.getElementById("notRegisteredPopup").style.display="flex";
+      document.getElementById("notRegisteredPopup").style.display = "flex";
     } else {
       err.style.display="block";
       err.textContent = d.message || "Something went wrong. Please try again.";
     }
   } catch{
     err.style.display="block";
-    err.textContent="Server error. Please try again.";
+    err.textContent = "Server error. Please try again.";
   }
 
   btn.disabled=false; btn.textContent="PROCEED";
 });
+
+/* ── Book for someone else — register silently then proceed ── */
+async function bookForSomeone(){
+  const name  = document.getElementById("otherName").value.trim();
+  const phone = document.getElementById("otherPhone").value.trim();
+  const dest  = document.getElementById("otherDest").value;
+  const busId = _selectedPopupBus;
+  const isHoliday = (_settings.tripMode || "holiday") !== "backtoschool";
+
+  if(!name)  { alert("Please enter the passenger's full name."); return; }
+  if(!phone) { alert("Please enter the passenger's phone number."); return; }
+  if(!dest)  { alert("Please select " + (isHoliday ? "a destination." : "an origin.")); return; }
+  if(!busId) { alert("Please choose a bus."); return; }
+
+  const btn = document.getElementById("otherContinueBtn");
+  btn.disabled = true; btn.textContent = "Please wait...";
+
+  try{
+    // Silently register the other person
+    const r = await fetch("/api/register", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        name,
+        phone,
+        busId,
+        destination: isHoliday ? dest : "",
+        origin:      isHoliday ? "" : dest
+      })
+    });
+    const d = await r.json();
+
+    if(d.success){
+      // Store the other person as the active booking user
+      localStorage.setItem("polycoachUser", JSON.stringify({
+        fullName:    name,
+        phone:       phone,
+        busId:       busId,
+        destination: isHoliday ? dest : "",
+        origin:      isHoliday ? "" : dest,
+        program:     "",
+        role:        "user"
+      }));
+      localStorage.setItem("polycoachBus", busId);
+      window.location.href = "Payment-Upload.html";
+    } else {
+      alert(d.message || "Could not register passenger. Please try again.");
+      btn.disabled = false; btn.textContent = "Continue →";
+    }
+  } catch{
+    alert("Server error. Please try again.");
+    btn.disabled = false; btn.textContent = "Continue →";
+  }
+}
 </script>
 </body>
 </html>

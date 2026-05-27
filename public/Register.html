@@ -149,7 +149,7 @@ fetch("/api/settings").then(r=>r.json()).then(s=>{
 function applyTripMode(mode){
   const isHoliday = mode !== "backtoschool";
   // Common field label and value updated when bus is chosen
-  document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Common Destination";
+  document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Destination";
   // Show/hide origin and destination fields
   document.getElementById("originGroup").style.display  = isHoliday ? "none"  : "block";
   document.getElementById("destGroup").style.display    = isHoliday ? "block" : "none";
