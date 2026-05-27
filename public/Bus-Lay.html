@@ -58,7 +58,7 @@
     <div class="summary-card">
       <h3>Booking Summary</h3>
       <div class="summary-row"><span class="summary-label">Passenger</span><span class="summary-val" id="sumName">—</span></div>
-      <div class="summary-row"><span class="summary-label" id="sumDestLabel">Destination</span><span class="summary-val" id="sumDest">—</span></div>
+      <div class="summary-row"><span class="summary-label">Destination</span><span class="summary-val" id="sumDest">—</span></div>
       <div class="summary-row"><span class="summary-label">Selected Seat</span><span class="summary-val" id="sumSeat">None selected</span></div>
       <button class="submit-btn" id="confirmBtn" disabled onclick="confirmBooking()">CONFIRM BOOKING</button>
     </div>
@@ -81,12 +81,26 @@
 </div>
 <div id="popupOverlay" class="popup-overlay"><div class="popup-box"><div id="popupContent"></div><button class="close-btn" onclick="closePopup()">Close</button></div></div>
 
+
+<!-- DUPLICATE NAME POPUP -->
+<div id="dupPopup" class="popup-overlay" style="display:none;">
+  <div class="popup-box">
+    <h2 id="dupTitle"></h2>
+    <div class="booking-popup-btns" style="margin-top:16px;">
+      <button class="popup-btn" id="dupSwitch"><i class="fa-solid fa-arrow-right-arrow-left"></i> &nbsp;Switch</button>
+      <button class="popup-btn" id="dupKeep" style="background:#555;"><i class="fa-solid fa-chair"></i> &nbsp;Keep Seat</button>
+      <button class="popup-btn" id="dupNotMe" style="background:#888;"><i class="fa-solid fa-user-slash"></i> &nbsp;Not Me</button>
+      <button class="popup-btn" id="dupCancel" style="background:#bbb;color:#333;"><i class="fa-solid fa-xmark"></i> &nbsp;Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/popup.js"></script>
 <script>
 let selectedSeat=null;
 const passengerName=localStorage.getItem("passengerName");
+const destination=localStorage.getItem("selectedDestination");
 const user=JSON.parse(localStorage.getItem("polycoachUser")||"null");
-const destination=user ? (user.destination||user.origin||"") : "";
 const tooltip=document.getElementById("seatTooltip");
 
 // Guard — check localStorage, no server session needed
@@ -103,11 +117,7 @@ const tooltip=document.getElementById("seatTooltip");
 })();
 
 document.getElementById("sumName").textContent=passengerName||"—";
-if(user){
-  const isOrigin = user.origin && !user.destination;
-  document.getElementById("sumDestLabel").textContent = isOrigin ? "From" : "Destination";
-  document.getElementById("sumDest").textContent = user.destination||user.origin||"—";
-}
+document.getElementById("sumDest").textContent=destination||"—";
 
 // Tooltip
 document.addEventListener("mousemove",e=>{
@@ -115,8 +125,7 @@ document.addEventListener("mousemove",e=>{
 });
 
 async function loadSeats(){
-  const busId=localStorage.getItem("polycoachBus")||"bus1";
-  const r=await fetch("/api/seats?busId="+busId);const seats=await r.json();
+  const r=await fetch("/api/seats");const seats=await r.json();
   const map=document.getElementById("seatMap");
   map.innerHTML="";
   let counter=1;
@@ -147,10 +156,8 @@ function renderSeat(seats,num,parent){
   div.addEventListener("mouseleave",()=>tooltip.style.display="none");
   if(data.status==="available"){
     div.onclick=()=>selectSeat(num,div);
-  } else if(data.status==="booked"||data.status==="taken"){
-    div.title=data.passengerName?`Booked by ${data.passengerName}`:"Booked";
-  } else if(data.status==="pending"){
-    div.title="Pending approval";
+  } else {
+    div.onclick=()=>showSeatMsg("Seat "+num+" is taken.");
   }
   parent.appendChild(div);
 }
@@ -169,31 +176,86 @@ function selectSeat(num,el){
 
 async function confirmBooking(){
   if(!selectedSeat) return;
+  const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
+  // Check if this name already has a booking on this bus
+  const busId=localStorage.getItem("polycoachBus")||"bus1";
+  try{
+    const chk=await fetch("/api/seats?busId="+busId);
+    const seats=await chk.json();
+    const existing=seats.find(s=>(s.status==="booked"||s.status==="pending")&&s.passengerName&&s.passengerName.trim().toLowerCase()===passengerName.trim().toLowerCase());
+    if(existing && existing.number!==selectedSeat){
+      showDuplicatePopup(existing.number, selectedSeat, u);
+      return;
+    }
+  }catch(e){}
+  await doBooking(selectedSeat, u, false, null);
+}
+
+// Brief seat taken message
+function showSeatMsg(text){
+  let el=document.getElementById("seatMsg");
+  if(!el){el=document.createElement("div");el.id="seatMsg";el.style.cssText="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:8px;font-weight:700;font-size:0.9rem;z-index:999;";document.body.appendChild(el);}
+  el.textContent=text;el.style.display="block";
+  clearTimeout(el._t);el._t=setTimeout(()=>el.style.display="none",2200);
+}
+
+// Duplicate name popup
+function showDuplicatePopup(existingSeatNum, newSeat, user){
+  const existing = existingSeatNum;
+  document.getElementById("dupTitle").textContent = user.fullName+" already owns Seat "+existing;
+  document.getElementById("dupPopup").style.display="flex";
+  document.getElementById("dupSwitch").onclick=async()=>{
+    closeDupPopup();
+    await doBooking(newSeat, user, true, existing);
+  };
+  document.getElementById("dupKeep").onclick=()=>{
+    closeDupPopup();
+    localStorage.setItem("lastBookedSeat", String(existing));
+    fetch("/api/settings").then(r=>r.json()).then(s=>{
+      localStorage.setItem("departureVenue", s[user.busId+"Venue"]||s.departureVenue||"MUBAS");
+      localStorage.setItem("departureDate", s[user.busId+"Date"]||s.departureDate||"");
+    }).catch(()=>{}).finally(()=>window.location.href="Final-Thanks.html");
+  };
+  document.getElementById("dupNotMe").onclick=async()=>{
+    closeDupPopup();
+    await doBooking(newSeat, user, false, null);
+  };
+  document.getElementById("dupCancel").onclick=()=>closeDupPopup();
+}
+function closeDupPopup(){document.getElementById("dupPopup").style.display="none";}
+
+async function doBooking(seatNum, u, releasing, oldSeat){
   const btn=document.getElementById("confirmBtn");
   btn.disabled=true;btn.textContent="Booking...";
   try{
-    const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
     const busId=localStorage.getItem("polycoachBus")||"bus1";
-    const payload={seatNumber:Number(selectedSeat),busId,passengerName:passengerName,destination:u.destination||"",origin:u.origin||"",phone:u.phone||"",program:u.program||""};
+    const payload={
+      seatNumber:Number(seatNum),busId,
+      passengerName:passengerName,
+      destination:u.destination||"",
+      origin:u.origin||"",
+      phone:u.phone||"",
+      program:u.program||"",
+      releaseOldSeat: releasing ? oldSeat : null
+    };
     const r=await fetch("/api/book-seat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const d=await r.json();
     if(d.success){
       localStorage.removeItem("passengerName");
-      localStorage.setItem("lastBookedSeat", String(selectedSeat));
+      localStorage.setItem("lastBookedSeat",String(seatNum));
       fetch("/api/settings").then(r=>r.json()).then(s=>{
-        localStorage.setItem("departureVenue", s.departureVenue||"MUBAS");
-        localStorage.setItem("departureDate",  s.departureDate||"");
-      }).catch(()=>{}).finally(()=>{ window.location.href="Final-Thanks.html"; });
-      return;
+        localStorage.setItem("departureVenue",s[busId+"Venue"]||s.departureVenue||"MUBAS");
+        localStorage.setItem("departureDate",s[busId+"Date"]||s.departureDate||"");
+      }).catch(()=>{}).finally(()=>window.location.href="Final-Thanks.html");
     } else {
-      alert(d.message||"Booking failed. Please try another seat.");
+      showSeatMsg(d.message||"Booking failed. Try another seat.");
       btn.disabled=false;btn.textContent="CONFIRM BOOKING";
       selectedSeat=null;
       document.getElementById("sumSeat").textContent="None selected";
       loadSeats();
     }
   }catch(err){
-    alert("Server error: "+err.message);
+    showSeatMsg("Server error. Please try again.");
     btn.disabled=false;btn.textContent="CONFIRM BOOKING";
   }
 }
