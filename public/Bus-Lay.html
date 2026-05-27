@@ -58,7 +58,7 @@
     <div class="summary-card">
       <h3>Booking Summary</h3>
       <div class="summary-row"><span class="summary-label">Passenger</span><span class="summary-val" id="sumName">—</span></div>
-      <div class="summary-row"><span class="summary-label">Destination</span><span class="summary-val" id="sumDest">—</span></div>
+      <div class="summary-row"><span class="summary-label" id="sumDestLabel">Destination</span><span class="summary-val" id="sumDest">—</span></div>
       <div class="summary-row"><span class="summary-label">Selected Seat</span><span class="summary-val" id="sumSeat">None selected</span></div>
       <button class="submit-btn" id="confirmBtn" disabled onclick="confirmBooking()">CONFIRM BOOKING</button>
     </div>
@@ -85,8 +85,8 @@
 <script>
 let selectedSeat=null;
 const passengerName=localStorage.getItem("passengerName");
-const destination=localStorage.getItem("selectedDestination");
 const user=JSON.parse(localStorage.getItem("polycoachUser")||"null");
+const destination=user ? (user.destination||user.origin||"") : "";
 const tooltip=document.getElementById("seatTooltip");
 
 // Guard — check localStorage, no server session needed
@@ -103,7 +103,11 @@ const tooltip=document.getElementById("seatTooltip");
 })();
 
 document.getElementById("sumName").textContent=passengerName||"—";
-document.getElementById("sumDest").textContent=destination||"—";
+if(user){
+  const isOrigin = user.origin && !user.destination;
+  document.getElementById("sumDestLabel").textContent = isOrigin ? "From" : "Destination";
+  document.getElementById("sumDest").textContent = user.destination||user.origin||"—";
+}
 
 // Tooltip
 document.addEventListener("mousemove",e=>{
@@ -111,7 +115,8 @@ document.addEventListener("mousemove",e=>{
 });
 
 async function loadSeats(){
-  const r=await fetch("/api/seats");const seats=await r.json();
+  const busId=localStorage.getItem("polycoachBus")||"bus1";
+  const r=await fetch("/api/seats?busId="+busId);const seats=await r.json();
   const map=document.getElementById("seatMap");
   map.innerHTML="";
   let counter=1;
@@ -168,7 +173,8 @@ async function confirmBooking(){
   btn.disabled=true;btn.textContent="Booking...";
   try{
     const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
-    const payload={seatNumber:Number(selectedSeat),passengerName:passengerName,destination:destination||"",phone:u.phone||"",program:u.program||""};
+    const busId=localStorage.getItem("polycoachBus")||"bus1";
+    const payload={seatNumber:Number(selectedSeat),busId,passengerName:passengerName,destination:u.destination||"",origin:u.origin||"",phone:u.phone||"",program:u.program||""};
     const r=await fetch("/api/book-seat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
     const d=await r.json();
     if(d.success){
