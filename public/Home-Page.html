@@ -73,7 +73,6 @@
     <div class="Logo-Text">PolyCoach</div>
   </div>
   <div class="Right-Header">
-    <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
     <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
     <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
     <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
@@ -84,7 +83,7 @@
 <div class="hero">
   <div class="container hero-content" style="max-width:1100px;margin:0 auto;width:100%;">
     <h1>Welcome to<br>PolyCoach</h1>
-    <p>Travel home the easy way — organised by students, for students.</p>
+    <p id="heroSubtitle">Enjoy the journey, not just the destination.</p>
 
     <!-- Two bus departure cards -->
     <div class="bus-info-row" id="busInfoRow"></div>
@@ -211,21 +210,25 @@ function startTimer(){
   carouselTimer = setInterval(()=>{
     const next = (currentPage+1) % totalPages;
     renderPage(next, true);
-  }, 4000);
+  }, 10000);
 }
 
 /* ── RENDER BUS INFO CARDS ── */
 function renderBusInfo(s){
   const row = document.getElementById("busInfoRow");
+  const isHoliday = (s.tripMode || "holiday") === "holiday";
   const buses = [
     { id:"bus1", name:s.bus1Name||"Bus 1", venue:s.bus1Venue||s.departureVenue||"", date:s.bus1Date||s.departureDate||"", time:s.bus1Time||s.departureTime||"" },
     { id:"bus2", name:s.bus2Name||"Bus 2", venue:s.bus2Venue||"",                   date:s.bus2Date||"",                   time:s.bus2Time||"" },
   ];
+  // In holiday mode: Departure venue label only
+  // In back-to-school mode: show Departure (MUBAS) AND a Destination label below it
   row.innerHTML = buses.map(b=>`
     <div class="bus-info-card">
       <div class="bus-tag"><i class="fa-solid fa-bus"></i> &nbsp;${b.name}</div>
       <div class="fields">
-        <div class="sb-group"><label>Departure</label><input type="text" value="${b.venue}" readonly></div>
+        <div class="sb-group"><label>Departure</label><input type="text" value="${isHoliday ? b.venue : "Mzuzu New Bus Terminal"}" readonly></div>
+        ${!isHoliday ? `<div class="sb-group"><label>Destination</label><input type="text" value="${b.venue}" readonly></div>` : ""}
         <div class="sb-group"><label>Date</label><input type="text" value="${b.date}" readonly></div>
         <div class="sb-group"><label>Time</label><input type="text" value="${b.time}" readonly></div>
       </div>
@@ -248,6 +251,10 @@ function applyTripMode(mode){
 fetch("/api/settings").then(r=>r.json()).then(s=>{
   bookingLabel = s.bookingLabel || "Booking Fee";
   bookingFee   = s.bookingFee   || "K5,000";
+
+  // Apply hero subtitle from settings (fallback to default)
+  const subtitleEl = document.getElementById("heroSubtitle");
+  if(subtitleEl && s.heroSubtitle) subtitleEl.textContent = s.heroSubtitle;
 
   renderBusInfo(s);
   applyTripMode(s.tripMode||"holiday");

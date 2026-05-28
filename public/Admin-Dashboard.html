@@ -318,6 +318,20 @@ tr:hover td{background:#fafafa;}
       <div id="settingsSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ Settings saved successfully!</div>
     </div>
 
+    <!-- THEME SETTINGS -->
+    <div class="settings-card" style="margin-bottom:22px;">
+      <h3>🎨 Theme</h3>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:18px;">Customise the text and labels shown on the public-facing home page.</p>
+      <div class="settings-grid">
+        <div class="full">
+          <label class="settings-label">Hero Subtitle (tagline under the welcome heading)</label>
+          <input class="settings-input" type="text" id="setHeroSubtitle" placeholder="Enjoy the journey, not just the destination.">
+        </div>
+      </div>
+      <button class="btn-save" style="margin-top:16px;" onclick="saveThemeSettings()">SAVE THEME</button>
+      <div id="themeSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ Theme saved successfully!</div>
+    </div>
+
     <!-- PAYMENT DETAILS SETTINGS -->
     <div class="settings-card" style="margin-bottom:22px;">
       <h3>💳 Payment Details</h3>
@@ -1072,6 +1086,7 @@ async function loadSettings(){
   document.getElementById("setAirtel").value   = s.payAirtelMoney   || "";
   document.getElementById("setTNM").value      = s.payTNMMpamba     || "";
   document.getElementById("setAcctName").value = s.payAccountName   || "";
+  document.getElementById("setHeroSubtitle").value = s.heroSubtitle || "";
   const mode = s.tripMode || "holiday";
   window._tripMode = mode;
   _busNames = { bus1: s.bus1Name||"Bus 1", bus2: s.bus2Name||"Bus 2" };
@@ -1124,6 +1139,16 @@ async function savePaymentDetails(){
   const msg=document.getElementById("paymentSaved");
   if(d.success){msg.style.display="block";setTimeout(()=>msg.style.display="none",3000);}
   else alert("Error saving payment details.");
+}
+
+async function saveThemeSettings(){
+  const heroSubtitle = document.getElementById("setHeroSubtitle").value.trim();
+  const data = { heroSubtitle };
+  const r = await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify(data)});
+  const d = await r.json();
+  const msg = document.getElementById("themeSaved");
+  if(d.success){ msg.style.display="block"; setTimeout(()=>msg.style.display="none",3000); }
+  else alert("Error saving theme settings.");
 }
 
 /* ── ADMIN PASSWORD MANAGEMENT ── */
