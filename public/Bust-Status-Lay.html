@@ -27,7 +27,6 @@
   <div class="Left-Header" onclick="location.href='Home-Page.html'"><img src="/Images/Logo1.png" class="Logo1" alt="Logo"><div class="Logo-Text">PolyCoach</div></div>
   <div class="Right-Header">
     <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
-    <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
     <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
     <button class="Register-Button" onclick="location.href='Book-Login.html'">Book a Seat</button>
   </div>
@@ -37,7 +36,10 @@
   <div class="status-inner">
     <div class="status-title">
       <h1>Bus Seat Status</h1>
-      <p>Live overview of all 72 seats. Hover over seats to see passenger info.</p>
+      <p id="statusSubTitle">Live overview. Select a bus to get started.</p>
+      <button onclick="showBusSelector()" style="margin-top:12px;background:rgba(255,255,255,0.15);border:1.5px solid rgba(255,255,255,0.5);color:#fff;border-radius:20px;padding:7px 20px;font-size:0.85rem;font-weight:700;cursor:pointer;backdrop-filter:blur(4px);transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">
+        <i class="fa-solid fa-bus"></i>&nbsp; <span id="activeBusLabel">Select Bus</span> &nbsp;<i class="fa-solid fa-chevron-down" style="font-size:0.75rem;"></i>
+      </button>
     </div>
     <div class="stats-strip">
       <div class="stat-pill"><span class="dot dot-avail"></span> <span id="cntAvail">—</span> Available</div>
@@ -77,169 +79,230 @@
 
 <script src="/js/popup.js"></script>
 <script>
-const tooltip=document.getElementById("seatTooltip");
-document.addEventListener("mousemove",e=>{
-  if(tooltip.style.display!=="none"){
-    const tw=tooltip.offsetWidth;
-    const th=tooltip.offsetHeight;
-    const vw=window.innerWidth;
-    const vh=window.innerHeight;
-    // Flip left if too close to right edge
-    let left=e.clientX+14;
-    if(left+tw+10>vw) left=e.clientX-tw-10;
-    // Flip up if too close to bottom
-    let top=e.clientY-30;
-    if(top<0) top=e.clientY+14;
-    if(top+th>vh) top=vh-th-8;
-    tooltip.style.left=Math.max(4,left)+"px";
-    tooltip.style.top=Math.max(4,top)+"px";
+/* ── BUS SELECTION STATE ──
+   Persisted in the URL as ?bus=bus1 or ?bus=bus2
+   so a hard reload keeps the user on the same bus.
+   Bus names come from /api/settings so they always
+   match whatever the admin has set in the dashboard.
+*/
+const tooltip = document.getElementById("seatTooltip");
+let _currentBusId = "bus1";
+let _busNames = { bus1: "Bus 1", bus2: "Bus 2" };
+
+/* ── TOOLTIP FOLLOW-MOUSE ── */
+document.addEventListener("mousemove", e => {
+  if (tooltip.style.display !== "none") {
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    const vw = window.innerWidth,   vh = window.innerHeight;
+    let left = e.clientX + 14;
+    if (left + tw + 10 > vw) left = e.clientX - tw - 10;
+    let top = e.clientY - 30;
+    if (top < 0) top = e.clientY + 14;
+    if (top + th > vh) top = vh - th - 8;
+    tooltip.style.left = Math.max(4, left) + "px";
+    tooltip.style.top  = Math.max(4, top)  + "px";
   }
 });
 
-// Global function — accessible from onclick in HTML
-function closeQRPopup(){
+/* ── QR POPUP CLOSE & HIGHLIGHT ── */
+function closeQRPopup() {
   const popup = document.getElementById("qrVerifyPopup");
-  if(popup) popup.style.display="none";
+  if (popup) popup.style.display = "none";
   const seatNum = window._highlightSeat;
-  if(!seatNum) return;
-
-  function doHighlight(){
+  if (!seatNum) return;
+  function doHighlight() {
     const allSeats = document.querySelectorAll(".seat[data-seat]");
-    if(!allSeats.length){ setTimeout(doHighlight,150); return; }
-    let found=false;
-    allSeats.forEach(el=>{
-      if(Number(el.dataset.seat)===seatNum){
-        found=true;
-        allSeats.forEach(s=>{ s.style.outline=""; s.style.zIndex=""; });
-        el.style.outline="3px solid #0099ff";
-        el.style.outlineOffset="3px";
-        el.style.zIndex="10";
-        el.scrollIntoView({behavior:"smooth",block:"center"});
+    if (!allSeats.length) { setTimeout(doHighlight, 150); return; }
+    let found = false;
+    allSeats.forEach(el => {
+      if (Number(el.dataset.seat) === seatNum) {
+        found = true;
+        allSeats.forEach(s => { s.style.outline = ""; s.style.zIndex = ""; });
+        el.style.outline = "3px solid #0099ff";
+        el.style.outlineOffset = "3px";
+        el.style.zIndex = "10";
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
-    if(!found) setTimeout(doHighlight,150);
+    if (!found) setTimeout(doHighlight, 150);
   }
   doHighlight();
 }
 
-(async()=>{
-  // No login required to view bus status
-  // But if already logged in as admin, offer dashboard link
-  try{
-    const sr=await fetch("/api/session");const sd=await sr.json();
-    if(sd.loggedIn && sd.user && sd.user.role==="admin"){
-      // Show a small admin link at top
-      const bar=document.createElement("div");
-      bar.style="background:#0b294d;color:#fff;text-align:center;padding:8px;font-size:0.85rem;";
-      bar.innerHTML='You are logged in as Admin. <a href="Admin-Dashboard.html" style="color:#0099ff;font-weight:700;">Go to Admin Dashboard</a>';
-      document.body.insertBefore(bar,document.body.firstChild);
+/* ── READ BUS FROM URL ── */
+function getBusFromURL() {
+  const p = new URLSearchParams(window.location.search);
+  const b = p.get("bus");
+  return (b === "bus1" || b === "bus2") ? b : null;
+}
+
+/* ── SET BUS IN URL (replaces state, no full reload) ── */
+function setBusInURL(busId) {
+  const p = new URLSearchParams(window.location.search);
+  p.set("bus", busId);
+  // Keep ?seat= if present (QR flow)
+  history.replaceState(null, "", "?" + p.toString());
+}
+
+/* ── SWITCH BUS (called from selector popup) ── */
+function selectBus(busId) {
+  _currentBusId = busId;
+  setBusInURL(busId);
+  document.getElementById("busSelectorPopup").style.display = "none";
+  // Update the indicator label in the page title area
+  const indicator = document.getElementById("activeBusLabel");
+  if (indicator) indicator.textContent = _busNames[busId] || busId;
+  loadSeats();
+}
+
+/* ── SHOW BUS SELECTOR ── */
+function showBusSelector() {
+  document.getElementById("busSelectorPopup").style.display = "flex";
+}
+
+/* ── MAIN INIT ── */
+(async () => {
+  // Load settings first to get bus names
+  try {
+    const sr = await fetch("/api/settings");
+    const s  = await sr.json();
+    if (s.bus1Name) _busNames.bus1 = s.bus1Name;
+    if (s.bus2Name) _busNames.bus2 = s.bus2Name;
+    // Update popup button labels with real names
+    const b1Label = document.getElementById("selectorBus1Label");
+    const b2Label = document.getElementById("selectorBus2Label");
+    if (b1Label) b1Label.textContent = _busNames.bus1;
+    if (b2Label) b2Label.textContent = _busNames.bus2;
+  } catch (e) {}
+
+  // Determine which bus to show:
+  // 1. ?bus= from URL (reload persistence)
+  // 2. If neither — show selector popup
+  const busFromURL = getBusFromURL();
+  if (busFromURL) {
+    _currentBusId = busFromURL;
+    const indicator = document.getElementById("activeBusLabel");
+    if (indicator) indicator.textContent = _busNames[_currentBusId] || _currentBusId;
+    await loadSeats();
+  } else {
+    // No bus chosen yet — show selector immediately
+    document.getElementById("busSelectorPopup").style.display = "flex";
+  }
+
+  // Admin bar
+  try {
+    const sr2 = await fetch("/api/session");
+    const sd   = await sr2.json();
+    if (sd.loggedIn && sd.user && sd.user.role === "admin") {
+      const bar = document.createElement("div");
+      bar.style = "background:#0b294d;color:#fff;text-align:center;padding:8px;font-size:0.85rem;";
+      bar.innerHTML = 'You are logged in as Admin. <a href="Admin-Dashboard.html" style="color:#0099ff;font-weight:700;">Go to Admin Dashboard</a>';
+      document.body.insertBefore(bar, document.body.firstChild);
     }
-  }catch(e){}
-  await loadSeats();
+  } catch (e) {}
+
   // QR code scan — ?seat=X in URL
   const urlSeat = new URLSearchParams(window.location.search).get("seat");
-  if(urlSeat){
+  if (urlSeat) {
     const seatNum = Number(urlSeat);
-    try{
-      // Fetch booking details by seat number
-      const br = await fetch("/api/seats?booking="+seatNum);
+    try {
+      const br      = await fetch("/api/seats?booking=" + seatNum);
       const booking = await br.json();
-
-      if(!booking.found){
-        // No booking — show invalid popup
+      if (!booking.found) {
         document.getElementById("qv-invalid-msg").textContent =
-          "No valid booking was found for seat "+seatNum+". Please contact an administrator for clarification.";
+          "No valid booking was found for seat " + seatNum + ". Please contact an administrator for clarification.";
         document.getElementById("qrInvalidPopup").style.display = "flex";
       } else {
-        // Check expiry — 48 hours after departure date
         const depStr = booking.departureDate;
-        let expired = false;
-        let noDate   = false;
-
-        if(!depStr || depStr.trim()===""){
+        let expired = false, noDate = false;
+        if (!depStr || depStr.trim() === "") {
           noDate = true;
         } else {
           const dep    = new Date(depStr);
-          const expiry = new Date(dep.getTime() + 48*60*60*1000);
-          if(isNaN(dep.getTime())){
-            noDate = true;
-          } else if(new Date() > expiry){
-            expired = true;
-          }
+          const expiry = new Date(dep.getTime() + 48 * 60 * 60 * 1000);
+          if (isNaN(dep.getTime())) noDate = true;
+          else if (new Date() > expiry) expired = true;
         }
-
-        if(noDate){
+        if (noDate) {
           document.getElementById("qv-invalid-msg").textContent =
             "This ticket has no departure date and cannot be verified. Please ask your administrator for clarification.";
           document.getElementById("qrInvalidPopup").style.display = "flex";
-        } else if(expired){
+        } else if (expired) {
           document.getElementById("qv-expired-seat").textContent = seatNum;
           document.getElementById("qrExpiredPopup").style.display = "flex";
         } else {
-          // Valid — show verification popup
-          document.getElementById("qv-name").textContent  = booking.passengerName || "Passenger";
-          document.getElementById("qv-seat").textContent  = seatNum;
-          document.getElementById("qv-from").textContent  = booking.departureVenue || "MUBAS";
-          document.getElementById("qv-to").textContent    = booking.destination   || "";
-          document.getElementById("qv-date").textContent  = booking.departureDate || "";
+          document.getElementById("qv-name").textContent = booking.passengerName || "Passenger";
+          document.getElementById("qv-seat").textContent = seatNum;
+          document.getElementById("qv-from").textContent = booking.departureVenue || "MUBAS";
+          document.getElementById("qv-to").textContent   = booking.destination    || "";
+          document.getElementById("qv-date").textContent = booking.departureDate  || "";
           document.getElementById("qrVerifyPopup").style.display = "flex";
           window._highlightSeat = seatNum;
         }
       }
-    }catch(e){ console.error("QR verify error:",e); }
+    } catch (e) { console.error("QR verify error:", e); }
   }
 })();
 
-async function loadSeats(){
-  const r=await fetch("/api/seats");const seats=await r.json();
-  const map=document.getElementById("seatMap");map.innerHTML="";
-  let cnt={available:0,pending:0,booked:0};
-  let counter=1;
-  for(let row=0;row<13;row++){
-    for(let col=1;col<=6;col++){
-      if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
-      else if(counter<=65){renderSeat(seats,counter,map,cnt);counter++;}
+async function loadSeats() {
+  const r     = await fetch("/api/seats?busId=" + _currentBusId);
+  const seats = await r.json();
+  const map   = document.getElementById("seatMap");
+  map.innerHTML = "";
+  let cnt = { available: 0, pending: 0, booked: 0 };
+  let counter = 1;
+  for (let row = 0; row < 13; row++) {
+    for (let col = 1; col <= 6; col++) {
+      if (col === 3) {
+        const a = document.createElement("div");
+        a.className = "seat aisle-space";
+        map.appendChild(a);
+      } else if (counter <= 65) {
+        renderSeat(seats, counter, map, cnt);
+        counter++;
+      }
     }
   }
-  const backRow=document.createElement("div");backRow.className="back-row-container";
-  for(let i=0;i<7;i++){renderSeat(seats,counter,backRow,cnt);counter++;}
+  const backRow = document.createElement("div");
+  backRow.className = "back-row-container";
+  for (let i = 0; i < 7; i++) { renderSeat(seats, counter, backRow, cnt); counter++; }
   map.appendChild(backRow);
-  document.getElementById("cntAvail").textContent=cnt.available;
-  document.getElementById("cntPend").textContent=cnt.pending;
-  document.getElementById("cntBook").textContent=cnt.booked||0;
+  document.getElementById("cntAvail").textContent = cnt.available;
+  document.getElementById("cntPend").textContent  = cnt.pending;
+  document.getElementById("cntBook").textContent  = cnt.booked || 0;
+  // Update page sub-title with active bus name
+  const subTitle = document.getElementById("statusSubTitle");
+  if (subTitle) subTitle.textContent =
+    "Live overview — " + (_busNames[_currentBusId] || _currentBusId) + ". Hover over seats to see passenger info.";
 }
 
-function renderSeat(seats,num,parent,cnt){
-  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
-  const div=document.createElement("div");
-  div.className="seat "+(data.status==="booked"||data.status==="taken"?"booked":data.status);
-  div.textContent=num;
-  div.dataset.seat=num;
-  const s=data.status==="booked"||data.status==="taken"?"booked":data.status;
-  if(cnt[s]!==undefined) cnt[s]++;
-  div.addEventListener("mouseenter",(e)=>{
-    let tip=`Seat ${num}`;
-    if(data.passengerName) tip+=` — ${data.passengerName}`;
-    else tip+=` (${data.status})`;
-    tooltip.textContent=tip;
-    // Make visible but off-screen first to measure width
-    tooltip.style.visibility="hidden";
-    tooltip.style.display="block";
-    const tw=tooltip.offsetWidth;
-    const vw=window.innerWidth;
-    const left=e.clientX+14+tw+10>vw ? e.clientX-tw-10 : e.clientX+14;
-    const top=Math.max(4,e.clientY-30);
-    tooltip.style.left=Math.max(4,left)+"px";
-    tooltip.style.top=top+"px";
-    tooltip.style.visibility="visible";
+function renderSeat(seats, num, parent, cnt) {
+  const data = seats.find(s => s.number === num) || { number: num, status: "available" };
+  const div  = document.createElement("div");
+  div.className  = "seat " + (data.status === "booked" || data.status === "taken" ? "booked" : data.status);
+  div.textContent = num;
+  div.dataset.seat = num;
+  const s = data.status === "booked" || data.status === "taken" ? "booked" : data.status;
+  if (cnt[s] !== undefined) cnt[s]++;
+  div.addEventListener("mouseenter", e => {
+    let tip = "Seat " + num;
+    if (data.passengerName) tip += " — " + data.passengerName;
+    else tip += " (" + data.status + ")";
+    tooltip.textContent = tip;
+    tooltip.style.visibility = "hidden";
+    tooltip.style.display = "block";
+    const tw = tooltip.offsetWidth, vw = window.innerWidth;
+    const left = e.clientX + 14 + tw + 10 > vw ? e.clientX - tw - 10 : e.clientX + 14;
+    tooltip.style.left = Math.max(4, left) + "px";
+    tooltip.style.top  = Math.max(4, e.clientY - 30) + "px";
+    tooltip.style.visibility = "visible";
   });
-  div.addEventListener("mouseleave",()=>tooltip.style.display="none");
+  div.addEventListener("mouseleave", () => tooltip.style.display = "none");
   parent.appendChild(div);
 }
 
-// No logout needed — this page is public
-// Auto-refresh every 30s
-setInterval(loadSeats,30000);
+// Auto-refresh every 30s — stays on current bus
+setInterval(loadSeats, 30000);
 </script>
 
 <!-- QR VERIFICATION POPUP -->
@@ -293,5 +356,28 @@ setInterval(loadSeats,30000);
     </button>
   </div>
 </div>
+<!-- BUS SELECTOR POPUP -->
+<div id="busSelectorPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;border-radius:14px;padding:36px 28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Lato',Arial,sans-serif;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="width:52px;height:52px;background:#f0f5ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;border:2px solid #dde8f5;">
+        <i class="fa-solid fa-bus" style="color:#0b294d;font-size:1.4rem;"></i>
+      </div>
+      <h2 style="color:#0b294d;font-family:'Barlow Condensed',Arial,sans-serif;font-size:1.6rem;font-weight:900;margin:0 0 6px;">Which bus?</h2>
+      <p style="color:#888;font-size:0.88rem;margin:0;">Select a bus to view its live seat status.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <button onclick="selectBus('bus1')" style="width:100%;padding:16px 20px;background:#0b294d;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:1rem;cursor:pointer;font-family:'Barlow Condensed',Arial,sans-serif;letter-spacing:0.5px;display:flex;align-items:center;gap:12px;transition:background 0.2s;" onmouseover="this.style.background='#0a3d6b'" onmouseout="this.style.background='#0b294d'">
+        <i class="fa-solid fa-bus" style="font-size:1.2rem;opacity:0.85;"></i>
+        <span id="selectorBus1Label">Bus 1</span>
+      </button>
+      <button onclick="selectBus('bus2')" style="width:100%;padding:16px 20px;background:#0b294d;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:1rem;cursor:pointer;font-family:'Barlow Condensed',Arial,sans-serif;letter-spacing:0.5px;display:flex;align-items:center;gap:12px;transition:background 0.2s;" onmouseover="this.style.background='#0a3d6b'" onmouseout="this.style.background='#0b294d'">
+        <i class="fa-solid fa-bus" style="font-size:1.2rem;opacity:0.85;"></i>
+        <span id="selectorBus2Label">Bus 2</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
