@@ -127,6 +127,11 @@
 (function(){
   const u=getUser();
   if(!u||!u.fullName){alert("Please fill in the booking form first.");window.location.href="Book-Login.html";}
+  // Guard: busId must exist — every student must belong to a bus
+  if(u && !u.busId){
+    alert("Your registration is missing a bus assignment. Please contact an administrator.");
+    window.location.href="Help.html";
+  }
 })();
 
 // Load payment details
@@ -181,6 +186,12 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
   const file=document.getElementById("payFile").files[0]||selectedFile;
   if(!file){showMsg("error","⚠ Please select your payment screenshot.");return;}
 
+  // Duplicate submission guard — prevent re-upload in the same session
+  if(localStorage.getItem("paymentProofUrl")){
+    showMsg("error","⚠ A payment proof has already been submitted for this session. Please wait for admin approval or contact us if you need to resubmit.");
+    return;
+  }
+
   const btn=document.getElementById("uploadBtn");
   const progressBar=document.getElementById("progressBar");
   const progressFill=document.getElementById("progressFill");
@@ -196,6 +207,12 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
 
     // Step 2: Upload directly to Cloudinary
     const u=getUser();
+
+    // Safety check — busId must be present before upload
+    if(!u||!u.busId){
+      throw new Error("Your registration has no bus assignment. Please contact an administrator.");
+    }
+
     const fd=new FormData();
     // Only append fields that are included in the signature
     fd.append("file",file);
@@ -212,12 +229,13 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
     if(!upData.secure_url) throw new Error("Upload failed - no URL returned.");
     progressFill.style.width="100%";
 
-    // Step 3: Store Cloudinary URL and busId in localStorage for book-seat
+    // Step 3: Store Cloudinary URL and busId in localStorage for Bus-Lay
     localStorage.setItem("paymentProofUrl",upData.secure_url);
-    if(u&&u.busId) localStorage.setItem("polycoachBus", u.busId);
+    localStorage.setItem("polycoachBus", u.busId); // always set from user object — single source of truth
 
     showMsg("success","✅ Payment proof uploaded! Redirecting to seat selection...");
-    setTimeout(()=>window.location.href="Bus-Lay.html",1500);
+    // Pass busId in URL as a fallback so Bus-Lay.html works even across tabs or after storage clears
+    setTimeout(()=>window.location.href="Bus-Lay.html?busId="+encodeURIComponent(u.busId),1500);
   }catch(err){
     showMsg("error",err.message||"Upload failed. Please try again.");
     btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-paper-plane"></i>&nbsp; SEND PROOF OF PAYMENT';
