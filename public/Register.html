@@ -17,6 +17,8 @@
 .bus-choice{flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:0.9rem;color:#555;transition:all 0.2s;background:#fff;}
 .bus-choice.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
 .common-field input{background:#f0f4ff;color:#555;cursor:default;}
+/* Page-specific background — uses Register.png if available, falls back to Background1.png */
+.Page-Body-Hero{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Register.png'),url('/Images/Background1.png');background-size:cover;background-position:center;}
 @media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
 </style>
 </head>
@@ -31,7 +33,6 @@
     <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
     <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
     <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
-    <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
   </div>
 </div>
 
