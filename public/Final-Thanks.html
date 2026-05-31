@@ -25,21 +25,20 @@
   <div class="Right-Header">
     <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
     <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
-    <button class="Register-Button" onclick="logout()">Logout</button>
   </div>
 </div>
 
 <div class="ty-body">
   <div class="success-card">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-    <h1>Booking Received!</h1>
+    <h1 id="pageHeading">Booking Received!</h1>
     <div class="status-message">
-      <p>Thank you for choosing <strong>PolyCoach</strong> for your journey home.</p>
+      <p id="mainMsg">Thank you for choosing <strong>PolyCoach</strong> for your journey home.</p>
       <p>Your payment proof has been submitted. You will receive a <strong>confirmation</strong> once our administrators have verified your payment.</p>
     </div>
     <div class="wishes-box">
-      <i class="fa-solid fa-graduation-cap"></i>
-      <p>We wish you all the very best as you prepare for exams and the successful completion of your semester!</p>
+      <i id="wishIcon" class="fa-solid fa-graduation-cap"></i>
+      <p id="wishMsg">We wish you all the very best as you prepare for exams and the successful completion of your semester!</p>
     </div>
     <button class="home-btn" onclick="location.href='Home-Page.html'">RETURN TO HOME</button>
   </div>
@@ -87,10 +86,39 @@
   }
 })();
 
+// Dynamic page message — driven by tripMode and busId
+(function(){
+  const u = JSON.parse(localStorage.getItem("polycoachUser")||"null");
+  const busId = u ? (u.busId||"") : "";
+
+  fetch("/api/settings").then(r=>r.json()).then(s=>{
+    const mode = s.tripMode || "holiday";
+
+    if(mode === "backtoschool"){
+      // Back-to-school trip — message depends on which bus
+      if(busId === "bus1"){
+        // New students — welcome to MUBAS
+        document.getElementById("pageHeading").textContent  = "You're On Your Way!";
+        document.getElementById("mainMsg").innerHTML        = "Thank you for booking with <strong>PolyCoach</strong>. We are glad to be part of your journey to MUBAS.";
+        document.getElementById("wishIcon").className      = "fa-solid fa-star";
+        document.getElementById("wishMsg").textContent     = "Welcome to MUBAS. This is just the beginning — we hope your first semester is everything you hoped for. Safe travels.";
+      } else {
+        // Continuing students — second semester
+        document.getElementById("pageHeading").textContent  = "Welcome Back!";
+        document.getElementById("mainMsg").innerHTML        = "Good to have you back. Your seat is reserved — thank you for booking with <strong>PolyCoach</strong>.";
+        document.getElementById("wishIcon").className      = "fa-solid fa-book-open";
+        document.getElementById("wishMsg").textContent     = "Here's to a great second semester. Rest up, come back ready, and make it count.";
+      }
+    }
+    // Holiday mode — default content already in the HTML, nothing to change
+  }).catch(()=>{
+    // If settings fail, default content remains — no disruption
+  });
+})();
+
 function closeConfirmPopup(){
   document.getElementById("bookingConfirmPopup").style.display="none";
 }
-async function logout(){await fetch("/api/logout");localStorage.clear();window.location.href="Home-Page.html";}
 </script>
 
 <!-- BOOKING CONFIRMATION POPUP -->
