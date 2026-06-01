@@ -256,17 +256,11 @@ async function bookForSomeone(){
     const d = await r.json();
 
     if(d.success){
-      // Store the other person as the active booking user
-      localStorage.setItem("polycoachUser", JSON.stringify({
-        fullName:    name,
-        phone:       phone,
-        busId:       busId,
-        destination: isHoliday ? dest : "",
-        origin:      isHoliday ? "" : dest,
-        program:     "",
-        role:        "user"
-      }));
-      localStorage.setItem("polycoachBus", busId);
+      // Store passenger details separately — booker's polycoachUser is NOT touched
+      localStorage.setItem("passengerName",  name);
+      localStorage.setItem("passengerPhone", phone);
+      localStorage.setItem("passengerBusId", busId);
+      // polycoachBus stays as the booker's bus — passenger's bus is in passengerBusId
       window.location.href = "Payment-Upload.html";
     } else {
       alert(d.message || "Could not register passenger. Please try again.");

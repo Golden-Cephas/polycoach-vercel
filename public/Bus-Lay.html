@@ -104,6 +104,10 @@ const tooltip=document.getElementById("seatTooltip");
 
 document.getElementById("sumName").textContent=passengerName||"—";
 if(user){
+  const passengerPhone=localStorage.getItem("passengerPhone")||"";
+  const isBookingForOther=!!passengerPhone && passengerName!==(user.fullName||"");
+  // When booking for someone else, destination/origin comes from their registration
+  // For now show the booker's details as fallback — the seat itself carries the passenger's info
   const isOrigin = user.origin && !user.destination;
   document.getElementById("sumDestLabel").textContent = isOrigin ? "From" : "Destination";
   document.getElementById("sumDest").textContent = user.destination||user.origin||"—";
@@ -115,7 +119,11 @@ document.addEventListener("mousemove",e=>{
 });
 
 async function loadSeats(){
-  const busId=localStorage.getItem("polycoachBus")||"bus1";
+  const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
+  const passengerPhone=localStorage.getItem("passengerPhone")||"";
+  const passengerBusId=localStorage.getItem("passengerBusId")||"";
+  const isBookingForOther=!!passengerPhone && passengerName!==(u.fullName||"");
+  const busId=isBookingForOther ? passengerBusId : (localStorage.getItem("polycoachBus")||"bus1");
   const r=await fetch("/api/seats?busId="+busId);const seats=await r.json();
   const map=document.getElementById("seatMap");
   map.innerHTML="";
@@ -179,13 +187,18 @@ async function doBooking(seatNum,releasing,oldSeat){
   btn.disabled=true;btn.textContent="Booking...";
   try{
     const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
-    const busId=localStorage.getItem("polycoachBus")||"bus1";
+    // If booking for someone else, use their phone and busId — not the booker's
+    const passengerPhone = localStorage.getItem("passengerPhone")||"";
+    const passengerBusId = localStorage.getItem("passengerBusId")||"";
+    const isBookingForOther = !!passengerPhone && passengerName !== (u.fullName||"");
+    const busId  = isBookingForOther ? passengerBusId : (localStorage.getItem("polycoachBus")||"bus1");
+    const phone  = isBookingForOther ? passengerPhone : (u.phone||"");
     const payload={
       seatNumber:Number(seatNum),busId,
       passengerName,
       destination:u.destination||"",
       origin:u.origin||"",
-      phone:u.phone||"",
+      phone,
       program:u.program||"",
       paymentProof:localStorage.getItem("paymentProofUrl")||null,
       releaseOldSeat:releasing?oldSeat:null
@@ -194,6 +207,8 @@ async function doBooking(seatNum,releasing,oldSeat){
     const d=await r.json();
     if(d.success){
       localStorage.removeItem("passengerName");
+      localStorage.removeItem("passengerPhone");
+      localStorage.removeItem("passengerBusId");
       localStorage.setItem("lastBookedSeat",String(seatNum));
       fetch("/api/settings").then(r=>r.json()).then(s=>{
         localStorage.setItem("departureVenue",s.departureVenue||"MUBAS");
@@ -232,7 +247,11 @@ function closeDupPopup(){document.getElementById("dupPopup").style.display="none
 
 async function confirmBooking(){
   if(!selectedSeat) return;
-  const busId=localStorage.getItem("polycoachBus")||"bus1";
+  const u=JSON.parse(localStorage.getItem("polycoachUser")||"{}");
+  const passengerPhone=localStorage.getItem("passengerPhone")||"";
+  const passengerBusId=localStorage.getItem("passengerBusId")||"";
+  const isBookingForOther=!!passengerPhone && passengerName!==(u.fullName||"");
+  const busId=isBookingForOther ? passengerBusId : (localStorage.getItem("polycoachBus")||"bus1");
   try{
     const seats=await(await fetch("/api/seats?busId="+busId)).json();
     const existing=seats.find(s=>
