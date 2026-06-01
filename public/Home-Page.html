@@ -146,18 +146,26 @@ const ALL_ROUTES = [
   { name:"Kasungu",   img:"/Images/Kasungu.jpg"   },
 ];
 
-const CARDS_PER_PAGE = 3;
+const CARDS_PER_PAGE = 3; // desktop default — overridden by getCardsPerPage()
 let currentPage = 0;
 let totalPages  = Math.ceil(ALL_ROUTES.length / CARDS_PER_PAGE);
 let carouselTimer = null;
 let bookingLabel = "Booking Fee";
 let bookingFee   = "K5,000";
 
+/* ── Responsive cards per page ── */
+function getCardsPerPage(){ return window.innerWidth <= 640 ? 1 : 3; }
+
 /* ── RENDER CAROUSEL PAGE ── */
 function renderPage(page, animate){
+  const cpp = getCardsPerPage();
+  totalPages = Math.ceil(ALL_ROUTES.length / cpp);
+  // Clamp page to valid range after resize
+  if(page >= totalPages) page = totalPages - 1;
+
   const container = document.getElementById("routeCards");
-  const start = page * CARDS_PER_PAGE;
-  const slice = ALL_ROUTES.slice(start, start + CARDS_PER_PAGE);
+  const start = page * cpp;
+  const slice = ALL_ROUTES.slice(start, start + cpp);
 
   function draw(){
     container.innerHTML = slice.map(r=>`
@@ -194,6 +202,8 @@ function renderPage(page, animate){
 
 /* ── BUILD DOTS ── */
 function buildDots(){
+  const cpp = getCardsPerPage();
+  totalPages = Math.ceil(ALL_ROUTES.length / cpp);
   const dotsEl = document.getElementById("carouselDots");
   dotsEl.innerHTML = "";
   for(let i=0;i<totalPages;i++){
@@ -208,10 +218,24 @@ function goToPage(page){ renderPage(page, true); }
 
 function startTimer(){
   carouselTimer = setInterval(()=>{
+    const cpp = getCardsPerPage();
+    totalPages = Math.ceil(ALL_ROUTES.length / cpp);
     const next = (currentPage+1) % totalPages;
     renderPage(next, true);
   }, 10000);
 }
+
+/* ── REBUILD ON RESIZE (debounced) ── */
+let _resizeTimer = null;
+window.addEventListener("resize", ()=>{
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(()=>{
+    clearInterval(carouselTimer);
+    buildDots();
+    renderPage(0, false);
+    startTimer();
+  }, 250);
+});
 
 /* ── RENDER BUS INFO CARDS ── */
 function renderBusInfo(s){
