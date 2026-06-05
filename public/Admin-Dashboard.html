@@ -459,10 +459,7 @@ tr:hover td{background:#fafafa;}
     <h3>Payment Proof</h3>
     <p id="proofLoading" style="display:none;color:#888;text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading image...</p>
     <img class="proof-img" id="proofImg" alt="Payment proof" style="max-width:100%;border-radius:8px;margin-top:10px;display:none;">
-    <div style="display:flex;gap:10px;margin-top:16px;">
-      <button id="proofDownloadBtn" onclick="downloadProofImage()" style="display:none;flex:1;padding:10px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:0.9rem;"><i class="fa-solid fa-download"></i> Download</button>
-      <button class="btn-cancel" style="flex:1;" onclick="closeModal('proofModal')">Close</button>
-    </div>
+    <button class="btn-cancel" style="margin-top:16px;" onclick="closeModal('proofModal')">Close</button>
   </div>
 </div>
 
@@ -485,19 +482,28 @@ document.addEventListener("DOMContentLoaded",function(){
     window.location.href="Status-Login.html";return;
   }
   document.getElementById("adminWelcome").textContent="Welcome, "+u.fullName;
-  loadAll();
+  const savedPanel=sessionStorage.getItem("adminPanel")||"bus";
+  const navEl=document.querySelector(".nav-link[onclick*=\"'"+savedPanel+"'\"]");
+  showPanel(savedPanel,navEl);
+  // Load remaining panels in background for stats/badges
+  if(savedPanel!=="bus") loadBus();
+  if(savedPanel!=="users") loadUsers();
+  if(savedPanel!=="bookings") loadBookings();
+  if(savedPanel!=="settings") loadSettings();
 });
 
 async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
 /* ── PANELS ── */
 const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings"};
-function showPanel(name){
+function showPanel(name,_navEl){
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav-link").forEach(l=>l.classList.remove("active"));
   document.getElementById("panel-"+name).classList.add("active");
-  event.currentTarget.classList.add("active");
+  const activeLink=_navEl||(typeof event!=="undefined"&&event&&event.currentTarget)||document.querySelector(".nav-link[onclick*=\"'"+name+"'\"]");
+  if(activeLink) activeLink.classList.add("active");
   document.getElementById("panelTitle").textContent=PANEL_TITLES[name];
+  sessionStorage.setItem("adminPanel",name);
   if(name==="bus") loadBus();
   if(name==="users") loadUsers();
   if(name==="bookings") loadBookings();
@@ -935,14 +941,13 @@ async function deleteBooking(id){
   }
 }
 
-let _proofPassengerName = "";
 async function viewProof(bookingId){
   const img=document.getElementById("proofImg");
   img.style.display="none";
   img.src="";
-  const dlBtn=document.getElementById("proofDownloadBtn");
-  if(dlBtn) dlBtn.style.display="none";
   document.getElementById("proofModal").style.display="flex";
+  // Show loading
+  const box=document.querySelector("#proofModal .modal-box");
   const loading=document.getElementById("proofLoading");
   if(loading) loading.style.display="block";
   try{
@@ -951,8 +956,6 @@ async function viewProof(bookingId){
     if(d.success){
       img.src=d.image;
       img.style.display="block";
-      _proofPassengerName = d.passengerName || "payment-proof";
-      if(dlBtn) dlBtn.style.display="inline-block";
     } else {
       alert("No payment proof found for this booking.");
       document.getElementById("proofModal").style.display="none";
@@ -962,24 +965,6 @@ async function viewProof(bookingId){
     document.getElementById("proofModal").style.display="none";
   }
   if(loading) loading.style.display="none";
-}
-
-function downloadProofImage(){
-  const img=document.getElementById("proofImg");
-  if(!img||!img.src) return;
-  // Determine extension from src data URL or default to jpg
-  let ext="jpg";
-  if(img.src.startsWith("data:")){
-    const mime=img.src.split(";")[0].split(":")[1]||"";
-    if(mime.includes("png")) ext="png";
-    else if(mime.includes("gif")) ext="gif";
-    else if(mime.includes("webp")) ext="webp";
-  }
-  const fname=(_proofPassengerName||"payment-proof").replace(/\s+/g,"-")+"-payment-proof."+ext;
-  const a=document.createElement("a");
-  a.href=img.src;
-  a.download=fname;
-  a.click();
 }
 
 async function viewStudentID(userId, name){
@@ -2111,20 +2096,10 @@ async function generateReceiptPDF(rc){
   doc.setFont("helvetica","italic");
   doc.setFontSize(6.5);
   doc.setTextColor(100,100,100);
-  const isHolidayFooter = (rc.tripMode || "holiday") === "holiday";
-  let footerMsg;
-  if(isHolidayFooter){
-    footerMsg = "Thanks for choosing PolyCoach. We wish you all the best as you finish the semester.";
-  } else {
-    // back-to-school mode — bus-aware
-    const rcBusId = rc.busId || "bus1";
-    if(rcBusId === "bus1"){
-      footerMsg = "Thanks for choosing PolyCoach. All the best as you begin your journey at MUBAS — make the most of it!";
-    } else {
-      footerMsg = "Thanks for choosing PolyCoach. All the best as you head into your second semester — keep pushing!";
-    }
-  }
-  doc.text(footerMsg, ip, footerLineY+6, {maxWidth:re-ip});
+  doc.text(
+    "Thanks for choosing Polycoach. We wish you all the best as you finish the semester.",
+    ip, footerLineY+6, {maxWidth:re-ip}
+  );
 
   const issued=new Date(rc.createdAt||new Date()).toLocaleDateString("en-GB",{
     day:"numeric",month:"long",year:"numeric"
