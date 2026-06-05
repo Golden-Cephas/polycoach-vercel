@@ -146,7 +146,7 @@ module.exports = async (req, res) => {
         const b = await Booking.findById(id);
         if (!b || !b.paymentProof)
           return res.status(404).json({ success: false, message: "No payment proof found." });
-        return res.json({ success: true, image: b.paymentProof, name: b.passengerName });
+        return res.json({ success: true, image: b.paymentProof, name: b.passengerName, passengerName: b.passengerName });
       }
 
       // Get receipt

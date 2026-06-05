@@ -459,7 +459,10 @@ tr:hover td{background:#fafafa;}
     <h3>Payment Proof</h3>
     <p id="proofLoading" style="display:none;color:#888;text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading image...</p>
     <img class="proof-img" id="proofImg" alt="Payment proof" style="max-width:100%;border-radius:8px;margin-top:10px;display:none;">
-    <button class="btn-cancel" style="margin-top:16px;" onclick="closeModal('proofModal')">Close</button>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button id="proofDownloadBtn" onclick="downloadProofImage()" style="display:none;flex:1;padding:10px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:0.9rem;"><i class="fa-solid fa-download"></i> Download</button>
+      <button class="btn-cancel" style="flex:1;" onclick="closeModal('proofModal')">Close</button>
+    </div>
   </div>
 </div>
 
@@ -941,13 +944,14 @@ async function deleteBooking(id){
   }
 }
 
+let _proofPassengerName="";
 async function viewProof(bookingId){
   const img=document.getElementById("proofImg");
   img.style.display="none";
   img.src="";
+  const dlBtn=document.getElementById("proofDownloadBtn");
+  if(dlBtn) dlBtn.style.display="none";
   document.getElementById("proofModal").style.display="flex";
-  // Show loading
-  const box=document.querySelector("#proofModal .modal-box");
   const loading=document.getElementById("proofLoading");
   if(loading) loading.style.display="block";
   try{
@@ -956,6 +960,8 @@ async function viewProof(bookingId){
     if(d.success){
       img.src=d.image;
       img.style.display="block";
+      _proofPassengerName=d.passengerName||"payment-proof";
+      if(dlBtn) dlBtn.style.display="inline-block";
     } else {
       alert("No payment proof found for this booking.");
       document.getElementById("proofModal").style.display="none";
@@ -965,6 +971,23 @@ async function viewProof(bookingId){
     document.getElementById("proofModal").style.display="none";
   }
   if(loading) loading.style.display="none";
+}
+
+function downloadProofImage(){
+  const img=document.getElementById("proofImg");
+  if(!img||!img.src) return;
+  let ext="jpg";
+  if(img.src.startsWith("data:")){
+    const mime=img.src.split(";")[0].split(":")[1]||"";
+    if(mime.includes("png")) ext="png";
+    else if(mime.includes("gif")) ext="gif";
+    else if(mime.includes("webp")) ext="webp";
+  }
+  const fname=(_proofPassengerName||"payment-proof").replace(/\s+/g,"-")+"-payment-proof."+ext;
+  const a=document.createElement("a");
+  a.href=img.src;
+  a.download=fname;
+  a.click();
 }
 
 async function viewStudentID(userId, name){
@@ -2097,7 +2120,13 @@ async function generateReceiptPDF(rc){
   doc.setFontSize(6.5);
   doc.setTextColor(100,100,100);
   doc.text(
-    "Thanks for choosing Polycoach. We wish you all the best as you finish the semester.",
+    (()=>{
+      const isHolidayFooter=(rc.tripMode||"holiday")==="holiday";
+      if(isHolidayFooter) return "Thanks for choosing PolyCoach. We wish you all the best as you finish the semester.";
+      return (rc.busId||"bus1")==="bus1"
+        ? "Thanks for choosing PolyCoach. All the best as you begin your journey at MUBAS - make the most of it!"
+        : "Thanks for choosing PolyCoach. All the best as you head into your second semester - keep pushing!";
+    })(),
     ip, footerLineY+6, {maxWidth:re-ip}
   );
 
