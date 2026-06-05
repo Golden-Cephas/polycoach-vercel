@@ -29,16 +29,16 @@
 </div>
 
 <div class="ty-body">
-  <div class="success-card">
+  <div class="success-card" id="successCard" style="visibility:hidden;">
     <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
-    <h1 id="pageHeading">Booking Received!</h1>
+    <h1 id="pageHeading"></h1>
     <div class="status-message">
-      <p id="mainMsg">Thank you for choosing <strong>PolyCoach</strong> for your journey home.</p>
+      <p id="mainMsg"></p>
       <p>Your payment proof has been submitted. You will receive a <strong>confirmation</strong> once our administrators have verified your payment.</p>
     </div>
     <div class="wishes-box">
-      <i id="wishIcon" class="fa-solid fa-graduation-cap"></i>
-      <p id="wishMsg">We wish you all the very best as you prepare for exams and the successful completion of your semester!</p>
+      <i id="wishIcon"></i>
+      <p id="wishMsg"></p>
     </div>
     <button class="home-btn" onclick="location.href='Home-Page.html'">RETURN TO HOME</button>
   </div>
@@ -95,24 +95,32 @@
     const mode = s.tripMode || "holiday";
 
     if(mode === "backtoschool"){
-      // Back-to-school trip — message depends on which bus
       if(busId === "bus1"){
-        // New students — welcome to MUBAS
         document.getElementById("pageHeading").textContent  = "You're On Your Way!";
         document.getElementById("mainMsg").innerHTML        = "Thank you for booking with <strong>PolyCoach</strong>. We are glad to be part of your journey to MUBAS.";
         document.getElementById("wishIcon").className      = "fa-solid fa-star";
         document.getElementById("wishMsg").textContent     = "Welcome to MUBAS. This is just the beginning — we hope your first semester is everything you hoped for. Safe travels.";
       } else {
-        // Continuing students — second semester
         document.getElementById("pageHeading").textContent  = "Welcome Back!";
         document.getElementById("mainMsg").innerHTML        = "Good to have you back. Your seat is reserved — thank you for booking with <strong>PolyCoach</strong>.";
         document.getElementById("wishIcon").className      = "fa-solid fa-book-open";
         document.getElementById("wishMsg").textContent     = "Here's to a great second semester. Rest up, come back ready, and make it count.";
       }
+    } else {
+      document.getElementById("pageHeading").textContent  = "Booking Received!";
+      document.getElementById("mainMsg").innerHTML        = "Thank you for choosing <strong>PolyCoach</strong> for your journey home.";
+      document.getElementById("wishIcon").className      = "fa-solid fa-graduation-cap";
+      document.getElementById("wishMsg").textContent     = "We wish you all the very best as you prepare for exams and the successful completion of your semester!";
     }
-    // Holiday mode — default content already in the HTML, nothing to change
+
+    document.getElementById("successCard").style.visibility = "visible";
   }).catch(()=>{
-    // If settings fail, default content remains — no disruption
+    // Settings failed — fall back to holiday content and show card anyway
+    document.getElementById("pageHeading").textContent  = "Booking Received!";
+    document.getElementById("mainMsg").innerHTML        = "Thank you for choosing <strong>PolyCoach</strong> for your journey home.";
+    document.getElementById("wishIcon").className      = "fa-solid fa-graduation-cap";
+    document.getElementById("wishMsg").textContent     = "We wish you all the very best as you prepare for exams and the successful completion of your semester!";
+    document.getElementById("successCard").style.visibility = "visible";
   });
 })();
 
