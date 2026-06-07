@@ -137,10 +137,7 @@ tr:hover td{background:#fafafa;}
 <!-- MAIN -->
 <div class="main">
   <div class="top-bar">
-    <div style="display:flex;flex-direction:column;align-items:center;">
-      <div id="busNameLabel" style="font-size:0.75rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--accent);opacity:0;transition:opacity 0.2s;margin-bottom:2px;">—</div>
-      <h1 id="panelTitle" style="margin:0;">Bus Layout &amp; Seat Control</h1>
-    </div>
+    <h1 id="panelTitle">Bus Layout &amp; Seat Control</h1>
     <div class="top-bar-user" id="adminWelcome">Welcome, Admin</div>
   </div>
 
@@ -165,7 +162,6 @@ tr:hover td{background:#fafafa;}
           <button class="bus-btn active" id="layoutBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
           <button class="bus-btn" id="layoutBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
         </div>
-        <div id="busDepInfo" style="background:#f0f7ff;border:1px solid #cce3ff;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.83rem;color:#0b294d;display:flex;flex-wrap:wrap;gap:10px 24px;"></div>
         <div class="bus-exterior-admin">
           <div class="driver-row"><i class="fa-solid fa-dharmachakra"></i> <span>Driver</span></div>
           <div id="adminSeatMap" class="bus-grid"></div>
@@ -511,23 +507,10 @@ function showPanel(name,_navEl){
   if(activeLink) activeLink.classList.add("active");
   document.getElementById("panelTitle").textContent=PANEL_TITLES[name];
   sessionStorage.setItem("adminPanel",name);
-  updateBusNameLabel(name);
   if(name==="bus") loadBus();
   if(name==="users") loadUsers();
   if(name==="bookings") loadBookings();
   if(name==="settings") loadSettings();
-}
-
-function updateBusNameLabel(panel){
-  const lbl=document.getElementById("busNameLabel");
-  if(!lbl) return;
-  const showLabel=panel==="bus"||panel==="users"||panel==="bookings";
-  if(showLabel){
-    lbl.textContent=_busNames[currentBusId]||currentBusId;
-    lbl.style.opacity="1";
-  } else {
-    lbl.style.opacity="0";
-  }
 }
 
 /* ── BUS ── */
@@ -566,49 +549,15 @@ function switchBus(busId){
   // Update bus layout title
   const layoutTitle = document.getElementById("busLayoutTitle");
   if(layoutTitle) layoutTitle.textContent="Click a seat to edit it — "+(_busNames[busId]||busId);
-  // Update header bus name label
-  const currentPanel=sessionStorage.getItem("adminPanel")||"bus";
-  updateBusNameLabel(currentPanel);
   // Reload bus-specific panels
   loadBus(); loadBookings(); loadUsers();
 }
 
 async function loadBus(){
   try{
-    const [seatsRes, settingsRes] = await Promise.all([
-      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
-      fetch("/api/admin?action=settings",{headers:authHeaders()})
-    ]);
-    if(!seatsRes.ok) throw new Error("Seats fetch failed: "+seatsRes.status);
-    const seats    = await seatsRes.json();
-    const settings = settingsRes.ok ? await settingsRes.json() : {};
-
-    // Populate departure info strip accurately from bus-specific settings fields
-    const b        = currentBusId==="bus2" ? "bus2" : "bus1";
-    const mode     = settings.tripMode || "holiday";
-    const date     = settings[b+"Date"]  || settings.departureDate  || "";
-    const time     = settings[b+"Time"]  || settings.departureTime  || "";
-    const venue    = settings[b+"Venue"] || settings.departureVenue || "";
-    const fee      = settings.bookingFee || "";
-    const strip    = document.getElementById("busDepInfo");
-    if(strip){
-      const item=(label,val)=>val?`<span><strong>${label}:</strong> ${val}</span>`:"";
-      if(mode==="backtoschool"){
-        // venue field = common destination; origin is Mzuzu implicitly
-        strip.innerHTML=
-          item("Date",date)+
-          item("Time",time)+
-          item("Destination",venue)+
-          item("Fee",fee?"K"+fee:"");
-      } else {
-        strip.innerHTML=
-          item("Date",date)+
-          item("Time",time)+
-          item("Venue",venue)+
-          item("Fee",fee?"K"+fee:"");
-      }
-    }
-
+    const r=await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
+    if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
+    const seats=await r.json();
     const map=document.getElementById("adminSeatMap");
     map.innerHTML="";
     let cnt={available:0,pending:0,booked:0};
@@ -1183,9 +1132,6 @@ async function loadSettings(){
     if(b1){ b1.textContent=_busNames.bus1||"Bus 1"; b1.classList.toggle("active",currentBusId==="bus1"); }
     if(b2){ b2.textContent=_busNames.bus2||"Bus 2"; b2.classList.toggle("active",currentBusId==="bus2"); }
   });
-  // Refresh header bus name label now that _busNames is accurate
-  const currentPanel=sessionStorage.getItem("adminPanel")||"bus";
-  updateBusNameLabel(currentPanel);
 }
 
 async function saveSettings(){
@@ -1487,7 +1433,7 @@ async function downloadBusLayoutPDF() {
    SHARED HEADER — logo image + title
    Uses Logo2.PNG from /Images/
 ════════════════════════════════════════ */
-function pdfHeader(doc, docTitle, logoDataURL){
+function pdfHeader(doc, docTitle, logoDataURL, busName){
   const pW = doc.internal.pageSize.getWidth();
   // Navy bar
   doc.setFillColor(11,41,77);
@@ -1521,11 +1467,22 @@ function pdfHeader(doc, docTitle, logoDataURL){
     doc.text("Student Bus Booking System  —  MUBAS", 14, 23);
   }
 
-  // Document title — right aligned
-  doc.setFont("times","bold");
-  doc.setFontSize(13);
-  doc.setTextColor(255,255,255);
-  doc.text(docTitle, pW - 12, 20, {align:"right"});
+  // Document title right side — bus name (small) centred above title if provided
+  if(busName){
+    doc.setFont("times","normal");
+    doc.setFontSize(8);
+    doc.setTextColor(180,210,255);
+    doc.text(busName.toUpperCase(), pW - 12, 13, {align:"right"});
+    doc.setFont("times","bold");
+    doc.setFontSize(13);
+    doc.setTextColor(255,255,255);
+    doc.text(docTitle, pW - 12, 23, {align:"right"});
+  } else {
+    doc.setFont("times","bold");
+    doc.setFontSize(13);
+    doc.setTextColor(255,255,255);
+    doc.text(docTitle, pW - 12, 20, {align:"right"});
+  }
 
   // Accent blue line
   doc.setDrawColor(0,153,255);
@@ -1702,16 +1659,27 @@ async function buildBusLayoutPDF(bookedOnly=false){
     format: [pW, pH]   // custom height — fits everything perfectly
   });
 
-  pdfHeader(doc, "Bus Seat Layout", logo);
+  pdfHeader(doc, "Bus Seat Layout", logo, busName);
 
-  // Departure info
+  // Departure info — bus-specific fields, mode-aware
+  const b       = currentBusId==="bus2" ? "bus2" : "bus1";
+  const mode    = settings.tripMode || "holiday";
+  const depDate = settings[b+"Date"]  || settings.departureDate  || "";
+  const depTime = settings[b+"Time"]  || settings.departureTime  || "";
+  const venue   = settings[b+"Venue"] || settings.departureVenue || "";
   doc.setFont("times","normal");
   doc.setFontSize(9);
   doc.setTextColor(60,60,60);
-  const tripLine =
-    "Departure: " + (settings.departureDate||"") +
-    "  at  "     + (settings.departureTime||"") +
-    "  |  Venue: "+ (settings.departureVenue||"");
+  let tripLine;
+  if(mode==="backtoschool"){
+    tripLine = (depDate?"Date: "+depDate:"") +
+               (depTime?"  |  Time: "+depTime:"") +
+               (venue  ?"  |  Destination: "+venue:"");
+  } else {
+    tripLine = (depDate?"Departure: "+depDate:"") +
+               (depTime?"  at  "+depTime:"") +
+               (venue  ?"  |  Venue: "+venue:"");
+  }
   doc.text(tripLine, pW/2, 43, {align:"center"});
   doc.setTextColor(0,0,0);
 
@@ -1847,11 +1815,8 @@ async function downloadUsersPDF(){
     const pW  = doc.internal.pageSize.getWidth();
     const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
-    pdfHeader(doc,"Registration List",logo);
+    pdfHeader(doc,"Registration List",logo,busName);
 
-    // Bus name on top line, Registration List on second line
-    doc.setFont("times","bold"); doc.setFontSize(13); doc.setTextColor(11,41,77);
-    doc.text(busName, 14, 43);
     doc.setFont("times","normal"); doc.setFontSize(9); doc.setTextColor(90,90,90);
     doc.text(users.length+" student(s) — Departure: "+depDate, pW-14, 43, {align:"right"});
     doc.setTextColor(0,0,0);
@@ -1890,7 +1855,7 @@ async function downloadUsersPDF(){
         6:{cellWidth:36}
       },
       margin:{left:14,right:14,top:49,bottom:22},
-      didDrawPage:()=>{ pdfHeader(doc,"Registration List",logo); }
+      didDrawPage:()=>{ pdfHeader(doc,"Registration List",logo,busName); }
     });
 
     pdfFooter(doc,dateStr);
@@ -1925,11 +1890,16 @@ async function downloadBusListPDF(){
     const pW  = doc.internal.pageSize.getWidth();
     const dateStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
 
-    pdfHeader(doc,busName+" — Seat Booking List",logo);
+    pdfHeader(doc,"Seat Booking List",logo,busName);
     doc.setFont("times","italic"); doc.setFontSize(9); doc.setTextColor(90,90,90);
     const booked = seats.filter(s=>s.status!=="available").length;
     doc.text("Booked/Pending: "+booked+" of 72 seats", pW-14, 43, {align:"right"});
     doc.setTextColor(0,0,0);
+
+    // Bus-specific origin/destination fields
+    const bKey    = currentBusId==="bus2" ? "bus2" : "bus1";
+    const slMode  = settings.tripMode || "holiday";
+    const slVenue = settings[bKey+"Venue"] || settings.departureVenue || "—";
 
     // Build one row per occupied seat — sorted by seat number
     const occupiedSeats = seats
@@ -1962,12 +1932,12 @@ async function downloadBusListPDF(){
       String(s.number),
       s.passengerName || "—",
       s.phone         || "—",
-      settings.departureVenue || "—",
-      s.destination   || "—",
+      slMode==="backtoschool" ? (s.origin||"Mzuzu") : slVenue,
+      slMode==="backtoschool" ? slVenue              : (s.destination||"—"),
       statusLabel(s),
       depositForSeat(s.number),
-      "",   // Balance — blank, filled manually
-      ""    // Total — blank, filled manually
+      "",
+      ""
     ]);
 
     doc.autoTable({
@@ -1989,7 +1959,7 @@ async function downloadBusListPDF(){
         8:{cellWidth:26, halign:"center"}
       },
       margin:{left:10,right:10,top:47,bottom:22},
-      didDrawPage:()=>{ pdfHeader(doc,"Seat Booking List",logo); }
+      didDrawPage:()=>{ pdfHeader(doc,"Seat Booking List",logo,busName); }
     });
 
     pdfFooter(doc,dateStr);
