@@ -137,7 +137,10 @@ tr:hover td{background:#fafafa;}
 <!-- MAIN -->
 <div class="main">
   <div class="top-bar">
-    <h1 id="panelTitle">Bus Layout &amp; Seat Control</h1>
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div id="busNameLabel" style="font-size:0.75rem;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--accent);opacity:0;transition:opacity 0.2s;margin-bottom:2px;">—</div>
+      <h1 id="panelTitle" style="margin:0;">Bus Layout &amp; Seat Control</h1>
+    </div>
     <div class="top-bar-user" id="adminWelcome">Welcome, Admin</div>
   </div>
 
@@ -162,6 +165,7 @@ tr:hover td{background:#fafafa;}
           <button class="bus-btn active" id="layoutBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
           <button class="bus-btn" id="layoutBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
         </div>
+        <div id="busDepInfo" style="background:#f0f7ff;border:1px solid #cce3ff;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:0.83rem;color:#0b294d;display:flex;flex-wrap:wrap;gap:10px 24px;"></div>
         <div class="bus-exterior-admin">
           <div class="driver-row"><i class="fa-solid fa-dharmachakra"></i> <span>Driver</span></div>
           <div id="adminSeatMap" class="bus-grid"></div>
@@ -507,10 +511,23 @@ function showPanel(name,_navEl){
   if(activeLink) activeLink.classList.add("active");
   document.getElementById("panelTitle").textContent=PANEL_TITLES[name];
   sessionStorage.setItem("adminPanel",name);
+  updateBusNameLabel(name);
   if(name==="bus") loadBus();
   if(name==="users") loadUsers();
   if(name==="bookings") loadBookings();
   if(name==="settings") loadSettings();
+}
+
+function updateBusNameLabel(panel){
+  const lbl=document.getElementById("busNameLabel");
+  if(!lbl) return;
+  const showLabel=panel==="bus"||panel==="users"||panel==="bookings";
+  if(showLabel){
+    lbl.textContent=_busNames[currentBusId]||currentBusId;
+    lbl.style.opacity="1";
+  } else {
+    lbl.style.opacity="0";
+  }
 }
 
 /* ── BUS ── */
@@ -549,15 +566,49 @@ function switchBus(busId){
   // Update bus layout title
   const layoutTitle = document.getElementById("busLayoutTitle");
   if(layoutTitle) layoutTitle.textContent="Click a seat to edit it — "+(_busNames[busId]||busId);
+  // Update header bus name label
+  const currentPanel=sessionStorage.getItem("adminPanel")||"bus";
+  updateBusNameLabel(currentPanel);
   // Reload bus-specific panels
   loadBus(); loadBookings(); loadUsers();
 }
 
 async function loadBus(){
   try{
-    const r=await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
-    if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
-    const seats=await r.json();
+    const [seatsRes, settingsRes] = await Promise.all([
+      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
+      fetch("/api/admin?action=settings",{headers:authHeaders()})
+    ]);
+    if(!seatsRes.ok) throw new Error("Seats fetch failed: "+seatsRes.status);
+    const seats    = await seatsRes.json();
+    const settings = settingsRes.ok ? await settingsRes.json() : {};
+
+    // Populate departure info strip accurately from bus-specific settings fields
+    const b        = currentBusId==="bus2" ? "bus2" : "bus1";
+    const mode     = settings.tripMode || "holiday";
+    const date     = settings[b+"Date"]  || settings.departureDate  || "";
+    const time     = settings[b+"Time"]  || settings.departureTime  || "";
+    const venue    = settings[b+"Venue"] || settings.departureVenue || "";
+    const fee      = settings.bookingFee || "";
+    const strip    = document.getElementById("busDepInfo");
+    if(strip){
+      const item=(label,val)=>val?`<span><strong>${label}:</strong> ${val}</span>`:"";
+      if(mode==="backtoschool"){
+        // venue field = common destination; origin is Mzuzu implicitly
+        strip.innerHTML=
+          item("Date",date)+
+          item("Time",time)+
+          item("Destination",venue)+
+          item("Fee",fee?"K"+fee:"");
+      } else {
+        strip.innerHTML=
+          item("Date",date)+
+          item("Time",time)+
+          item("Venue",venue)+
+          item("Fee",fee?"K"+fee:"");
+      }
+    }
+
     const map=document.getElementById("adminSeatMap");
     map.innerHTML="";
     let cnt={available:0,pending:0,booked:0};
@@ -1132,6 +1183,9 @@ async function loadSettings(){
     if(b1){ b1.textContent=_busNames.bus1||"Bus 1"; b1.classList.toggle("active",currentBusId==="bus1"); }
     if(b2){ b2.textContent=_busNames.bus2||"Bus 2"; b2.classList.toggle("active",currentBusId==="bus2"); }
   });
+  // Refresh header bus name label now that _busNames is accurate
+  const currentPanel=sessionStorage.getItem("adminPanel")||"bus";
+  updateBusNameLabel(currentPanel);
 }
 
 async function saveSettings(){
