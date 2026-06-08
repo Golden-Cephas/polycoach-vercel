@@ -61,12 +61,12 @@
           <!-- Bus chooser -->
           <div class="input-group full">
             <label>Choose Your Bus <span style="color:var(--danger);">*</span></label>
-            <div class="bus-chooser">
+            <div class="bus-chooser" id="busChooser" style="visibility:hidden;">
               <div class="bus-choice" id="busChoice1" onclick="chooseBus('bus1')">
-                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel1">Bus 1</span>
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel1"></span>
               </div>
               <div class="bus-choice" id="busChoice2" onclick="chooseBus('bus2')">
-                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel2">Bus 2</span>
+                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel2"></span>
               </div>
             </div>
             <input type="hidden" id="busId" value="">
@@ -74,7 +74,7 @@
 
           <!-- Common field (read-only, from settings) -->
           <div class="input-group full common-field">
-            <label id="commonLabel">Departure Venue</label>
+            <label id="commonLabel"></label>
             <input type="text" id="commonField" readonly>
           </div>
 
@@ -145,6 +145,7 @@ fetch("/api/settings").then(r=>r.json()).then(s=>{
   // Set bus labels from settings
   document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
   document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
+  document.getElementById("busChooser").style.visibility = "visible";
 }).catch(()=>{});
 
 function applyTripMode(mode){
