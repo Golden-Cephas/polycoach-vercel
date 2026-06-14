@@ -414,7 +414,7 @@ tr:hover td{background:#fafafa;}
     <div class="cg"><label>Passenger Name</label><input type="text" id="eb-name" class="settings-input" placeholder="Full Name"></div>
     <div class="cg"><label>Phone</label><input type="text" id="eb-phone" class="settings-input" placeholder="099..."></div>
     <div class="cg"><label>Seat Number</label><input type="number" id="eb-seat" class="settings-input" min="1" max="72"></div>
-    <div class="cg"><label>Destination</label><input type="text" id="eb-dest" class="settings-input" placeholder="Mzuzu"></div>
+    <div class="cg"><label id="eb-dest-label">Destination</label><input type="text" id="eb-dest" class="settings-input" placeholder="Mzuzu"></div>
     <div class="cg"><label>Program</label><input type="text" id="eb-prog" class="settings-input" placeholder="e.g. BEEE4"></div>
     <div class="modal-actions">
       <button class="btn-save" onclick="saveEditBooking()">SAVE CHANGES</button>
@@ -445,7 +445,7 @@ tr:hover td{background:#fafafa;}
     <div class="cg"><label>Passenger Name</label><input type="text" id="mb-name" class="settings-input" placeholder="Full Name"></div>
     <div class="cg"><label>Phone</label><input type="text" id="mb-phone" class="settings-input" placeholder="099..."></div>
     <div class="cg"><label>Seat Number (1-72)</label><input type="number" id="mb-seat" class="settings-input" min="1" max="72"></div>
-    <div class="cg"><label>Destination</label><input type="text" id="mb-dest" class="settings-input" placeholder="Mzuzu"></div>
+    <div class="cg"><label id="mb-dest-label">Destination</label><input type="text" id="mb-dest" class="settings-input" placeholder="Mzuzu"></div>
     <div class="modal-actions">
       <button class="btn-save" onclick="addBooking()">ADD BOOKING</button>
       <button class="btn-cancel" onclick="closeModal('addBookingModal')">Cancel</button>
@@ -526,14 +526,33 @@ function onTripModeChange(){
 }
 function applyTripModeUI(mode){
   const isHoliday = mode === "holiday";
+  const destText = isHoliday ? "Destination" : "Origin";
+  const destPlaceholder = isHoliday ? "e.g. Mzuzu" : "e.g. Mzuzu";
+  // Settings panel venue labels
   const venueLabel = document.getElementById("venueLabel");
   if(venueLabel) venueLabel.textContent = isHoliday ? "Bus 1 Departure Venue" : "Bus 1 Common Destination";
   const bus2VenueLabel = document.getElementById("bus2VenueLabel");
   if(bus2VenueLabel) bus2VenueLabel.textContent = isHoliday ? "Bus 2 Departure Venue" : "Bus 2 Common Destination";
-  const destLabel = document.getElementById("editDestLabel");
-  if(destLabel) destLabel.textContent = isHoliday ? "Destination" : "Origin";
-  const destInput = document.getElementById("editDest");
-  if(destInput) destInput.placeholder = isHoliday ? "e.g. Mzuzu" : "e.g. Mzuzu";
+  // Seat editor
+  const editDestLabel = document.getElementById("editDestLabel");
+  if(editDestLabel) editDestLabel.textContent = destText;
+  const editDest = document.getElementById("editDest");
+  if(editDest) editDest.placeholder = destPlaceholder;
+  // Add Booking modal
+  const mbDestLabel = document.getElementById("mb-dest-label");
+  if(mbDestLabel) mbDestLabel.textContent = destText;
+  const mbDest = document.getElementById("mb-dest");
+  if(mbDest) mbDest.placeholder = destPlaceholder;
+  // Edit Booking modal
+  const ebDestLabel = document.getElementById("eb-dest-label");
+  if(ebDestLabel) ebDestLabel.textContent = destText;
+  const ebDest = document.getElementById("eb-dest");
+  if(ebDest) ebDest.placeholder = destPlaceholder;
+  // Add User modal
+  const muDestLabel = document.getElementById("mu-dest-label");
+  if(muDestLabel) muDestLabel.textContent = destText;
+  const muDest = document.getElementById("mu-dest");
+  if(muDest) muDest.placeholder = destPlaceholder;
 }
 
 /* ── BUS SWITCHER ── */
@@ -809,13 +828,11 @@ async function deleteUser(id,name){
 }
 
 function openAddUserModal(){
-  const isHoliday = (window._tripMode||"holiday")==="holiday";
-  document.getElementById("mu-origin-label").textContent = "Origin";
-  document.getElementById("mu-dest-label").textContent   = isHoliday ? "Destination" : "Destination";
   document.getElementById("mu-name").value  = "";
   document.getElementById("mu-phone").value = "";
   document.getElementById("mu-origin").value= "";
   document.getElementById("mu-dest").value  = "";
+  // Labels are already correct — applyTripModeUI keeps them in sync
   document.getElementById("addUserModal").style.display="flex";
 }
 function closeModal(id){document.getElementById(id).style.display="none";}
@@ -1012,6 +1029,7 @@ function openAddBookingModal(){
   document.getElementById("mb-phone").value="";
   document.getElementById("mb-seat").value="";
   document.getElementById("mb-dest").value="";
+  // Labels are already correct — applyTripModeUI keeps them in sync
   document.getElementById("addBookingModal").style.display="flex";
 }
 
@@ -1022,6 +1040,7 @@ function openEditBookingModal(id,name,phone,seat,dest,prog){
   document.getElementById("eb-seat").value = seat;
   document.getElementById("eb-dest").value = dest;
   document.getElementById("eb-prog").value = prog;
+  // Labels are already correct — applyTripModeUI keeps them in sync
   document.getElementById("editBookingModal").style.display="flex";
 }
 
@@ -1093,7 +1112,7 @@ async function addBooking(){
   }
   btn.disabled=true;btn.textContent="Adding...";
   try{
-    const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone:phone||"",seatNumber:seatNum,destination:dest})});
+    const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone:phone||"",seatNumber:seatNum,destination:dest,busId:currentBusId,tripMode:getTripMode()})});
     const d=await r.json();
     if(d.success){closeModal("addBookingModal");loadBookings();loadBus();loadUsers();}
     else alert(d.message||"Error adding booking.");
