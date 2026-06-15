@@ -17,6 +17,10 @@
 .bus-choice{flex:1;padding:12px;border:2px solid #ddd;border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:0.9rem;color:#555;transition:all 0.2s;background:#fff;}
 .bus-choice.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
 .common-field input{background:#f0f4ff;color:#555;cursor:default;}
+/* Seat map embedded in register */
+.seat-section{margin-top:22px;display:none;}
+.seat-section h3{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;color:var(--primary);margin-bottom:10px;}
+#regSeatTooltip{position:fixed;background:#333;color:#fff;padding:6px 12px;border-radius:5px;font-size:0.8rem;pointer-events:none;display:none;z-index:500;white-space:nowrap;}
 /* Page-specific background — uses Register.png if available, falls back to Background1.png */
 .Page-Body-Hero{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Register.png'),url('/Images/Background1.png');background-size:cover;background-position:center;}
 @media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
@@ -101,6 +105,26 @@
           </div>
 
         </div>
+        <!-- Seat map -->
+        <div class="seat-section" id="seatSection">
+          <h3>Choose Your Seat</h3>
+          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Click an available seat to select it.</p>
+          <div class="bus-exterior">
+            <div class="driver-cabin">
+              <i class="fa-solid fa-dharmachakra"></i>
+              <span style="font-weight:700;color:#555;">Driver</span>
+            </div>
+            <div id="regSeatMap" class="bus-grid"></div>
+          </div>
+          <div class="seat-legend">
+            <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
+            <div class="legend-item"><div class="legend-box legend-pending"></div> Pending</div>
+            <div class="legend-item"><div class="legend-box legend-booked"></div> Booked</div>
+            <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
+          </div>
+          <input type="hidden" id="selectedSeatNum" value="">
+        </div>
+
         <button type="submit" class="submit-btn" style="margin-top:18px;">REGISTER NOW</button>
         <div id="msg"></div>
         <div class="login-footer">
@@ -110,6 +134,7 @@
     </div>
   </div>
 </div>
+<div id="regSeatTooltip"></div>
 
 <div class="Home-Page-Footer">
   <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
@@ -137,37 +162,105 @@
 <script>
 let _settings = {};
 let _selectedBus = "";
+let _selectedSeat = null;
+const _regTooltip = document.getElementById("regSeatTooltip");
 
 /* ── Load settings and apply trip mode ── */
 fetch("/api/settings").then(r=>r.json()).then(s=>{
   _settings = s;
   applyTripMode(s.tripMode||"holiday");
-  // Set bus labels from settings
   document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
   document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
   document.getElementById("busChooser").style.visibility = "visible";
 }).catch(()=>{});
 
+document.addEventListener("mousemove",e=>{
+  if(_regTooltip.style.display!=="none"){
+    _regTooltip.style.left=(e.clientX+14)+"px";
+    _regTooltip.style.top=(e.clientY-30)+"px";
+  }
+});
+
 function applyTripMode(mode){
   const isHoliday = mode !== "backtoschool";
-  // Common field label and value updated when bus is chosen
   document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Destination";
-  // Show/hide origin and destination fields
-  document.getElementById("originGroup").style.display  = isHoliday ? "none"  : "block";
-  document.getElementById("destGroup").style.display    = isHoliday ? "block" : "none";
+  document.getElementById("originGroup").style.display = isHoliday ? "none"  : "block";
+  document.getElementById("destGroup").style.display   = isHoliday ? "block" : "none";
 }
 
 function chooseBus(busId){
   _selectedBus = busId;
+  _selectedSeat = null;
   document.getElementById("busId").value = busId;
+  document.getElementById("selectedSeatNum").value = "";
   document.getElementById("busChoice1").classList.toggle("selected", busId==="bus1");
   document.getElementById("busChoice2").classList.toggle("selected", busId==="bus2");
-  // Fill common field with this bus's venue
-  const isHoliday = (_settings.tripMode||"holiday") !== "backtoschool";
-  const venueKey  = busId+"Venue";
-  const dateKey   = busId+"Date";
-  const venue     = _settings[venueKey] || _settings.departureVenue || "";
+  const venue = _settings[busId+"Venue"] || _settings.departureVenue || "";
   document.getElementById("commonField").value = venue;
+  // Show and load seat map for chosen bus
+  document.getElementById("seatSection").style.display = "block";
+  loadRegSeats(busId);
+}
+
+async function loadRegSeats(busId){
+  const map = document.getElementById("regSeatMap");
+  map.innerHTML = "<div style='padding:12px;color:#888;'>Loading seats…</div>";
+  try{
+    const seats = await (await fetch("/api/seats?busId="+busId)).json();
+    map.innerHTML = "";
+    let counter = 1;
+    for(let row=0;row<13;row++){
+      for(let col=1;col<=6;col++){
+        if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
+        else if(counter<=65){renderRegSeat(seats,counter,map);counter++;}
+      }
+    }
+    const backRow=document.createElement("div");backRow.className="back-row-container";
+    for(let i=0;i<7;i++){renderRegSeat(seats,counter,backRow);counter++;}
+    map.appendChild(backRow);
+  }catch{
+    map.innerHTML="<div style='padding:12px;color:red;'>Failed to load seats.</div>";
+  }
+}
+
+function renderRegSeat(seats,num,parent){
+  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const div=document.createElement("div");
+  div.className="seat "+data.status;
+  div.textContent=num;
+  div.addEventListener("mouseenter",()=>{
+    let tip=`Seat ${num}`;
+    if(data.passengerName) tip+=` — ${data.passengerName}`;
+    _regTooltip.textContent=tip;_regTooltip.style.display="block";
+  });
+  div.addEventListener("mouseleave",()=>_regTooltip.style.display="none");
+  if(data.status==="available"){
+    div.onclick=()=>selectRegSeat(num,div);
+  } else {
+    div.onclick=()=>showRegSeatMsg("Seat "+num+" is already taken.");
+  }
+  parent.appendChild(div);
+}
+
+function selectRegSeat(num,el){
+  document.querySelectorAll("#regSeatMap .seat.selected, #regSeatMap ~ * .seat.selected").forEach(s=>{
+    s.className="seat "+(s._origStatus||"available");
+  });
+  // Also clear back row
+  document.querySelectorAll(".back-row-container .seat.selected").forEach(s=>{
+    s.className="seat "+(s._origStatus||"available");
+  });
+  el._origStatus="available";
+  el.className="seat selected";
+  _selectedSeat=num;
+  document.getElementById("selectedSeatNum").value=num;
+}
+
+function showRegSeatMsg(text){
+  let el=document.getElementById("regSeatMsg");
+  if(!el){el=document.createElement("div");el.id="regSeatMsg";el.style.cssText="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:8px;font-weight:700;font-size:0.9rem;z-index:999;";document.body.appendChild(el);}
+  el.textContent=text;el.style.display="block";
+  clearTimeout(el._t);el._t=setTimeout(()=>el.style.display="none",2200);
 }
 
 /* ── Form submit ── */
@@ -198,26 +291,53 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
     msg.className="error"; msg.style.display="block";
     msg.textContent="Please select your origin."; return;
   }
+  if(!_selectedSeat){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select a seat before registering."; return;
+  }
 
   btn.disabled=true; btn.textContent="Registering...";
   msg.style.display="none";
 
   try{
-    const r = await fetch("/api/register",{
+    // Step 1: Register the student
+    const regRes = await fetch("/api/register",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name, phone, busId, origin, destination:dest})
     });
-    const d = await r.json();
-    if(d.success){
-      // Save bus choice for the booking flow
-      localStorage.setItem("polycoachBus", busId);
-      window.location.href="Thanks-Remark1.html";
-    } else {
+    const regData = await regRes.json();
+    if(!regData.success){
       msg.className="error"; msg.style.display="block";
-      msg.textContent=d.message||"Registration failed. Please try again.";
-      btn.disabled=false; btn.textContent="REGISTER NOW";
+      msg.textContent=regData.message||"Registration failed. Please try again.";
+      btn.disabled=false; btn.textContent="REGISTER NOW"; return;
     }
+
+    // Step 2: Book the chosen seat as pending
+    const bookRes = await fetch("/api/book-seat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        seatNumber: Number(_selectedSeat),
+        busId,
+        passengerName: name,
+        destination: dest,
+        origin: origin,
+        phone,
+        program: "",
+        paymentProof: null,
+        releaseOldSeat: null
+      })
+    });
+    const bookData = await bookRes.json();
+    if(!bookData.success){
+      // Registration succeeded but seat booking failed — still continue
+      console.warn("Seat booking failed:", bookData.message);
+    }
+
+    localStorage.setItem("polycoachBus", busId);
+    window.location.href="Thanks-Remark1.html";
+
   }catch{
     msg.className="error"; msg.style.display="block";
     msg.textContent="Server error. Please try again.";
