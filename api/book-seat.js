@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
     if (releaseOldSeat) {
       await Seat.findOneAndUpdate(
         { number: releaseOldSeat, busId },
-        { status: "available", passengerName: null, destination: "", origin: "", phone: "" }
+        { status: "available", passengerName: null, destination: "", origin: "", phone: "", paymentProof: null }
       );
       await Booking.findOneAndUpdate(
         { seatNumber: releaseOldSeat, busId, status: { $in: ["pending","approved"] } },
@@ -66,6 +66,7 @@ module.exports = async (req, res) => {
     seat.destination   = destination || "";
     seat.origin        = origin || "";
     seat.phone         = phone || "";
+    seat.paymentProof  = proofUrl || null;
     await seat.save();
 
     // Create booking

@@ -185,44 +185,30 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
   const file=document.getElementById("payFile").files[0]||selectedFile;
   if(!file){showMsg("error","⚠ Please select your payment screenshot.");return;}
 
-  // Duplicate submission guard — verified against server.
-  // Matches on name AND phone to handle two people sharing the same name.
-  // Checks both the registered user and the passenger (booking for someone else is allowed).
-  // If admin deleted the booking, localStorage is stale — server check clears it and allows re-upload.
-  if(localStorage.getItem("paymentProofUrl")){
-    try{
-      const u2        = getUser();
-      const busId2    = u2 ? u2.busId : "bus1";
-      const checkRes  = await fetch("/api/seats?busId=" + busId2);
-      const allSeats  = await checkRes.json();
+  const u=getUser();
+  if(!u||!u.busId){
+    showMsg("error","⚠ Your registration has no bus assignment. Please contact an administrator.");
+    return;
+  }
 
-      const userPhone    = (u2 && u2.phone    ? u2.phone.trim()                : "").replace(/\s+/g,"");
-      const userFullName = (u2 && u2.fullName ? u2.fullName.trim().toLowerCase(): "");
-      const paxName      = (localStorage.getItem("passengerName")||"").trim().toLowerCase();
-
-      // A seat is a match only if BOTH name AND phone match.
-      // Phone is always the registering user's phone — whether booking for self or someone else.
-      const stillBooked = allSeats.some(s => {
-        if(s.status !== "booked" && s.status !== "pending") return false;
-        const sName  = (s.passengerName || "").trim().toLowerCase();
-        const sPhone = (s.phone         || "").trim().replace(/\s+/g,"");
-        const matchSelf      = sPhone === userPhone && sName === userFullName;
-        const matchPassenger = sPhone === userPhone && sName === paxName;
-        return matchSelf || matchPassenger;
-      });
-
-      if(stillBooked){
-        showMsg("error","⚠ A payment proof has already been submitted for this booking. Please wait for admin approval or contact us if you need to resubmit.");
-        return;
-      } else {
-        // Admin deleted the booking — clear stale localStorage and allow re-upload
-        localStorage.removeItem("paymentProofUrl");
-      }
-    }catch(err){
-      // Server unreachable — block safely rather than risk a double upload
-      showMsg("error","⚠ Could not verify your booking status. Please check your connection and try again.");
+  // Check server: does this user's seat record already have a payment proof?
+  try{
+    const checkRes=await fetch("/api/seats?busId="+u.busId);
+    const allSeats=await checkRes.json();
+    const userPhone=(u.phone||"").trim().replace(/\s+/g,"");
+    const userFullName=(u.fullName||"").trim().toLowerCase();
+    const mySeat=allSeats.find(s=>{
+      const sName=(s.passengerName||"").trim().toLowerCase();
+      const sPhone=(s.phone||"").trim().replace(/\s+/g,"");
+      return sPhone===userPhone && sName===userFullName;
+    });
+    if(mySeat && mySeat.paymentProof){
+      showMsg("error","⚠ A payment proof has already been submitted for your booking. Please wait for admin approval or contact us if you need to resubmit.");
       return;
     }
+  }catch(err){
+    showMsg("error","⚠ Could not verify your booking status. Please check your connection and try again.");
+    return;
   }
 
   const btn=document.getElementById("uploadBtn");
@@ -238,22 +224,12 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
     if(!sigData.success) throw new Error(sigData.message||"Could not prepare upload.");
     progressFill.style.width="40%";
 
-    // Step 2: Upload directly to Cloudinary
-    const u=getUser();
-
-    // Safety check — busId must be present before upload
-    if(!u||!u.busId){
-      throw new Error("Your registration has no bus assignment. Please contact an administrator.");
-    }
-
     const fd=new FormData();
-    // Only append fields that are included in the signature
     fd.append("file",file);
     fd.append("api_key",sigData.apiKey);
     fd.append("timestamp",sigData.timestamp);
     fd.append("signature",sigData.signature);
     fd.append("folder",sigData.folder);
-    // Note: do NOT add any extra fields (context, tags etc) unless they are in the signature
 
     progressFill.style.width="60%";
     const upRes=await fetch("https://api.cloudinary.com/v1_1/"+sigData.cloudName+"/image/upload",{method:"POST",body:fd});
@@ -262,12 +238,11 @@ document.getElementById("payForm").addEventListener("submit",async function(e){
     if(!upData.secure_url) throw new Error("Upload failed - no URL returned.");
     progressFill.style.width="100%";
 
-    // Step 3: Store Cloudinary URL and busId in localStorage for Bus-Lay
+    // Store URL and busId — Bus-Lay reads paymentProofUrl when confirming the booking
     localStorage.setItem("paymentProofUrl",upData.secure_url);
-    localStorage.setItem("polycoachBus", u.busId); // always set from user object — single source of truth
+    localStorage.setItem("polycoachBus",u.busId);
 
     showMsg("success","✅ Payment proof uploaded! Redirecting to seat selection...");
-    // Pass busId in URL as a fallback so Bus-Lay.html works even across tabs or after storage clears
     setTimeout(()=>window.location.href="Bus-Lay.html?busId="+encodeURIComponent(u.busId),1500);
   }catch(err){
     showMsg("error",err.message||"Upload failed. Please try again.");

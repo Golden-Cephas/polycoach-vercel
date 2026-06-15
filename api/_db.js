@@ -56,6 +56,7 @@ const Seat = model("Seat", new mongoose.Schema({
   destination:   { type: String, default: "" },
   origin:        { type: String, default: "" },
   phone:         { type: String, default: "" },
+  paymentProof:  { type: String, default: null },
 }));
 
 const Booking = model("Booking", new mongoose.Schema({
