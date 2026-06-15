@@ -46,31 +46,35 @@ module.exports = async (req, res) => {
       );
     }
 
-    // Check target seat is still available
+    // Check target seat is still available — but allow if this user already owns it (pending from registration)
     const seat = await Seat.findOne({ number: seatNumber, busId });
     if (!seat) return res.json({ success: false, message: "Seat not found." });
-    if (seat.status !== "available")
+    const ownsSeat = seat.status === "pending" &&
+                     (seat.phone || "").trim() === (phone || "").trim();
+    if (seat.status !== "available" && !ownsSeat)
       return res.json({ success: false, message: "Seat " + seatNumber + " is no longer available." });
 
-    const settings  = await Settings.findOne();
-    const proofUrl  = paymentProof || localStorage?.getItem?.("paymentProofUrl") || null;
-    const today     = new Date();
-    const todayCount = await Booking.countDocuments({
-      createdAt: { $gte: new Date(today.toDateString()) }, busId
-    });
-    const seatLabel = getSeatLabel(seatNumber);
+    const settings   = await Settings.findOne();
+    const proofUrl   = paymentProof || null;
+    const seatLabel  = getSeatLabel(seatNumber);
 
-    // Mark seat pending
+    // Update seat record
     seat.status        = "pending";
     seat.passengerName = passengerName;
     seat.destination   = destination || "";
     seat.origin        = origin || "";
     seat.phone         = phone || "";
-    seat.paymentProof  = proofUrl || null;
+    seat.paymentProof  = proofUrl || seat.paymentProof || null;
     await seat.save();
 
-    // Create booking
-    const booking = await Booking.create({
+    // Update existing booking if one exists for this phone+busId, otherwise create
+    const existingBooking = await Booking.findOne({
+      phone: (phone || "").trim(),
+      busId,
+      status: { $in: ["pending", "approved"] }
+    });
+
+    const bookingData = {
       seatNumber,
       busId,
       passengerName,
@@ -82,9 +86,17 @@ module.exports = async (req, res) => {
       departureDate:  settings ? (settings[busId+"Date"]  || settings.departureDate  || "") : "",
       departureVenue: settings ? (settings[busId+"Venue"] || settings.departureVenue || "") : "",
       deposit:        settings ? settings.bookingFee : "K5,000",
-      paymentProof:   proofUrl || null,
+      paymentProof:   proofUrl || (existingBooking ? existingBooking.paymentProof : null) || null,
       status:         "pending"
-    });
+    };
+
+    let booking;
+    if (existingBooking) {
+      Object.assign(existingBooking, bookingData);
+      booking = await existingBooking.save();
+    } else {
+      booking = await Booking.create(bookingData);
+    }
 
     return res.json({ success: true, bookingId: booking._id });
   } catch (err) {
