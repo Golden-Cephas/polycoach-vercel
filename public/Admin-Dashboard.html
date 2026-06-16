@@ -185,7 +185,7 @@ tr:hover td{background:#fafafa;}
               <option value="booked">Booked (Red)</option>
             </select>
           </div>
-          <div class="cg"><label>Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
+          <div class="cg"><label id="editDestLabel">Destination</label><input type="text" id="editDest" placeholder="e.g. Mzuzu"></div>
           <div style="display:flex;gap:10px;margin-top:6px;">
             <button class="btn-save" style="flex:2;" onclick="saveSeatEdit()">UPDATE SEAT</button>
             <button class="btn btn-delete" onclick="clearSeat()">RESET</button>
@@ -217,7 +217,7 @@ tr:hover td{background:#fafafa;}
       </div>
       <div style="overflow-x:auto;">
         <table id="usersTable">
-          <thead><tr><th>Full Name</th><th>Phone</th><th>Bus</th><th>Origin</th><th>Destination</th><th>Date</th><th>Action</th></tr></thead>
+          <thead><tr><th>Full Name</th><th>Phone</th><th>Bus</th><th>Origin</th><th id="users-dest-th">Destination</th><th>Date</th><th>Action</th></tr></thead>
           <tbody id="usersTbody"></tbody>
         </table>
       </div>
@@ -246,7 +246,7 @@ tr:hover td{background:#fafafa;}
       </div>
       <div style="overflow-x:auto;">
         <table id="bookingsTable">
-          <thead><tr><th>Passenger</th><th>Program</th><th>Seat</th><th>Destination</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Passenger</th><th>Program</th><th>Seat</th><th id="bookings-dest-th">Destination</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="bookingsTbody"></tbody>
         </table>
       </div>
@@ -553,6 +553,16 @@ function applyTripModeUI(mode){
   if(muDestLabel) muDestLabel.textContent = destText;
   const muDest = document.getElementById("mu-dest");
   if(muDest) muDest.placeholder = destPlaceholder;
+  // Edit User modal
+  const euDestLabel = document.getElementById("eu-dest-label");
+  if(euDestLabel) euDestLabel.textContent = destText;
+  const euDest = document.getElementById("eu-dest");
+  if(euDest) euDest.placeholder = destPlaceholder;
+  // Table column headers
+  const usersDestTh = document.getElementById("users-dest-th");
+  if(usersDestTh) usersDestTh.textContent = destText;
+  const bookingsDestTh = document.getElementById("bookings-dest-th");
+  if(bookingsDestTh) bookingsDestTh.textContent = destText;
 }
 
 /* ── BUS SWITCHER ── */
@@ -2254,8 +2264,8 @@ document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click
     <h3>Edit User</h3>
     <div class="cg"><label>Full Name</label><input type="text" id="eu-name" placeholder="Full Name"></div>
     <div class="cg"><label>Phone</label><input type="tel" id="eu-phone" placeholder="Phone Number"></div>
-    <div class="cg"><label>Origin</label><input type="text" id="eu-origin" placeholder="e.g. Mzuzu"></div>
-    <div class="cg"><label>Destination</label><input type="text" id="eu-dest" placeholder="e.g. Lilongwe"></div>
+    <div class="cg"><label id="eu-origin-label">Origin</label><input type="text" id="eu-origin" placeholder="e.g. Mzuzu"></div>
+    <div class="cg"><label id="eu-dest-label">Destination</label><input type="text" id="eu-dest" placeholder="e.g. Lilongwe"></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button class="btn-save" style="flex:2;" onclick="saveEditUser()">SAVE CHANGES</button>
       <button class="btn" style="flex:1;background:#f0f2f5;color:#555;" onclick="closeModal('editUserModal')">Cancel</button>
