@@ -246,7 +246,7 @@ tr:hover td{background:#fafafa;}
       </div>
       <div style="overflow-x:auto;">
         <table id="bookingsTable">
-          <thead><tr><th>Passenger</th><th>Program</th><th>Seat</th><th id="bookings-dest-th">Destination</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Passenger</th><th>Bus</th><th>Seat</th><th id="bookings-dest-th">Destination</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="bookingsTbody"></tbody>
         </table>
       </div>
@@ -652,6 +652,26 @@ async function saveSeatEdit(){
   const dest   = document.getElementById("editDest").value.trim();
   if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
 
+  // ── Registered-user check: does first+last name match a registered student? ──
+  if((status==="booked" || status==="pending") && name){
+    const usersRes  = await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
+    const allUsers  = await usersRes.json();
+    const matchedUser = findRegisteredUserByName(name, allUsers);
+    if(matchedUser && matchedUser.fullName.trim().toLowerCase() !== name.toLowerCase()){
+      // First+last match but full name differs (middle name mismatch) — ask admin to verify
+      const choice = await showVerifyUserPopup(matchedUser);
+      if(choice === "cancel") return;
+      if(choice === "yes"){
+        // Load their full name and data into the editor
+        document.getElementById("editName").value = matchedUser.fullName;
+        document.getElementById("editDest").value = matchedUser.destination||matchedUser.origin||"";
+        // Update local vars for the save below
+        name = matchedUser.fullName;
+      }
+      // "no" — fall through, treat as new person
+    }
+  }
+
   // ── Name conflict check: existing booking or same name on another seat? ──
   if((status==="booked" || status==="pending") && name){
     const seatsRes = await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
@@ -728,6 +748,33 @@ function _sppCancel(){
   if(window._sppResolve){ window._sppResolve(null); window._sppResolve=null; }
 }
 
+function _vupChoice(val){
+  document.getElementById("verifyUserPopup").style.display="none";
+  if(window._vupResolve){ window._vupResolve(val); window._vupResolve=null; }
+}
+function showVerifyUserPopup(matchedUser){
+  return new Promise((resolve)=>{
+    const displayPhone = matchedUser.phone && !matchedUser.phone.startsWith("admin-") ? matchedUser.phone : "—";
+    document.getElementById("vupMatchName").textContent   = matchedUser.fullName;
+    document.getElementById("vupMatchPhone").textContent  = displayPhone;
+    document.getElementById("vupMatchOrigin").textContent = matchedUser.origin||matchedUser.hometown||matchedUser.from||"—";
+    window._vupResolve = resolve;
+    document.getElementById("verifyUserPopup").style.display="flex";
+  });
+}
+// Returns a registered user whose first and last name both match the typed name (ignoring middle names)
+function findRegisteredUserByName(typedName, users){
+  const parts = typedName.trim().toLowerCase().split(/\s+/);
+  if(parts.length < 2) return null;
+  const typedFirst = parts[0];
+  const typedLast  = parts[parts.length - 1];
+  return users.find(u=>{
+    const up = (u.fullName||"").trim().toLowerCase().split(/\s+/);
+    if(up.length < 2) return false;
+    return up[0] === typedFirst && up[up.length-1] === typedLast;
+  }) || null;
+}
+
 function showNameConflictPopup(name, matchSeat){
   return new Promise((resolve)=>{
     document.getElementById("ncpName").textContent    = name;
@@ -796,11 +843,11 @@ async function loadUsers(){
       const displayPhone = u.phone && !u.phone.startsWith("admin-") ? u.phone : "—";
       tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${displayPhone}</td>
       <td>${_busNames[u.busId||"bus1"]||u.busId||"Bus 1"}</td>
-      <td>${u.origin||"—"}</td>
-      <td>${u.destination||"—"}</td>
+      <td>${u.origin||u.hometown||u.from||"—"}</td>
+      <td>${u.destination||u.to||"—"}</td>
       <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
       <td style="display:flex;gap:5px;">
-        <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${displayPhone==="—"?"":u.phone}','${u.origin||""}','${u.destination||""}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${displayPhone==="—"?"":u.phone}','${u.origin||u.hometown||u.from||""}','${u.destination||u.to||""}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button>
       </td>`;
       tbody.appendChild(tr);
@@ -852,12 +899,17 @@ async function addUser(){
   const origin = document.getElementById("mu-origin").value.trim();
   const dest   = document.getElementById("mu-dest").value.trim();
   if(!name) return alert("Full name is required.");
-  // Phone is optional — use placeholder if empty so unique constraint is met
-  const phoneVal = phone || ("admin-"+Date.now());
-  const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone:phoneVal,origin:origin||"",destination:dest||"",program:"Admin Assigned",busId:currentBusId})});
-  const d=await r.json();
-  if(d.success){closeModal("addUserModal");loadUsers();}
-  else alert(d.message||"Error.");
+  const btn = document.querySelector("#addUserModal .btn-save");
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent="Adding...";
+  try{
+    const phoneVal = phone || ("admin-"+Date.now());
+    const r=await fetch("/api/admin?action=add-user",{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone:phoneVal,origin:origin||"",destination:dest||"",program:"Admin Assigned",busId:currentBusId})});
+    const d=await r.json();
+    if(d.success){closeModal("addUserModal");loadUsers();}
+    else alert(d.message||"Error adding user.");
+  }catch(e){ alert("Server error. Please try again."); }
+  finally{ btn.disabled=false; btn.textContent="ADD USER"; }
 }
 
 
@@ -885,11 +937,17 @@ async function saveEditUser(){
   const phone=document.getElementById("eu-phone").value.trim();
   const origin=document.getElementById("eu-origin").value.trim();
   const dest=document.getElementById("eu-dest").value.trim();
-  if(!name||!phone) return alert("Name and phone are required.");
-  const r=await fetch("/api/admin?action=edit-user&id="+_editUserId,{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone,origin,destination:dest})});
-  const d=await r.json();
-  if(d.success){closeModal("editUserModal");loadUsers();}
-  else alert(d.message||"Error updating user.");
+  if(!name) return alert("Name is required.");
+  const btn = document.querySelector("#editUserModal .btn-save");
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent="Saving...";
+  try{
+    const r=await fetch("/api/admin?action=edit-user&id="+_editUserId,{method:"POST",headers:authHeaders(),body:JSON.stringify({fullName:name,phone:phone||("admin-"+Date.now()),origin,destination:dest})});
+    const d=await r.json();
+    if(d.success){closeModal("editUserModal");loadUsers();}
+    else alert(d.message||"Error updating user.");
+  }catch(e){ alert("Server error. Please try again."); }
+  finally{ btn.disabled=false; btn.textContent="SAVE CHANGES"; }
 }
 
 /* ── BOOKINGS ── */
@@ -1063,6 +1121,7 @@ async function saveEditBooking(){
   const prog = document.getElementById("eb-prog").value.trim();
   if(!name) return alert("Name is required.");
   const btn = document.querySelector("#editBookingModal .btn-save");
+  if(btn.disabled) return;
   btn.disabled=true; btn.textContent="Saving...";
   try{
     const r = await fetch("/api/admin?action=update-booking&id="+id,{
@@ -1072,7 +1131,6 @@ async function saveEditBooking(){
     const d = await r.json();
     if(d.success){
       closeModal("editBookingModal");
-      // Also update the seat record if seat number matches
       if(seat){
         await fetch("/api/admin?action=edit-seat&num="+seat+"&busId="+currentBusId,{
           method:"POST", headers:authHeaders(),
@@ -1084,7 +1142,7 @@ async function saveEditBooking(){
       alert(d.message||"Save failed.");
     }
   }catch(e){ alert("Error: "+e.message); }
-  btn.disabled=false; btn.textContent="SAVE CHANGES";
+  finally{ btn.disabled=false; btn.textContent="SAVE CHANGES"; }
 }
 // Check if exact name exists in any current booking or pending
 async function nameExistsInBookings(name){
@@ -1111,23 +1169,24 @@ async function addBooking(){
   const seatNum=Number(seatVal);
   if(!seatVal||isNaN(seatNum)||seatNum<1||seatNum>72){alert("Please enter a valid seat number between 1 and 72.");return;}
   const btn=document.querySelector("#addBookingModal .btn-save");
-    // Name-exists check before adding
-  const existingBk = await nameExistsInBookings(name);
-  if(existingBk){
-    const go = confirm(
-      name + " already has a booking on Seat " + existingBk.seatNumber +
-      " (" + existingBk.status + ").\nProceed adding another seat for this person?"
-    );
-    if(!go) return;
-  }
-  btn.disabled=true;btn.textContent="Adding...";
+  if(btn.disabled) return;
+  btn.disabled=true; btn.textContent="Checking...";
   try{
+    const existingBk = await nameExistsInBookings(name);
+    if(existingBk){
+      const go = confirm(
+        name + " already has a booking on Seat " + existingBk.seatNumber +
+        " (" + existingBk.status + ").\nProceed adding another seat for this person?"
+      );
+      if(!go) return;
+    }
+    btn.textContent="Adding...";
     const r=await fetch("/api/admin?action=add-booking",{method:"POST",headers:authHeaders(),body:JSON.stringify({passengerName:name,phone:phone||"",seatNumber:seatNum,destination:dest,busId:currentBusId,tripMode:getTripMode()})});
     const d=await r.json();
     if(d.success){closeModal("addBookingModal");loadBookings();loadBus();loadUsers();}
     else alert(d.message||"Error adding booking.");
   }catch(e){alert("Server error. Please try again.");}
-  btn.disabled=false;btn.textContent="ADD BOOKING";
+  finally{btn.disabled=false;btn.textContent="ADD BOOKING";}
 }
 
 /* ── SETTINGS ── */
@@ -1857,12 +1916,18 @@ async function downloadUsersPDF(){
       const hidden = d.length - 5; // digits between first 4 and last 1
       return d.slice(0,4)+"*".repeat(hidden)+d.slice(-1);
     }
-    const rows = users.map((u,i)=>[
+    // Sort oldest first for the printed list
+    const sortedUsers = [...users].sort((a,b)=>{
+      const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return da - db;
+    });
+    const rows = sortedUsers.map((u,i)=>[
       String(i+1),
       u.fullName    || "—",
       maskPhone(u.phone),
-      u.origin      || "—",
-      u.destination || "—",
+      u.origin||u.hometown||u.from || "—",
+      u.destination||u.to || "—",
       busName,
       depDate
     ]);
@@ -2220,6 +2285,27 @@ document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click
         <i class="fa-solid fa-file-pdf"></i>&nbsp; Download Receipt
       </button>
       <button onclick="document.getElementById('missingFieldsPopup').style.display='none'" style="padding:13px 16px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="verifyUserPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.35);font-family:'Lato',Arial,sans-serif;">
+    <h3 style="color:#0b294d;margin:0 0 8px 0;font-family:'Barlow Condensed',Arial,sans-serif;font-size:1.35rem;">Registered Student Found</h3>
+    <p style="color:#555;font-size:0.88rem;margin-bottom:6px;line-height:1.5;">
+      A registered student named <strong id="vupMatchName"></strong> matches the name you entered. Is this the same person?
+    </p>
+    <p style="font-size:0.82rem;color:#888;margin-bottom:20px;">Phone: <span id="vupMatchPhone"></span> &nbsp;|&nbsp; Origin: <span id="vupMatchOrigin"></span></p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="_vupChoice('yes')" style="padding:13px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;" onmouseover="this.style.background='#0099ff'" onmouseout="this.style.background='#0b294d'">
+        <i class="fa-solid fa-check"></i>&nbsp; Yes — load their registration data
+      </button>
+      <button onclick="_vupChoice('no')" style="padding:13px;background:#198754;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;" onmouseover="this.style.background='#157347'" onmouseout="this.style.background='#198754'">
+        <i class="fa-solid fa-user-plus"></i>&nbsp; No — treat as a new person
+      </button>
+      <button onclick="_vupChoice('cancel')" style="padding:13px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;text-align:left;">
+        <i class="fa-solid fa-xmark"></i>&nbsp; Cancel
+      </button>
     </div>
   </div>
 </div>
