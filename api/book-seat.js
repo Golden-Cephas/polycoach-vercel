@@ -55,14 +55,28 @@ module.exports = async (req, res) => {
       return res.json({ success: false, message: "Seat " + seatNumber + " is no longer available." });
 
     const settings   = await Settings.findOne();
+    const mode       = (settings && settings.tripMode) || "holiday";
+    const isHoliday  = mode !== "backtoschool";
+
+    // Same convention as register.js: collapse origin/destination into the
+    // single field the dashboard reads, based on current trip mode.
+    // Holiday: common venue is the origin (From), student-picked town is destination (To)
+    // Back-to-school: student-picked town is origin (From), common venue is destination (To)
+    const resolvedOrigin      = isHoliday
+      ? (settings && (settings[busId+"Venue"] || settings.departureVenue) || "")
+      : (origin || "");
+    const resolvedDestination = isHoliday
+      ? (destination || "")
+      : (settings && (settings[busId+"Venue"] || settings.departureVenue) || "");
+
     const proofUrl   = paymentProof || null;
     const seatLabel  = getSeatLabel(seatNumber);
 
     // Update seat record
     seat.status        = "pending";
     seat.passengerName = passengerName;
-    seat.destination   = destination || "";
-    seat.origin        = origin || "";
+    seat.destination   = resolvedDestination;
+    seat.origin        = resolvedOrigin;
     seat.phone         = phone || "";
     seat.paymentProof  = proofUrl || seat.paymentProof || null;
     await seat.save();
@@ -78,8 +92,8 @@ module.exports = async (req, res) => {
       seatNumber,
       busId,
       passengerName,
-      destination:    destination || "",
-      origin:         origin || "",
+      destination:    resolvedDestination,
+      origin:         resolvedOrigin,
       phone:          phone || "",
       program:        program || "",
       seatLabel,
