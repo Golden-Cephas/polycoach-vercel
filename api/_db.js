@@ -112,8 +112,6 @@ async function seedIfNeeded() {
   } catch(e) { /* already dropped — fine */ }
 
   // Seats — 72 per bus
-  const bus1Count = await Seat.countDocuments({ busId: "bus1" });
-  const bus2Count = await Seat.countDocuments({ busId: "bus2" });
   const untagged  = await Seat.countDocuments({ busId: { $exists: false } });
 
   // Tag any untagged seats as bus1
@@ -121,18 +119,45 @@ async function seedIfNeeded() {
     await Seat.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
   }
 
-  // Create bus1 seats if none exist
-  if (bus1Count === 0 && untagged === 0) {
-    const seats = [];
-    for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus1" });
-    await Seat.insertMany(seats);
-  }
+  // Fill in any missing seat numbers (1-72) for each bus. Using per-bus counts
+  // alone only catches a bus with zero seats — if seeding was ever interrupted
+  // partway (e.g. by the old unique index on `number` before it was bus-aware),
+  // a bus could end up with some seat numbers missing forever. This checks each
+  // number individually so any gaps get healed on the next request.
+  for (const bus of ["bus1", "bus2"]) {
+    const existing = await Seat.find({ busId: bus }).select("number").lean();
+    const have = new Set(existing.map(s => s.number));
+    const missingNumbers = [];
+    for (let i = 1; i <= 72; i++) {
+      if (!have.has(i)) missingNumbers.push(i);
+    }
+    if (missingNumbers.length > 0) {
+      // A missing seat may still have a real Booking against it — recover
+      // that data so the healed seat shows its true pending/booked state
+      // instead of defaulting to blank "available".
+      const bookingsForGaps = await Booking.find({
+        busId: bus,
+        seatNumber: { $in: missingNumbers },
+        status: { $ne: "rejected" }
+      }).lean();
+      const bookingBySeat = {};
+      bookingsForGaps.forEach(b => { bookingBySeat[b.seatNumber] = b; });
 
-  // Create bus2 seats if none exist
-  if (bus2Count === 0) {
-    const seats = [];
-    for (let i = 1; i <= 72; i++) seats.push({ number: i, busId: "bus2" });
-    await Seat.insertMany(seats);
+      const seats = missingNumbers.map(num => {
+        const b = bookingBySeat[num];
+        if (!b) return { number: num, busId: bus };
+        return {
+          number:        num,
+          busId:         bus,
+          status:        b.status === "approved" ? "booked" : "pending",
+          passengerName: b.passengerName || null,
+          destination:   b.destination || "",
+          origin:        b.origin || "",
+          phone:         b.phone || ""
+        };
+      });
+      await Seat.insertMany(seats);
+    }
   }
   // Migrate existing bookings and users to bus1
   await Booking.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
