@@ -351,6 +351,10 @@ module.exports = async (req, res) => {
 
         // Also create pending booking record
         if (status === "pending" && passengerName) {
+          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
+          if (!nameExists) {
+            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: destination||"" });
+          }
           const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
           if (!existing) {
             const settings = await Settings.findOne();

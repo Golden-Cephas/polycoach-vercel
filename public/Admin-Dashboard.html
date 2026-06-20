@@ -648,25 +648,29 @@ function openSeatEditor(num,data){
 
 async function saveSeatEdit(){
   const status = document.getElementById("editStatus").value;
-  const name   = document.getElementById("editName").value.trim();
-  const dest   = document.getElementById("editDest").value.trim();
+  let name   = document.getElementById("editName").value.trim();
+  let dest   = document.getElementById("editDest").value.trim();
   if(status!=="available" && !name){ alert("Please enter an occupant name."); return; }
+
+  let matchedPhone = "";
 
   // ── Registered-user check: does first+last name match a registered student? ──
   if((status==="booked" || status==="pending") && name){
     const usersRes  = await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
     const allUsers  = await usersRes.json();
     const matchedUser = findRegisteredUserByName(name, allUsers);
-    if(matchedUser && matchedUser.fullName.trim().toLowerCase() !== name.toLowerCase()){
-      // First+last match but full name differs (middle name mismatch) — ask admin to verify
+    if(matchedUser){
+      // First+last name matches a registered student — ask admin to verify, even if it's an exact match
       const choice = await showVerifyUserPopup(matchedUser);
       if(choice === "cancel") return;
       if(choice === "yes"){
-        // Load their full name and data into the editor
+        // Load their full name, destination and phone into the editor
+        dest = matchedUser.destination||matchedUser.origin||dest;
         document.getElementById("editName").value = matchedUser.fullName;
-        document.getElementById("editDest").value = matchedUser.destination||matchedUser.origin||"";
+        document.getElementById("editDest").value = dest;
         // Update local vars for the save below
         name = matchedUser.fullName;
+        matchedPhone = (matchedUser.phone && !matchedUser.phone.startsWith("admin-")) ? matchedUser.phone : "";
       }
       // "no" — fall through, treat as new person
     }
@@ -700,8 +704,8 @@ async function saveSeatEdit(){
   }
 
   try{
-    let phone = "";
-    if(status === "booked"){
+    let phone = matchedPhone || "";
+    if(status === "booked" && !phone){
       phone = await showPhonePopup(name);
       if(phone === null) return; // admin cancelled
     }
