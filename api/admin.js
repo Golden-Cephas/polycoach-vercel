@@ -134,6 +134,37 @@ module.exports = async (req, res) => {
         return res.json(seats);
       }
 
+      // TEMPORARY DIAGNOSTIC — read-only, safe to call repeatedly, remove once the
+      // Bus 2 seat-display issue is confirmed fixed.
+      if (action === "debug-seats") {
+        const seats = await Seat.find({ busId }).sort({ number: 1 }).lean();
+        const byNumber = {};
+        seats.forEach(s => {
+          (byNumber[s.number] = byNumber[s.number] || []).push({
+            _id: s._id, status: s.status, passengerName: s.passengerName
+          });
+        });
+        const missingNumbers = [];
+        for (let i = 1; i <= 72; i++) if (!byNumber[i]) missingNumbers.push(i);
+        const duplicateNumbers = Object.entries(byNumber)
+          .filter(([, arr]) => arr.length > 1)
+          .map(([num, arr]) => ({ number: Number(num), count: arr.length, docs: arr }));
+        const bookings = await Booking.find({ busId }).select("seatNumber status passengerName").lean();
+        return res.json({
+          busId,
+          totalSeatDocs: seats.length,
+          missingNumbers,
+          duplicateNumbers,
+          bookingCount: bookings.length,
+          bookingsByStatus: {
+            pending:  bookings.filter(b => b.status === "pending").length,
+            approved: bookings.filter(b => b.status === "approved").length,
+            rejected: bookings.filter(b => b.status === "rejected").length,
+          },
+          bookings
+        });
+      }
+
       // Get settings
       if (action === "settings") {
         let s = await Settings.findOne();
