@@ -160,6 +160,7 @@ tr:hover td{background:#fafafa;}
         </div>
         <div style="margin-bottom:10px;">
           <button class="btn" style="background:#7a3fb5;color:#fff;" onclick="runSeatDiagnostics()"><i class="fa-solid fa-stethoscope"></i> Run Diagnostics (temp)</button>
+          <button class="btn" style="background:#b53f3f;color:#fff;" onclick="runSeatDedupe()"><i class="fa-solid fa-broom"></i> Remove Duplicate Seats (temp)</button>
           <pre id="diagOutput" style="display:none;background:#0b294d;color:#9effa0;padding:14px;border-radius:8px;font-size:0.75rem;margin-top:10px;max-height:400px;overflow:auto;white-space:pre-wrap;"></pre>
         </div>
         <div class="bus-switcher">
@@ -597,6 +598,23 @@ async function runSeatDiagnostics(){
     out.textContent = JSON.stringify(d, null, 2);
   }catch(err){
     out.textContent = "Diagnostics failed: "+err.message;
+  }
+}
+
+// TEMPORARY — calls the dedupe-seats action and prints the result readably,
+// then refreshes the bus layout so you see the fix immediately
+async function runSeatDedupe(){
+  if(!confirm("This will permanently delete duplicate seat documents for "+currentBusId+". Continue?")) return;
+  const out = document.getElementById("diagOutput");
+  out.style.display = "block";
+  out.textContent = "Removing duplicates...";
+  try{
+    const r = await fetch("/api/admin?action=dedupe-seats&busId="+currentBusId,{method:"POST",headers:authHeaders()});
+    const d = await r.json();
+    out.textContent = JSON.stringify(d, null, 2);
+    if(d.success) await loadBus();
+  }catch(err){
+    out.textContent = "Dedupe failed: "+err.message;
   }
 }
 

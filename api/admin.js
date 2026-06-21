@@ -289,6 +289,44 @@ module.exports = async (req, res) => {
         return res.json({ success: true });
       }
 
+      // TEMPORARY — removes duplicate Seat documents for a bus (same seat
+      // number appearing more than once). For each duplicated number, keeps
+      // whichever copy actually has booking data (pending/booked) over a
+      // blank "available" twin, and deletes the rest. If more than one copy
+      // for the same number has real data, it's left alone and flagged in
+      // "conflicts" for manual review rather than guessed at. Safe to call
+      // more than once — once a number has exactly 1 document, nothing happens.
+      if (action === "dedupe-seats") {
+        const seats = await Seat.find({ busId }).lean();
+        const byNumber = {};
+        seats.forEach(s => { (byNumber[s.number] = byNumber[s.number] || []).push(s); });
+
+        let deletedCount = 0;
+        const deletedIds = [];
+        const conflicts = [];
+
+        for (const docs of Object.values(byNumber)) {
+          if (docs.length <= 1) continue;
+          const informative = docs.filter(d => d.status !== "available");
+          let keep;
+          if (informative.length === 1) {
+            keep = informative[0];
+          } else if (informative.length > 1) {
+            conflicts.push({ number: docs[0].number, docIds: informative.map(d => d._id) });
+            continue;
+          } else {
+            keep = docs[0];
+          }
+          for (const d of docs) {
+            if (String(d._id) === String(keep._id)) continue;
+            await Seat.deleteOne({ _id: d._id });
+            deletedIds.push(d._id);
+            deletedCount++;
+          }
+        }
+        return res.json({ success: true, busId, deletedCount, deletedIds, conflicts });
+      }
+
       // Delete user
       if (action === "delete-user" && id) {
         await User.findByIdAndDelete(id);

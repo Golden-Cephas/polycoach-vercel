@@ -19,6 +19,13 @@ async function connectDB() {
   try {
     await mongoose.connection.collection("users").dropIndex("regNumber_1");
   } catch (e) { /* already gone — fine */ }
+
+  // Create the (number, busId) unique index on seats. This will fail
+  // (and just get caught) until any existing duplicate seats are removed —
+  // once they are, this succeeds and locks in protection going forward.
+  try {
+    await Seat.createIndexes();
+  } catch (e) { /* duplicates still present, or index already exists — fine */ }
 }
 
 /* ══════════════════════════════════════
@@ -48,7 +55,7 @@ const Admin = model("Admin", new mongoose.Schema({
   password: String, // bcrypt hashed
 }));
 
-const Seat = model("Seat", new mongoose.Schema({
+const seatSchema = new mongoose.Schema({
   number:        { type: Number, required: true },
   busId:         { type: String, default: "bus1" },
   status:        { type: String, enum: ["available","pending","booked"], default: "available" },
@@ -57,7 +64,12 @@ const Seat = model("Seat", new mongoose.Schema({
   origin:        { type: String, default: "" },
   phone:         { type: String, default: "" },
   paymentProof:  { type: String, default: null },
-}));
+});
+// Without this, nothing stops two concurrent requests from each seeding a
+// full set of seats for the same bus — which is exactly what happened to
+// Bus 2 (every seat number ended up with 2 documents).
+seatSchema.index({ number: 1, busId: 1 }, { unique: true });
+const Seat = model("Seat", seatSchema);
 
 const Booking = model("Booking", new mongoose.Schema({
   seatNumber:     Number,
@@ -119,44 +131,53 @@ async function seedIfNeeded() {
     await Seat.updateMany({ busId: { $exists: false } }, { $set: { busId: "bus1" } });
   }
 
-  // Fill in any missing seat numbers (1-72) for each bus. Using per-bus counts
-  // alone only catches a bus with zero seats — if seeding was ever interrupted
-  // partway (e.g. by the old unique index on `number` before it was bus-aware),
-  // a bus could end up with some seat numbers missing forever. This checks each
-  // number individually so any gaps get healed on the next request.
+  // Fill in any missing seat numbers (1-72) for each bus. A cheap count check
+  // first avoids doing per-number work on every single request — the heavier
+  // gap-finding logic only runs if a bus doesn't already have all 72 seats.
   for (const bus of ["bus1", "bus2"]) {
+    const count = await Seat.countDocuments({ busId: bus });
+    if (count >= 72) continue;
+
     const existing = await Seat.find({ busId: bus }).select("number").lean();
     const have = new Set(existing.map(s => s.number));
     const missingNumbers = [];
     for (let i = 1; i <= 72; i++) {
       if (!have.has(i)) missingNumbers.push(i);
     }
-    if (missingNumbers.length > 0) {
-      // A missing seat may still have a real Booking against it — recover
-      // that data so the healed seat shows its true pending/booked state
-      // instead of defaulting to blank "available".
-      const bookingsForGaps = await Booking.find({
-        busId: bus,
-        seatNumber: { $in: missingNumbers },
-        status: { $ne: "rejected" }
-      }).lean();
-      const bookingBySeat = {};
-      bookingsForGaps.forEach(b => { bookingBySeat[b.seatNumber] = b; });
+    if (missingNumbers.length === 0) continue;
 
-      const seats = missingNumbers.map(num => {
-        const b = bookingBySeat[num];
-        if (!b) return { number: num, busId: bus };
-        return {
-          number:        num,
-          busId:         bus,
-          status:        b.status === "approved" ? "booked" : "pending",
-          passengerName: b.passengerName || null,
-          destination:   b.destination || "",
-          origin:        b.origin || "",
-          phone:         b.phone || ""
-        };
-      });
-      await Seat.insertMany(seats);
+    // A missing seat may still have a real Booking against it — recover
+    // that data so the healed seat shows its true pending/booked state
+    // instead of defaulting to blank "available".
+    const bookingsForGaps = await Booking.find({
+      busId: bus,
+      seatNumber: { $in: missingNumbers },
+      status: { $ne: "rejected" }
+    }).lean();
+    const bookingBySeat = {};
+    bookingsForGaps.forEach(b => { bookingBySeat[b.seatNumber] = b; });
+
+    // Upsert one at a time (not insertMany) so two concurrent requests can
+    // never both insert the same seat number — the unique index plus this
+    // upsert pattern together make duplicate seats structurally impossible.
+    for (const num of missingNumbers) {
+      const b = bookingBySeat[num];
+      const seatData = !b ? { number: num, busId: bus } : {
+        number:        num,
+        busId:         bus,
+        status:        b.status === "approved" ? "booked" : "pending",
+        passengerName: b.passengerName || null,
+        destination:   b.destination || "",
+        origin:        b.origin || "",
+        phone:         b.phone || ""
+      };
+      try {
+        await Seat.updateOne(
+          { number: num, busId: bus },
+          { $setOnInsert: seatData },
+          { upsert: true }
+        );
+      } catch (e) { /* another concurrent request already created it — fine */ }
     }
   }
   // Migrate existing bookings and users to bus1
