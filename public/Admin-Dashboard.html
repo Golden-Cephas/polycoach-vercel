@@ -158,11 +158,6 @@ tr:hover td{background:#fafafa;}
           <h3 style="margin:0;" id="busLayoutTitle">Click a seat to edit it</h3>
           <button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadBusPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
         </div>
-        <div style="margin-bottom:10px;">
-          <button class="btn" style="background:#7a3fb5;color:#fff;" onclick="runSeatDiagnostics()"><i class="fa-solid fa-stethoscope"></i> Run Diagnostics (temp)</button>
-          <button class="btn" style="background:#b53f3f;color:#fff;" onclick="runSeatDedupe()"><i class="fa-solid fa-broom"></i> Remove Duplicate Seats (temp)</button>
-          <pre id="diagOutput" style="display:none;background:#0b294d;color:#9effa0;padding:14px;border-radius:8px;font-size:0.75rem;margin-top:10px;max-height:400px;overflow:auto;white-space:pre-wrap;"></pre>
-        </div>
         <div class="bus-switcher">
           <button class="bus-btn active" id="layoutBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
           <button class="bus-btn" id="layoutBus2Btn" onclick="switchBus('bus2')">Bus 2</button>
@@ -585,37 +580,6 @@ function switchBus(busId){
   if(layoutTitle) layoutTitle.textContent="Click a seat to edit it — "+(_busNames[busId]||busId);
   // Reload bus-specific panels
   loadBus(); loadBookings(); loadUsers();
-}
-
-// TEMPORARY — calls the debug-seats diagnostic action and prints it readably on the page
-async function runSeatDiagnostics(){
-  const out = document.getElementById("diagOutput");
-  out.style.display = "block";
-  out.textContent = "Loading...";
-  try{
-    const r = await fetch("/api/admin?action=debug-seats&busId="+currentBusId,{headers:authHeaders()});
-    const d = await r.json();
-    out.textContent = JSON.stringify(d, null, 2);
-  }catch(err){
-    out.textContent = "Diagnostics failed: "+err.message;
-  }
-}
-
-// TEMPORARY — calls the dedupe-seats action and prints the result readably,
-// then refreshes the bus layout so you see the fix immediately
-async function runSeatDedupe(){
-  if(!confirm("This will permanently delete duplicate seat documents for "+currentBusId+". Continue?")) return;
-  const out = document.getElementById("diagOutput");
-  out.style.display = "block";
-  out.textContent = "Removing duplicates...";
-  try{
-    const r = await fetch("/api/admin?action=dedupe-seats&busId="+currentBusId,{method:"POST",headers:authHeaders()});
-    const d = await r.json();
-    out.textContent = JSON.stringify(d, null, 2);
-    if(d.success) await loadBus();
-  }catch(err){
-    out.textContent = "Dedupe failed: "+err.message;
-  }
 }
 
 async function loadBus(){

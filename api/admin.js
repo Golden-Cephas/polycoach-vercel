@@ -134,37 +134,6 @@ module.exports = async (req, res) => {
         return res.json(seats);
       }
 
-      // TEMPORARY DIAGNOSTIC — read-only, safe to call repeatedly, remove once the
-      // Bus 2 seat-display issue is confirmed fixed.
-      if (action === "debug-seats") {
-        const seats = await Seat.find({ busId }).sort({ number: 1 }).lean();
-        const byNumber = {};
-        seats.forEach(s => {
-          (byNumber[s.number] = byNumber[s.number] || []).push({
-            _id: s._id, status: s.status, passengerName: s.passengerName
-          });
-        });
-        const missingNumbers = [];
-        for (let i = 1; i <= 72; i++) if (!byNumber[i]) missingNumbers.push(i);
-        const duplicateNumbers = Object.entries(byNumber)
-          .filter(([, arr]) => arr.length > 1)
-          .map(([num, arr]) => ({ number: Number(num), count: arr.length, docs: arr }));
-        const bookings = await Booking.find({ busId }).select("seatNumber status passengerName").lean();
-        return res.json({
-          busId,
-          totalSeatDocs: seats.length,
-          missingNumbers,
-          duplicateNumbers,
-          bookingCount: bookings.length,
-          bookingsByStatus: {
-            pending:  bookings.filter(b => b.status === "pending").length,
-            approved: bookings.filter(b => b.status === "approved").length,
-            rejected: bookings.filter(b => b.status === "rejected").length,
-          },
-          bookings
-        });
-      }
-
       // Get settings
       if (action === "settings") {
         let s = await Settings.findOne();
@@ -287,44 +256,6 @@ module.exports = async (req, res) => {
           await User.create({ busId, fullName: passengerName, phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
         }
         return res.json({ success: true });
-      }
-
-      // TEMPORARY — removes duplicate Seat documents for a bus (same seat
-      // number appearing more than once). For each duplicated number, keeps
-      // whichever copy actually has booking data (pending/booked) over a
-      // blank "available" twin, and deletes the rest. If more than one copy
-      // for the same number has real data, it's left alone and flagged in
-      // "conflicts" for manual review rather than guessed at. Safe to call
-      // more than once — once a number has exactly 1 document, nothing happens.
-      if (action === "dedupe-seats") {
-        const seats = await Seat.find({ busId }).lean();
-        const byNumber = {};
-        seats.forEach(s => { (byNumber[s.number] = byNumber[s.number] || []).push(s); });
-
-        let deletedCount = 0;
-        const deletedIds = [];
-        const conflicts = [];
-
-        for (const docs of Object.values(byNumber)) {
-          if (docs.length <= 1) continue;
-          const informative = docs.filter(d => d.status !== "available");
-          let keep;
-          if (informative.length === 1) {
-            keep = informative[0];
-          } else if (informative.length > 1) {
-            conflicts.push({ number: docs[0].number, docIds: informative.map(d => d._id) });
-            continue;
-          } else {
-            keep = docs[0];
-          }
-          for (const d of docs) {
-            if (String(d._id) === String(keep._id)) continue;
-            await Seat.deleteOne({ _id: d._id });
-            deletedIds.push(d._id);
-            deletedCount++;
-          }
-        }
-        return res.json({ success: true, busId, deletedCount, deletedIds, conflicts });
       }
 
       // Delete user
