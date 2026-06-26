@@ -468,7 +468,7 @@ tr:hover td{background:#fafafa;}
 
 <script>
 let currentSeatNum=null;
-let currentBusId="bus1";
+let currentBusId=sessionStorage.getItem("adminBus")||"bus1";
 let _busNames={bus1:"Bus 1",bus2:"Bus 2"};
 
 // Self-contained auth helpers — never rely on popup.js load order
@@ -485,6 +485,14 @@ document.addEventListener("DOMContentLoaded",function(){
     window.location.href="Status-Login.html";return;
   }
   document.getElementById("adminWelcome").textContent="Welcome, "+u.fullName;
+  // Restored bus may not be bus1 — fix the switcher buttons' highlighting
+  // to match (markup defaults to Bus 1 active).
+  ["layout","bookings","users"].forEach(panel=>{
+    const b1 = document.getElementById(panel+"Bus1Btn");
+    const b2 = document.getElementById(panel+"Bus2Btn");
+    if(b1) b1.classList.toggle("active", currentBusId==="bus1");
+    if(b2) b2.classList.toggle("active", currentBusId==="bus2");
+  });
   const savedPanel=sessionStorage.getItem("adminPanel")||"bus";
   const navEl=document.querySelector(".nav-link[onclick*=\"'"+savedPanel+"'\"]");
   showPanel(savedPanel,navEl);
@@ -568,6 +576,7 @@ function applyTripModeUI(mode){
 /* ── BUS SWITCHER ── */
 function switchBus(busId){
   currentBusId = busId;
+  sessionStorage.setItem("adminBus", busId);
   // Update all switcher buttons
   ["layout","bookings","users"].forEach(panel=>{
     const b1 = document.getElementById(panel+"Bus1Btn");
