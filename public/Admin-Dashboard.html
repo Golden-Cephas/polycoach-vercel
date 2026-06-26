@@ -991,11 +991,11 @@ async function loadBookings(){
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
     <td>${_busNames[b.busId||"bus1"]||"Bus 1"}</td>
     <td><strong>Seat ${b.seatNumber}</strong></td>
-    <td>${b.destination||"—"}</td>
+    <td>${getTripMode()==="backtoschool" ? (b.origin||"—") : (b.destination||"—")}</td>
     <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
     <td><span class="${badgeClass}">${b.status.toUpperCase()}</span></td>
     <td style="display:flex;gap:5px;flex-wrap:wrap;">
-      <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditBookingModal('${bid}','${b.passengerName}','${b.phone||""}','${b.seatNumber}','${b.destination||""}','${b.program||""}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditBookingModal('${bid}','${b.passengerName}','${b.phone||""}','${b.seatNumber}','${getTripMode()==="backtoschool" ? (b.origin||"") : (b.destination||"")}','${b.program||""}')"><i class="fa-solid fa-pen"></i></button>
       ${b.status==="pending"?`<button class="btn btn-approve" onclick="approveBooking('${b._id||b.id}')"><i class="fa-solid fa-check"></i></button><button class="btn btn-reject" onclick="rejectBooking('${b._id||b.id}')"><i class="fa-solid fa-xmark"></i></button>`:""}
       ${b.status==="approved"?`<button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadReceipt('${b._id||b.id}')"><i class="fa-solid fa-receipt"></i></button>`:``}
       <button class="btn btn-delete" onclick="deleteBooking('${b._id||b.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -1124,21 +1124,28 @@ async function saveEditBooking(){
   const dest = document.getElementById("eb-dest").value.trim();
   const prog = document.getElementById("eb-prog").value.trim();
   if(!name) return alert("Name is required.");
+  const isHoliday = getTripMode() !== "backtoschool";
   const btn = document.querySelector("#editBookingModal .btn-save");
   if(btn.disabled) return;
   btn.disabled=true; btn.textContent="Saving...";
   try{
+    const bookingBody = isHoliday
+      ? {passengerName:name,phone,destination:dest,program:prog}
+      : {passengerName:name,phone,origin:dest,program:prog};
     const r = await fetch("/api/admin?action=update-booking&id="+id,{
       method:"POST", headers:authHeaders(),
-      body:JSON.stringify({passengerName:name,phone,destination:dest,program:prog})
+      body:JSON.stringify(bookingBody)
     });
     const d = await r.json();
     if(d.success){
       closeModal("editBookingModal");
       if(seat){
+        const seatBody = isHoliday
+          ? {status:"booked",passengerName:name,destination:dest,phone}
+          : {status:"booked",passengerName:name,origin:dest,phone};
         await fetch("/api/admin?action=edit-seat&num="+seat+"&busId="+currentBusId,{
           method:"POST", headers:authHeaders(),
-          body:JSON.stringify({status:"booked",passengerName:name,destination:dest,phone})
+          body:JSON.stringify(seatBody)
         });
       }
       await Promise.all([loadBookings(),loadBus(),loadUsers()]);
@@ -1994,11 +2001,6 @@ async function downloadBusListPDF(){
     doc.text("Booked/Pending: "+booked+" of 72 seats", pW-14, 43, {align:"right"});
     doc.setTextColor(0,0,0);
 
-    // Bus-specific origin/destination fields
-    const bKey    = currentBusId==="bus2" ? "bus2" : "bus1";
-    const slMode  = settings.tripMode || "holiday";
-    const slVenue = settings[bKey+"Venue"] || settings.departureVenue || "—";
-
     // Build one row per occupied seat — sorted by seat number
     const occupiedSeats = seats
       .filter(s=>s.status!=="available")
@@ -2026,12 +2028,16 @@ async function downloadBusListPDF(){
       return "Pending";
     }
 
+    // Trust each seat's own stored origin/destination — book-seat.js / the
+    // Seat Editor already resolved these correctly for whichever trip mode
+    // was active when each seat was booked. Substituting the *current* venue
+    // here would misread seats booked under a different, earlier trip mode.
     const rows = occupiedSeats.map(s=>[
       String(s.number),
       s.passengerName || "—",
       s.phone         || "—",
-      slMode==="backtoschool" ? (s.origin||"Mzuzu") : slVenue,
-      slMode==="backtoschool" ? slVenue              : (s.destination||"—"),
+      s.origin      || "—",
+      s.destination || "—",
       statusLabel(s),
       depositForSeat(s.number),
       "",
@@ -2227,9 +2233,12 @@ async function generateReceiptPDF(rc){
   y=ry;
   field("Seat No:", rc.seatNumber?String(rc.seatNumber):"", mid+3, re);
   y=ry+gap;
-  const isHolidayRc = (rc.tripMode || "holiday") === "holiday";
-  const fromVal = isHolidayRc ? (rc.departureVenue||"") : (rc.origin||rc.departureVenue||"");
-  const toVal   = isHolidayRc ? (rc.destination||"")    : (rc.departureVenue||"");
+  // Trust what's actually stored on this booking — book-seat.js / add-booking
+  // already resolved origin vs destination correctly for whichever trip mode
+  // was active when this booking was created. Re-checking the *current*
+  // trip mode here would misread old bookings if the mode has since changed.
+  const fromVal = rc.origin      || rc.departureVenue || "";
+  const toVal   = rc.destination || "";
   field("From:",  fromVal, ip, re);    y+=gap;
   field("To:",    toVal,   ip, re);    y+=gap;
   field("Deposit:", rc.deposit||"",       ip,    re);

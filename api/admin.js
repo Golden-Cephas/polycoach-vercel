@@ -243,17 +243,29 @@ module.exports = async (req, res) => {
 
       // Add booking manually
       if (action === "add-booking") {
-        const { seatNumber, passengerName, destination, phone } = req.body;
+        const { seatNumber, passengerName, destination, phone, tripMode } = req.body;
         if (!seatNumber || !passengerName)
           return res.json({ success: false, message: "Seat and name required." });
         const seat = await Seat.findOne({ number: Number(seatNumber), busId });
         if (!seat) return res.json({ success: false, message: "Seat not found." });
-        seat.status = "booked"; seat.passengerName = passengerName; seat.destination = destination || "";
+
+        const settings  = await Settings.findOne();
+        const venue     = settings ? (settings[busId+"Venue"] || settings.departureVenue || "") : "";
+        const isHoliday = (tripMode || "holiday") !== "backtoschool";
+        // The modal has a single field whose meaning flips with trip mode —
+        // same convention as book-seat.js: holiday = this field is the
+        // destination (origin defaults to the common venue); back-to-school
+        // = this field is the origin/hometown (destination defaults to venue).
+        const originVal = isHoliday ? venue : (destination || "");
+        const destVal    = isHoliday ? (destination || "") : venue;
+
+        seat.status = "booked"; seat.passengerName = passengerName;
+        seat.destination = destVal; seat.origin = originVal;
         await seat.save();
-        await Booking.create({ busId, seatNumber: Number(seatNumber), passengerName, destination: destination||"", phone: phone||"", status: "approved" });
+        await Booking.create({ busId, seatNumber: Number(seatNumber), passengerName, destination: destVal, origin: originVal, phone: phone||"", status: "approved" });
         const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
         if (!nameExists) {
-          await User.create({ busId, fullName: passengerName, phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destination||"" });
+          await User.create({ busId, fullName: passengerName, phone: phone||("admin-"+Date.now()), program: "Admin Assigned", destination: destVal, origin: originVal });
         }
         return res.json({ success: true });
       }
@@ -282,8 +294,8 @@ module.exports = async (req, res) => {
 
         seat.status        = status || "available";
         seat.passengerName = status === "available" ? null : (passengerName || null);
-        seat.destination   = destination || "";
-        seat.origin        = origin || "";
+        if (destination !== undefined) seat.destination = destination;
+        if (origin !== undefined)      seat.origin      = origin;
         seat.phone         = phone || seat.phone || "";
         await seat.save();
 
@@ -341,7 +353,11 @@ module.exports = async (req, res) => {
             bookingId=booking._id;
           } else if(existing.status==="pending"){
             existing.status="approved";
-            if(!existing.receiptNumber) existing.receiptNumber="SEAT"+seatN+"-APPROVED";
+            if(!existing.receiptNumber){
+              const {receiptNumber:receiptNo2, seatLabel:lbl2} = await buildReceiptNumber(seatN, existing.phone||phone||"", Booking);
+              existing.receiptNumber = receiptNo2;
+              if(!existing.seatLabel) existing.seatLabel = lbl2;
+            }
             await existing.save();
             bookingId=existing._id;
           } else {
