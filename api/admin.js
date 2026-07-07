@@ -67,7 +67,7 @@ async function cleanExpiredBookings() {
         await Booking.findByIdAndDelete(b._id);
         await Seat.findOneAndUpdate(
           { number: b.seatNumber, busId: b.busId||"bus1" },
-          { status: "available", passengerName: null, destination: "", phone: "" }
+          { status: "available", passengerName: null, destination: "", origin: "", phone: "" }
         );
       }
     }
@@ -224,7 +224,7 @@ module.exports = async (req, res) => {
         b.status = "rejected";
         await b.save();
         await Seat.findOneAndUpdate({ number: b.seatNumber, busId: b.busId||"bus1" }, {
-          status: "available", passengerName: null, destination: ""
+          status: "available", passengerName: null, destination: "", origin: ""
         });
         return res.json({ success: true });
       }
@@ -234,7 +234,7 @@ module.exports = async (req, res) => {
         const b = await Booking.findById(id);
         if (b) {
           await Seat.findOneAndUpdate({ number: b.seatNumber, busId: b.busId||"bus1" }, {
-            status: "available", passengerName: null, destination: ""
+            status: "available", passengerName: null, destination: "", origin: ""
           });
           await b.deleteOne();
         }
@@ -294,8 +294,25 @@ module.exports = async (req, res) => {
 
         seat.status        = status || "available";
         seat.passengerName = status === "available" ? null : (passengerName || null);
-        if (destination !== undefined) seat.destination = destination;
-        if (origin !== undefined)      seat.origin      = origin;
+
+        // Same trip-mode-aware resolution as book-seat.js / register.js / add-booking:
+        // whichever of destination/origin the caller sent is treated as the single
+        // "place" field the admin typed (the seat editor only ever sends `destination`,
+        // saveEditBooking sends `origin` in back-to-school mode) — the other side is
+        // filled in from the bus's common venue based on the currently active trip
+        // mode. This keeps the seat grid, seat switch, and booking editor all
+        // consistent instead of each writing raw fields straight to the DB.
+        if (status === "available") {
+          seat.destination = "";
+          seat.origin      = "";
+        } else if (destination !== undefined || origin !== undefined) {
+          const settings  = await Settings.findOne();
+          const venue     = settings ? (settings[busId+"Venue"] || settings.departureVenue || "") : "";
+          const isHoliday = ((settings && settings.tripMode) || "holiday") !== "backtoschool";
+          const place     = destination !== undefined ? destination : origin;
+          seat.origin      = isHoliday ? venue : (place || "");
+          seat.destination = isHoliday ? (place || "") : venue;
+        }
         seat.phone         = phone || seat.phone || "";
         await seat.save();
 
@@ -326,7 +343,7 @@ module.exports = async (req, res) => {
         if (status === "booked" && passengerName) {
           const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
           if (!nameExists) {
-            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: destination||"" });
+            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
           }
           const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
           if (!existing) {
@@ -337,8 +354,8 @@ module.exports = async (req, res) => {
               busId,
               seatNumber:    seatN,
               passengerName,
-              destination:   destination||"",
-              origin:        origin||"",
+              destination:   seat.destination||"",
+              origin:        seat.origin||"",
               phone:         phone||"",
               program:       "",
               receiptNumber: receiptNo,
@@ -369,7 +386,7 @@ module.exports = async (req, res) => {
         if (status === "pending" && passengerName) {
           const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
           if (!nameExists) {
-            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: destination||"" });
+            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
           }
           const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
           if (!existing) {
@@ -379,8 +396,8 @@ module.exports = async (req, res) => {
               busId,
               seatNumber:    seatN,
               passengerName,
-              destination:   destination||"",
-              origin:        origin||"",
+              destination:   seat.destination||"",
+              origin:        seat.origin||"",
               phone:         phone||"",
               program:       "",
               receiptNumber: "",
@@ -394,8 +411,8 @@ module.exports = async (req, res) => {
             bookingCreated=true;
           } else {
             existing.passengerName = passengerName;
-            existing.destination   = destination||existing.destination;
-            existing.origin        = origin||existing.origin;
+            existing.destination   = seat.destination||existing.destination;
+            existing.origin        = seat.origin||existing.origin;
             await existing.save();
             bookingId=existing._id;
           }
