@@ -718,9 +718,17 @@ async function saveSeatEdit(){
       phone = await showPhonePopup(name);
       if(phone === null) return; // admin cancelled
     }
+    // Only booked (i.e. paid/confirmed) seats carry a deposit — pending
+    // and available seats are left blank.
+    let deposit = "";
+    if(status === "booked"){
+      const defaultDep = await getDefaultDeposit(currentSeatNum);
+      deposit = await showDepositPopup(name, defaultDep);
+      if(deposit === null) return; // admin cancelled
+    }
     const r = await fetch("/api/admin?action=edit-seat&num="+currentSeatNum+"&busId="+currentBusId, {
       method:"POST", headers:authHeaders(),
-      body:JSON.stringify({status, passengerName:name, destination:dest, phone})
+      body:JSON.stringify({status, passengerName:name, destination:dest, phone, deposit})
     });
     const d = await r.json();
     if(d.success){
@@ -759,6 +767,42 @@ function _sppConfirm(){
 function _sppCancel(){
   document.getElementById("seatPhonePopup").style.display = "none";
   if(window._sppResolve){ window._sppResolve(null); window._sppResolve=null; }
+}
+
+// Default deposit for a seat: whatever is already on its active booking,
+// otherwise the bus's configured default booking fee.
+async function getDefaultDeposit(seatNum){
+  try{
+    const [bkRes, setRes] = await Promise.all([
+      fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()}),
+      fetch("/api/settings")
+    ]);
+    const bks = await bkRes.json();
+    const settings = await setRes.json();
+    const existing = Array.isArray(bks) ? bks.find(b=>Number(b.seatNumber)===Number(seatNum) && b.status!=="rejected") : null;
+    return (existing && existing.deposit) ? existing.deposit : (settings.bookingFee || "");
+  }catch(e){ return ""; }
+}
+
+function showDepositPopup(name, defaultAmount){
+  return new Promise((resolve)=>{
+    document.getElementById("sdpName").textContent = name || "";
+    document.getElementById("sdpAmount").value = defaultAmount || "";
+    window._sdpResolve = resolve;
+    document.getElementById("seatDepositPopup").style.display = "flex";
+    setTimeout(()=>document.getElementById("sdpAmount").focus(), 100);
+  });
+}
+function _sdpConfirm(){
+  const raw = document.getElementById("sdpAmount").value.trim();
+  const numeric = Number(raw.replace(/[^0-9.]/g,""));
+  if(!raw || !isFinite(numeric) || numeric <= 0){ alert("Please enter a valid deposit amount."); return; }
+  document.getElementById("seatDepositPopup").style.display = "none";
+  if(window._sdpResolve){ window._sdpResolve(raw); window._sdpResolve=null; }
+}
+function _sdpCancel(){
+  document.getElementById("seatDepositPopup").style.display = "none";
+  if(window._sdpResolve){ window._sdpResolve(null); window._sdpResolve=null; }
 }
 
 function _vupChoice(val){
@@ -1014,7 +1058,15 @@ async function loadBookings(){
 }
 
 async function approveBooking(id){
-  await fetch("/api/admin?action=approve&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  let name = "", defaultDep = "";
+  try{
+    const r = await fetch("/api/admin?action=receipt&id="+id, {headers:authHeaders()});
+    const d = await r.json();
+    if(d.success){ name = d.receipt.passengerName || ""; defaultDep = d.receipt.deposit || ""; }
+  }catch(e){ /* fall through with blank default */ }
+  const deposit = await showDepositPopup(name, defaultDep);
+  if(deposit === null) return; // admin cancelled — booking stays pending
+  await fetch("/api/admin?action=approve&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({deposit})});
   loadBookings();loadBus();
 }
 async function rejectBooking(id){
@@ -2015,15 +2067,12 @@ async function downloadBusListPDF(){
       .filter(s=>s.status!=="available")
       .sort((a,b)=>Number(a.number)-Number(b.number));
 
-    // Get deposit from latest approved/pending booking for each seat
+    // Only approved/booked people have a deposit amount — pending stays blank.
     function depositForSeat(seatNum){
       const bks = bookings.filter(b=>Number(b.seatNumber)===Number(seatNum));
       if(!bks.length) return "";
-      // Prefer approved, then pending
       const approved = bks.find(b=>b.status==="approved");
-      const pending  = bks.find(b=>b.status==="pending");
-      const b = approved || pending;
-      return b && b.deposit ? b.deposit : "";
+      return approved && approved.deposit ? approved.deposit : "";
     }
 
     function statusLabel(seat){
@@ -2363,6 +2412,21 @@ document.querySelectorAll(".modal-overlay").forEach(m=>m.addEventListener("click
     <div style="display:flex;gap:10px;margin-top:16px;">
       <button onclick="_sppConfirm()" style="flex:2;padding:12px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">CONFIRM BOOKING</button>
       <button onclick="_sppCancel()" style="flex:1;padding:12px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="seatDepositPopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:28px;max-width:360px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.35);font-family:'Lato',Arial,sans-serif;">
+    <h3 style="color:#0b294d;margin:0 0 6px 0;font-family:'Barlow Condensed',Arial,sans-serif;font-size:1.3rem;">Enter Deposit Amount</h3>
+    <p style="color:#777;font-size:0.85rem;margin:0 0 18px 0;">Booking for: <strong id="sdpName"></strong></p>
+    <label style="font-size:0.75rem;font-weight:700;color:#0b294d;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px;">Deposit Amount (MK)</label>
+    <input id="sdpAmount" type="text" placeholder="e.g. 5000"
+      style="width:100%;padding:12px;border:1.5px solid #ddd;border-radius:7px;font-size:1rem;box-sizing:border-box;outline:none;"
+      onkeydown="if(event.key==='Enter') _sdpConfirm()">
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="_sdpConfirm()" style="flex:2;padding:12px;background:#0b294d;color:#fff;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">CONFIRM DEPOSIT</button>
+      <button onclick="_sdpCancel()" style="flex:1;padding:12px;background:#f0f2f5;color:#555;border:none;border-radius:7px;font-weight:700;font-size:0.9rem;cursor:pointer;">Cancel</button>
     </div>
   </div>
 </div>

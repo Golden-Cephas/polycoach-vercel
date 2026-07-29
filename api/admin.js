@@ -197,6 +197,7 @@ module.exports = async (req, res) => {
 
       // Approve booking
       if (action === "approve" && id) {
+        const { deposit } = req.body || {};
         const b = await Booking.findById(id);
         if (!b) return res.status(404).json({ success: false });
         b.status = "approved";
@@ -205,6 +206,9 @@ module.exports = async (req, res) => {
           b.receiptNumber = rno;
           b.seatLabel     = lbl;
         }
+        // Deposit entered by the admin in the confirm popup always wins;
+        // only fall back to the default booking fee if none was sent.
+        if (deposit) b.deposit = deposit;
         if(!b.departureDate||!b.departureVenue||!b.deposit){
           const settings = await Settings.findOne();
           const bs = getBusSettings(settings, b.busId||"bus1");
@@ -287,7 +291,7 @@ module.exports = async (req, res) => {
 
       // Edit seat directly
       if (action === "edit-seat" && num) {
-        const { status, passengerName, destination, origin, phone, clearSeatNum } = req.body;
+        const { status, passengerName, destination, origin, phone, clearSeatNum, deposit } = req.body;
         const seatN = Number(num);
         const seat = await Seat.findOne({ number: seatN, busId });
         if (!seat) return res.status(404).json({ success: false });
@@ -345,10 +349,13 @@ module.exports = async (req, res) => {
           if (!nameExists) {
             await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
           }
+          const settings = await Settings.findOne();
+          const bs = getBusSettings(settings, busId);
+          // Deposit is money — always prefer what the admin entered in the
+          // confirm popup; the default booking fee is only a last-resort fallback.
+          const depositAmt = deposit || bs.bookingFee;
           const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
           if (!existing) {
-            const settings = await Settings.findOne();
-            const bs = getBusSettings(settings, busId);
             const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, phone||"", Booking);
             const booking = await Booking.create({
               busId,
@@ -360,7 +367,7 @@ module.exports = async (req, res) => {
               program:       "",
               receiptNumber: receiptNo,
               seatLabel:     lbl,
-              deposit:       bs.bookingFee,
+              deposit:       depositAmt,
               departureDate: bs.departureDate,
               departureVenue:bs.departureVenue,
               paymentProof:  null,
@@ -370,6 +377,7 @@ module.exports = async (req, res) => {
             bookingId=booking._id;
           } else if(existing.status==="pending"){
             existing.status="approved";
+            existing.deposit=depositAmt;
             if(!existing.receiptNumber){
               const {receiptNumber:receiptNo2, seatLabel:lbl2} = await buildReceiptNumber(seatN, existing.phone||phone||"", Booking);
               existing.receiptNumber = receiptNo2;
@@ -378,6 +386,8 @@ module.exports = async (req, res) => {
             await existing.save();
             bookingId=existing._id;
           } else {
+            existing.deposit=depositAmt;
+            await existing.save();
             bookingId=existing._id;
           }
         }
@@ -402,7 +412,8 @@ module.exports = async (req, res) => {
               program:       "",
               receiptNumber: "",
               seatLabel:     makeSeatLabel(seatN),
-              deposit:       bs.bookingFee,
+              // No deposit for pending seats — only booked/approved people
+              // have a deposit amount attached.
               departureDate: bs.departureDate,
               departureVenue:bs.departureVenue,
               paymentProof:  null,
