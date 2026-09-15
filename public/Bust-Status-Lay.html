@@ -41,11 +41,6 @@
         <i class="fa-solid fa-bus"></i>&nbsp; <span id="activeBusLabel">Select Bus</span> &nbsp;<i class="fa-solid fa-chevron-down" style="font-size:0.75rem;"></i>
       </button>
     </div>
-    <div class="stats-strip">
-      <div class="stat-pill"><span class="dot dot-avail"></span> <span id="cntAvail">—</span> Available</div>
-      <div class="stat-pill"><span class="dot dot-pending"></span> <span id="cntPend">—</span> Pending</div>
-      <div class="stat-pill"><span class="dot dot-booked"></span> <span id="cntBook">—</span> Booked</div>
-    </div>
     <div class="bus-exterior">
       <div class="driver-cabin">
         <i class="fa-solid fa-dharmachakra"></i>
@@ -55,8 +50,7 @@
     </div>
     <div class="seat-legend" style="margin-top:18px;">
       <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
-      <div class="legend-item"><div class="legend-box legend-pending"></div> Pending</div>
-      <div class="legend-item"><div class="legend-box legend-booked"></div> Booked</div>
+      <div class="legend-item"><div class="legend-box legend-pending"></div> Taken</div>
     </div>
   </div>
 </div>
@@ -179,15 +173,11 @@ function showBusSelector() {
   // 1. ?bus= from URL (reload persistence)
   // 2. If neither — show selector popup
   const busFromURL = getBusFromURL();
-  if (busFromURL) {
-    _currentBusId = busFromURL;
-    const indicator = document.getElementById("activeBusLabel");
-    if (indicator) indicator.textContent = _busNames[_currentBusId] || _currentBusId;
-    await loadSeats();
-  } else {
-    // No bus chosen yet — show selector immediately
-    document.getElementById("busSelectorPopup").style.display = "flex";
-  }
+  _currentBusId = busFromURL || "bus1"; // default to bus1 instead of forcing the selector popup on landing
+  if (!busFromURL) setBusInURL(_currentBusId);
+  const indicator = document.getElementById("activeBusLabel");
+  if (indicator) indicator.textContent = _busNames[_currentBusId] || _currentBusId;
+  await loadSeats();
 
   // Admin bar
   try {
@@ -249,7 +239,6 @@ async function loadSeats() {
   const seats = await r.json();
   const map   = document.getElementById("seatMap");
   map.innerHTML = "";
-  let cnt = { available: 0, pending: 0, booked: 0 };
   let counter = 1;
   for (let row = 0; row < 13; row++) {
     for (let col = 1; col <= 6; col++) {
@@ -258,36 +247,33 @@ async function loadSeats() {
         a.className = "seat aisle-space";
         map.appendChild(a);
       } else if (counter <= 65) {
-        renderSeat(seats, counter, map, cnt);
+        renderSeat(seats, counter, map);
         counter++;
       }
     }
   }
   const backRow = document.createElement("div");
   backRow.className = "back-row-container";
-  for (let i = 0; i < 7; i++) { renderSeat(seats, counter, backRow, cnt); counter++; }
+  for (let i = 0; i < 7; i++) { renderSeat(seats, counter, backRow); counter++; }
   map.appendChild(backRow);
-  document.getElementById("cntAvail").textContent = cnt.available;
-  document.getElementById("cntPend").textContent  = cnt.pending;
-  document.getElementById("cntBook").textContent  = cnt.booked || 0;
   // Update page sub-title with active bus name
   const subTitle = document.getElementById("statusSubTitle");
   if (subTitle) subTitle.textContent =
     "Live overview — " + (_busNames[_currentBusId] || _currentBusId) + ". Hover over seats to see passenger info.";
 }
 
-function renderSeat(seats, num, parent, cnt) {
+function renderSeat(seats, num, parent) {
   const data = seats.find(s => s.number === num) || { number: num, status: "available" };
+  // Merge booked + pending -> Taken, rendered with the pending color
+  const displayStatus = (data.status === "booked" || data.status === "taken" || data.status === "pending") ? "pending" : "available";
   const div  = document.createElement("div");
-  div.className  = "seat " + (data.status === "booked" || data.status === "taken" ? "booked" : data.status);
+  div.className  = "seat " + displayStatus;
   div.textContent = num;
   div.dataset.seat = num;
-  const s = data.status === "booked" || data.status === "taken" ? "booked" : data.status;
-  if (cnt[s] !== undefined) cnt[s]++;
   div.addEventListener("mouseenter", e => {
     let tip = "Seat " + num;
     if (data.passengerName) tip += " — " + data.passengerName;
-    else tip += " (" + data.status + ")";
+    else tip += " (" + (displayStatus === "available" ? "Available" : "Taken") + ")";
     tooltip.textContent = tip;
     tooltip.style.visibility = "hidden";
     tooltip.style.display = "block";
