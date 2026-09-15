@@ -25,9 +25,18 @@ module.exports = async (req, res) => {
       ? (destination || "")
       : (settings && (settings[busId+"Venue"] || settings.departureVenue) || "");
 
-    const exists = await User.findOne({ phone });
+    const trimmedName  = String(name).trim();
+    const trimmedPhone = String(phone).trim();
+
+    // Only treat this as the same returning student when BOTH name and phone
+    // match an existing registration exactly. A shared phone with a different
+    // name (e.g. a sibling, a friend registering on someone's behalf) is
+    // always a new entry — it must never overwrite someone else's record.
+    const exists = await User.findOne({ phone: trimmedPhone, fullName: trimmedName });
     if (exists) {
-      exists.fullName    = name;
+      // Same person re-registering — update their record in place
+      // (this is also the point where a bus/seat switch would apply,
+      // since it's confirmed to be the same student).
       exists.busId       = busId;
       exists.origin      = resolvedOrigin;
       exists.destination = resolvedDestination;
@@ -35,8 +44,8 @@ module.exports = async (req, res) => {
       return res.json({ success: true, existing: true });
     }
     await User.create({
-      fullName:    name,
-      phone,
+      fullName:    trimmedName,
+      phone:       trimmedPhone,
       busId,
       origin:      resolvedOrigin,
       destination: resolvedDestination,

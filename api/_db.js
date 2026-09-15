@@ -20,9 +20,20 @@ async function connectDB() {
     await mongoose.connection.collection("users").dropIndex("regNumber_1");
   } catch (e) { /* already gone — fine */ }
 
-  // Create the (number, busId) unique index on seats. This will fail
-  // (and just get caught) until any existing duplicate seats are removed —
-  // once they are, this succeeds and locks in protection going forward.
+  // Drop the old single-field unique index on phone. Multiple students can
+  // legitimately share a phone number now, as long as their name differs
+  // (see the compound index on userSchema below).
+  try {
+    await mongoose.connection.collection("users").dropIndex("phone_1");
+  } catch (e) { /* already gone — fine */ }
+
+  // Create the (phone, fullName) unique index on users, and the (number, busId)
+  // unique index on seats. These will fail (and just get caught) until any
+  // existing duplicates are removed — once they are, they succeed and lock in
+  // protection going forward.
+  try {
+    await User.createIndexes();
+  } catch (e) { /* duplicates still present, or index already exists — fine */ }
   try {
     await Seat.createIndexes();
   } catch (e) { /* duplicates still present, or index already exists — fine */ }
@@ -36,9 +47,9 @@ function model(name, schema) {
   return mongoose.models[name] || mongoose.model(name, schema);
 }
 
-const User = model("User", new mongoose.Schema({
+const userSchema = new mongoose.Schema({
   fullName:    { type: String, required: true },
-  phone:       { type: String, required: true, unique: true },
+  phone:       { type: String, required: true },
   busId:       { type: String, default: "bus1" },
   program:     { type: String, default: "" },
   destination: { type: String, default: "" },
@@ -47,7 +58,15 @@ const User = model("User", new mongoose.Schema({
   password:    { type: String, default: null },
   studentID:   { type: String, default: null },
   createdAt:   { type: Date, default: Date.now }
-}));
+});
+// Multiple students can legitimately share one phone number (e.g. a
+// sibling's or a friend's contact) as long as their name is different —
+// register.js only treats a submission as the same returning student when
+// phone AND fullName both match exactly. This compound index enforces that
+// same rule at the database level instead of a bare unique constraint on
+// phone alone.
+userSchema.index({ phone: 1, fullName: 1 }, { unique: true });
+const User = model("User", userSchema);
 
 const Admin = model("Admin", new mongoose.Schema({
   fullName: String,
