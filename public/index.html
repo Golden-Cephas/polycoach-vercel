@@ -63,7 +63,7 @@
           </div>
 
           <!-- Bus chooser -->
-          <div class="input-group full">
+          <div class="input-group full" id="busGroup">
             <label>Choose Your Bus <span style="color:var(--danger);">*</span></label>
             <div class="bus-chooser" id="busChooser" style="visibility:hidden;">
               <div class="bus-choice" id="busChoice1" onclick="chooseBus('bus1')">
@@ -75,6 +75,9 @@
             </div>
             <input type="hidden" id="busId" value="">
           </div>
+
+          <!-- Auto-assigned bus note (holiday mode) -->
+          <div class="full" id="busAssigned" style="display:none;font-weight:700;color:var(--primary);"></div>
 
           <!-- Common field (read-only, from settings) -->
           <div class="input-group full common-field">
@@ -165,13 +168,53 @@ let _selectedSeat = null;
 const _regTooltip = document.getElementById("regSeatTooltip");
 
 /* ── Load settings and apply trip mode ── */
-fetch("/api/settings").then(r=>r.json()).then(s=>{
+fetch("/api/settings").then(r=>r.json()).then(async s=>{
   _settings = s;
-  applyTripMode(s.tripMode||"holiday");
+  const mode = s.tripMode||"holiday";
+  applyTripMode(mode);
   document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
   document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
-  document.getElementById("busChooser").style.visibility = "visible";
+  if(mode==="backtoschool"){
+    document.getElementById("busChooser").style.visibility = "visible";
+  } else {
+    await autoAssignBus();   // holiday mode: fill bus1 first, then bus2
+  }
 }).catch(()=>{});
+
+/* ── Holiday mode: auto-assign the bus currently being filled ── */
+const BUS_CAPACITY = 72; // 13 rows x 5 seats + 7 back-row seats
+let _allFull = false;
+
+async function isBusFull(busId){
+  const seats = await (await fetch("/api/seats?busId="+busId)).json();
+  const taken = new Set(
+    seats.filter(x=>x.number>=1 && x.number<=BUS_CAPACITY && x.status!=="available").map(x=>x.number)
+  );
+  return taken.size >= BUS_CAPACITY;
+}
+
+async function autoAssignBus(){
+  const note = document.getElementById("busAssigned");
+  try{
+    for(const id of ["bus1","bus2"]){
+      if(!(await isBusFull(id))){
+        chooseBus(id);
+        const name = _settings[id+"Name"] || (id==="bus1" ? "Bus 1" : "Bus 2");
+        note.textContent = "You will be travelling on: " + name;
+        note.style.display = "block";
+        return;
+      }
+    }
+    _allFull = true;
+    note.textContent = "Sorry, all buses are currently full.";
+    note.style.color = "var(--danger)";
+    note.style.display = "block";
+  }catch{
+    // If the seat check fails, fall back to manual choice
+    document.getElementById("busGroup").style.display = "block";
+    document.getElementById("busChooser").style.visibility = "visible";
+  }
+}
 
 document.addEventListener("mousemove",e=>{
   if(_regTooltip.style.display!=="none"){
@@ -182,6 +225,7 @@ document.addEventListener("mousemove",e=>{
 
 function applyTripMode(mode){
   const isHoliday = mode !== "backtoschool";
+  document.getElementById("busGroup").style.display = isHoliday ? "none" : "block";
   document.getElementById("commonLabel").textContent = isHoliday ? "Departure Venue" : "Destination";
   document.getElementById("originGroup").style.display = isHoliday ? "none"  : "block";
   document.getElementById("destGroup").style.display   = isHoliday ? "block" : "none";
@@ -281,7 +325,7 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
   }
   if(!busId){
     msg.className="error"; msg.style.display="block";
-    msg.textContent="Please choose your bus."; return;
+    msg.textContent=_allFull ? "Sorry, all buses are currently full." : "Please choose your bus."; return;
   }
   if(isHoliday && !dest){
     msg.className="error"; msg.style.display="block";
