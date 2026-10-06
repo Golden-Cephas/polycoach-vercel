@@ -212,6 +212,7 @@ tr:hover td{background:#fafafa;}
           <button class="btn btn-add" onclick="openAddUserModal()"><i class="fa-solid fa-plus"></i> Add User</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadUsersPDF()"><i class="fa-solid fa-file-pdf"></i> Registration List</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusListPDF()"><i class="fa-solid fa-bus"></i> Seat List</button>
+          <button class="btn" id="offerToggleBtn" style="background:#e67e22;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="toggleOfferMode()"><i class="fa-brands fa-whatsapp"></i> Offer Message: OFF</button>
           <button class="btn" style="background:#c0392b;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="resetUsersList()"><i class="fa-solid fa-trash"></i> Reset List</button>
         </div>
       </div>
@@ -895,14 +896,69 @@ function waNumber(raw){
   if(d.startsWith(WA_DEFAULT_CC+"0")) d = WA_DEFAULT_CC + d.slice(WA_DEFAULT_CC.length+1); // +2650 99...
   return (d.length>=10 && d.length<=15) ? d : "";
 }
-function waLink(phone,name){
+const WA_OFFER_MSG = (name)=>
+`Hi ${name}! 👋
+
+🎉 *PolyCoach Special Offer*
+
+Pay your booking fee *before 5th November* to secure your seat and *save MK5,000* on our trip on *20th November*.
+
+This time, you also get:
+📶 Free WiFi on board
+🍪 Free snacks
+
+Seats are limited, and the earlier you book, the better we can plan your trip. 🚌
+
+Register now: https://polycoachmw.vercel.app/`;
+
+function waStore(key,val){
+  try{
+    if(val===undefined) return JSON.parse(localStorage.getItem(key)||"null");
+    localStorage.setItem(key,JSON.stringify(val));
+  }catch(e){ return null; }
+}
+function waOfferOn(){ return waStore("pc_offer_on")===true; }
+function waOfferSent(){ return waStore("pc_offer_sent")||[]; }
+function waOfferPending(uid){ return waOfferOn() && !waOfferSent().includes(String(uid)); }
+
+function waLink(phone,name,offer){
   const n = waNumber(phone);
   if(!n) return "";
-  const msg = "Hi " + (name||"").trim() + ",";
+  const nm = (name||"").trim();
+  const msg = offer ? WA_OFFER_MSG(nm) : "Hi " + nm + ",";
   return "https://wa.me/" + n + "?text=" + encodeURIComponent(msg);
+}
+// Called when an offer button is clicked: mark user as sent, then revert the button to the default message
+function waMarkSent(uid,el,phone,name){
+  const sent = waOfferSent(); const id = String(uid);
+  if(!sent.includes(id)){ sent.push(id); waStore("pc_offer_sent",sent); }
+  setTimeout(()=>{ // after the browser has opened the offer link
+    el.href = waLink(phone,name,false);
+    el.style.background = "#25d366";
+    el.title = "Message on WhatsApp";
+    el.removeAttribute("onclick");
+    updateOfferBtn();
+  },50);
+}
+function updateOfferBtn(){
+  const b = document.getElementById("offerToggleBtn"); if(!b) return;
+  const on = waOfferOn();
+  b.style.background = on ? "#27ae60" : "#e67e22";
+  b.innerHTML = '<i class="fa-brands fa-whatsapp"></i> Offer Message: ' + (on ? "ON ("+waOfferSent().length+" sent)" : "OFF");
+}
+function toggleOfferMode(){
+  if(waOfferOn()){
+    waStore("pc_offer_on",false);
+  } else {
+    if(!confirm("Turn ON the offer message?\n\nEach user's WhatsApp button will send the offer once, then go back to the normal 'Hi name' message.")) return;
+    waStore("pc_offer_sent",[]); // fresh round
+    waStore("pc_offer_on",true);
+  }
+  updateOfferBtn(); loadUsers();
 }
 
 async function loadUsers(){
+  updateOfferBtn();
   try{
     const r=await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
     const users=await r.json();
@@ -921,7 +977,8 @@ async function loadUsers(){
       const tr=document.createElement("tr");
       tr.id="user-row-"+uid;
       const displayPhone = u.phone && !u.phone.startsWith("admin-") ? u.phone : "—";
-      const waUrl = waLink(u.phone, u.fullName);
+      const isOffer = waOfferPending(uid);
+      const waUrl = waLink(u.phone, u.fullName, isOffer);
       tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${displayPhone}</td>
       <td>${_busNames[u.busId||"bus1"]||u.busId||"Bus 1"}</td>
       <td>${u.origin||u.hometown||u.from||"—"}</td>
@@ -929,7 +986,7 @@ async function loadUsers(){
       <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
       <td style="display:flex;gap:5px;">
         ${waUrl
-          ? `<a class="btn" href="${waUrl}" target="_blank" rel="noopener" title="Message on WhatsApp" style="background:#25d366;color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
+          ? `<a class="btn" href="${waUrl}" target="_blank" rel="noopener" ${isOffer?`onclick="waMarkSent('${uid}',this,'${(u.phone||"").replace(/'/g,"")}','${(u.fullName||"").replace(/'/g,"")}')"`:""} title="${isOffer?"Send offer on WhatsApp":"Message on WhatsApp"}" style="background:${isOffer?"#e67e22":"#25d366"};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
           : `<span class="btn" title="No valid phone number" style="background:#ccc;color:#fff;opacity:0.6;cursor:not-allowed;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></span>`}
         <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${displayPhone==="—"?"":u.phone}','${u.origin||u.hometown||u.from||""}','${u.destination||u.to||""}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button>
