@@ -156,7 +156,7 @@ tr:hover td{background:#fafafa;}
       <div class="bus-wrap">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <h3 style="margin:0;" id="busLayoutTitle">Click a seat to edit it</h3>
-          <button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadBusPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
+          <button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadBusPDF()"><i class="fa-solid fa-file-pdf"></i> Seats Update</button>
         </div>
         <div class="bus-switcher">
           <button class="bus-btn active" id="layoutBus1Btn" onclick="switchBus('bus1')">Bus 1</button>
@@ -242,7 +242,7 @@ tr:hover td{background:#fafafa;}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
-          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusLayoutPDF()"><i class="fa-solid fa-file-pdf"></i> Download Bus Layout</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusLayoutPDF()"><i class="fa-solid fa-file-pdf"></i> Seats Update</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -896,10 +896,10 @@ function waNumber(raw){
   if(d.startsWith(WA_DEFAULT_CC+"0")) d = WA_DEFAULT_CC + d.slice(WA_DEFAULT_CC.length+1); // +2650 99...
   return (d.length>=10 && d.length<=15) ? d : "";
 }
-const WA_OFFER_MSG = (name)=>
+const WA_OFFER_MSG = (name,intro)=>
 `Hi ${name}! 👋
 
-🎉 *PolyCoach Special Offer*
+${intro?intro+"\n\n":""}🎉 *PolyCoach Special Offer*
 
 Pay your booking fee *before 5th November* to secure your seat and *save MK5,000* on our trip on *20th November*.
 
@@ -1091,9 +1091,43 @@ async function saveEditUser(){
   finally{ btn.disabled=false; btn.textContent="SAVE CHANGES"; }
 }
 
+/* ── WHATSAPP FOR BOOKINGS ── */
+const WA_SUPPORT_PHONE = "0981136268";
+let _waSettings = {};
+function waUrlFromMsg(phone,msg){
+  const n = waNumber(phone);
+  return n ? "https://wa.me/"+n+"?text="+encodeURIComponent(msg) : "";
+}
+function waBookingMsg(b){
+  const name = (b.passengerName||"").trim();
+  if(b.status==="pending"){
+    return WA_OFFER_MSG(name, "✅ Your registration for *Seat "+b.seatNumber+"* has been received and is pending confirmation. We'll message you as soon as it's confirmed.");
+  }
+  const S  = _waSettings||{};
+  const bk = (b.busId||currentBusId)==="bus2" ? "bus2" : "bus1";
+  const from = b.origin || S[bk+"Venue"] || S.departureVenue || "";
+  const date = S[bk+"Date"] || S.departureDate || "";
+  const time = S[bk+"Time"] || S.departureTime || "";
+  let paid = String(b.deposit||"").trim();
+  if(/^[\d,.\s]+$/.test(paid)) paid = "MK"+paid;
+  const lines = [
+    "✅ *Booking Confirmed!*","",
+    "Hi "+name+", your seat is reserved!",
+    "Here are your trip details:"
+  ];
+  if(from) lines.push("📍 From: "+from);
+  if(date) lines.push("📅 Date: "+date);
+  if(time) lines.push("⏰ Departure Time: "+time);
+  lines.push("💺 Seat Number: "+b.seatNumber);
+  if(paid) lines.push("💰 Total Paid: "+paid);
+  lines.push("","Need to make changes? Reply to this message or call us at "+WA_SUPPORT_PHONE+".","","Safe travels! 🛣️");
+  return lines.join("\n");
+}
+
 /* ── BOOKINGS ── */
 async function loadBookings(){
   const r=await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()});let bks=await r.json();
+  try{ _waSettings = await (await fetch("/api/settings")).json(); }catch(e){}
   const pending=bks.filter(b=>b.status==="pending").length;
   const approved=bks.filter(b=>b.status==="approved").length;
   const rejected=bks.filter(b=>b.status==="rejected").length;
@@ -1125,6 +1159,11 @@ async function loadBookings(){
     const bid=b._id||b.id;
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
+    const bWaUrl = (b.status==="pending"||b.status==="approved") ? waUrlFromMsg(b.phone, waBookingMsg(b)) : "";
+    const bWaTitle = b.status==="pending" ? "Send registration + offer on WhatsApp" : "Send booking confirmation on WhatsApp";
+    const bWaBtn = b.status==="rejected" ? "" : (bWaUrl
+      ? `<a class="btn" href="${bWaUrl}" target="_blank" rel="noopener" title="${bWaTitle}" style="background:${b.status==="pending"?"#e67e22":"#25d366"};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
+      : `<span class="btn" title="No valid phone number" style="background:#ccc;color:#fff;opacity:0.6;cursor:not-allowed;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></span>`);
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
     <td>${_busNames[b.busId||"bus1"]||"Bus 1"}</td>
     <td><strong>Seat ${b.seatNumber}</strong></td>
@@ -1132,6 +1171,7 @@ async function loadBookings(){
     <td>${b.hasPaymentProof?`<button class="btn" style="background:#f0f4ff;color:var(--primary);" onclick="viewProof('${bid}')"><i class="fa-solid fa-image"></i> View</button>`:"None"}</td>
     <td><span class="${badgeClass}">${b.status.toUpperCase()}</span></td>
     <td style="display:flex;gap:5px;flex-wrap:wrap;">
+      ${bWaBtn}
       <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditBookingModal('${bid}','${b.passengerName}','${b.phone||""}','${b.seatNumber}','${getTripMode()==="backtoschool" ? (b.origin||"") : (b.destination||"")}','${b.program||""}')"><i class="fa-solid fa-pen"></i></button>
       ${b.status==="pending"?`<button class="btn btn-approve" onclick="approveBooking('${b._id||b.id}')"><i class="fa-solid fa-check"></i></button><button class="btn btn-reject" onclick="rejectBooking('${b._id||b.id}')"><i class="fa-solid fa-xmark"></i></button>`:""}
       ${b.status==="approved"?`<button class="btn" style="background:#0b294d;color:#fff;" onclick="downloadReceipt('${b._id||b.id}')"><i class="fa-solid fa-receipt"></i></button>`:``}
@@ -1668,7 +1708,7 @@ async function downloadBusLayoutPDF() {
   doc.text('BACK ROW', pw/2, backY - 2, { align:'center' });
 
   pdfFooter(doc);
-  doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
+  doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seats-Update-"+new Date().toISOString().slice(0,10)+".pdf");
 }
 
 /* ── PDF HELPERS ── */
@@ -1795,11 +1835,10 @@ async function loadLogo2(){
 ════════════════════════════════════════ */
 function drawSeatPDF(doc, seats, num, x, y, w, h){
   const seat   = seats.find(s => Number(s.number) === num) || {number:num, status:"available"};
-  const status = (seat.status === "taken") ? "booked" : (seat.status || "available");
+  // Booked / pending / taken are all shown as "Taken" (same amber as the Register page)
+  const status = (seat.status && seat.status !== "available") ? "taken" : "available";
 
-  if(status === "booked"){
-    doc.setFillColor(255,180,180); doc.setDrawColor(180,60,60);
-  } else if(status === "pending"){
+  if(status === "taken"){
     doc.setFillColor(255,235,150); doc.setDrawColor(180,140,30);
   } else {
     doc.setFillColor(190,235,190); doc.setDrawColor(60,160,60);
@@ -1903,7 +1942,11 @@ async function buildBusLayoutPDF(bookedOnly=false){
     format: [pW, pH]   // custom height — fits everything perfectly
   });
 
-  pdfHeader(doc, "Bus Seat Layout", logo, busName);
+  pdfHeader(doc, "Seats Update", logo, busName);
+  doc.setFont("times","normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(180,210,255);
+  doc.text(dateStr, pW - 12, 30, {align:"right"});
 
   // Departure info — bus-specific fields, mode-aware
   const b       = currentBusId==="bus2" ? "bus2" : "bus1";
@@ -1984,8 +2027,7 @@ async function buildBusLayoutPDF(bookedOnly=false){
   doc.setTextColor(0,0,0);
   const items = [
     {label:"Available", fill:[190,235,190], stroke:[60,160,60]},
-    {label:"Booked",    fill:[255,180,180], stroke:[180,60,60]},
-    {label:"Pending",   fill:[255,235,150], stroke:[180,140,30]}
+    {label:"Taken",     fill:[255,235,150], stroke:[180,140,30]}
   ];
   const legTotalW = items.length * 38;
   let legX = (pW - legTotalW) / 2;
@@ -2012,13 +2054,13 @@ async function downloadBusPDF(){
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
     const doc = await buildBusLayoutPDF();
-    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seats-Update-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
     console.error(err);
   }
   btn.disabled = false;
-  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download Bus Layout';
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seats Update';
 }
 
 /* ════════════════════════════════════════
@@ -2031,13 +2073,13 @@ async function downloadBusLayoutPDF(){
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
   try{
     const doc = await buildBusLayoutPDF();
-    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Bus-Layout-"+new Date().toISOString().slice(0,10)+".pdf");
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seats-Update-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
     console.error(err);
   }
   btn.disabled = false;
-  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Download Bus Layout';
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seats Update';
 }
 
 /* ════════════════════════════════════════
@@ -2264,7 +2306,9 @@ async function loadQRImage(){
     };
     img.onerror = ()=>resolve(null);
     const seatParam = (typeof _qrSeat !== "undefined") ? _qrSeat : "";
-    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://polycoachmw.vercel.app/Bust-Status-Lay.html%3Fseat%3D"+seatParam+"&t="+Date.now();
+    const busParam  = (typeof _qrBus  !== "undefined" && _qrBus) ? _qrBus : "bus1";
+    const qrLink = "https://polycoachmw.vercel.app/Bust-Status-Lay.html?bus="+encodeURIComponent(busParam)+"&seat="+encodeURIComponent(seatParam);
+    img.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="+encodeURIComponent(qrLink)+"&t="+Date.now();
   });
 }
 
@@ -2298,6 +2342,7 @@ async function generateReceiptPDF(rc){
   doc.text(rc.busName||"Bus 1", nameX, pad+18);
 
   window._qrSeat = rc.seatNumber||"";
+  window._qrBus  = rc.busId || currentBusId || "bus1";
   const rno = (rc.receiptNumber||"").trim();
   const qrSize=20;
   const qrX=re-qrSize;
