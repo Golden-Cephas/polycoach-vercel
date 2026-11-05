@@ -242,7 +242,7 @@ tr:hover td{background:#fafafa;}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
-          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seats Update</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -2200,7 +2200,7 @@ async function downloadSeatListPDF(){
     console.error(err);
   }
   btn.disabled = false;
-  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seats Update';
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seat List';
 }
 
 /* ════════════════════════════════════════
