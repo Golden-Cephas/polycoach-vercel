@@ -242,7 +242,7 @@ tr:hover td{background:#fafafa;}
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
-          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadBusLayoutPDF()"><i class="fa-solid fa-file-pdf"></i> Seats Update</button>
+          <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seats Update</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -2076,6 +2076,127 @@ async function downloadBusLayoutPDF(){
     doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seats-Update-"+new Date().toISOString().slice(0,10)+".pdf");
   }catch(err){
     alert("Could not generate PDF. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seats Update';
+}
+
+/* ════════════════════════════════════════
+   SEAT LIST PDF — Pending Approvals panel button
+   One portrait page (height fitted to the list, same width / header /
+   footer as Seats Update). Seats 1–72 as a plain formal list:
+   Seat | Name | Destination (holiday) or Origin (back to school)
+════════════════════════════════════════ */
+async function buildSeatListPDF(){
+  const [seatsRes, settingsRes] = await Promise.all([
+    fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
+    fetch("/api/settings")
+  ]);
+  const seats    = await seatsRes.json();
+  const settings = await settingsRes.json();
+  const busName  = _busNames[currentBusId]||currentBusId;
+  const logo     = await loadLogo2();
+  const {jsPDF}  = window.jspdf;
+  const dateStr  = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+
+  const pW    = 210; // same A4 width as Seats Update
+  const mode  = settings.tripMode || "holiday";
+  const isBackToSchool = mode === "backtoschool";
+  const placeLabel = isBackToSchool ? "Origin" : "Destination";
+
+  // Trip info line — identical wording to Seats Update
+  const b       = currentBusId==="bus2" ? "bus2" : "bus1";
+  const depDate = settings[b+"Date"]  || settings.departureDate  || "";
+  const depTime = settings[b+"Time"]  || settings.departureTime  || "";
+  const venue   = settings[b+"Venue"] || settings.departureVenue || "";
+  let tripLine;
+  if(isBackToSchool){
+    tripLine = (depDate?"Date: "+depDate:"") +
+               (depTime?"  |  Time: "+depTime:"") +
+               (venue  ?"  |  Destination: "+venue:"");
+  } else {
+    tripLine = (depDate?"Departure: "+depDate:"") +
+               (depTime?"  at  "+depTime:"") +
+               (venue  ?"  |  Venue: "+venue:"");
+  }
+
+  // One row per seat, in seat-number order
+  const rows = [];
+  for(let n = 1; n <= 72; n++){
+    const seat  = seats.find(x => Number(x.number) === n);
+    const taken = !!(seat && seat.status && seat.status !== "available");
+    if(taken){
+      const place = isBackToSchool ? seat.origin : seat.destination;
+      rows.push([String(n), seat.passengerName || "—", place || "—"]);
+    } else {
+      rows.push([String(n), "—", "—"]);
+    }
+  }
+
+  const tableW  = 140;                 // centred block in the middle of the page
+  const marginX = (pW - tableW) / 2;
+
+  function drawAll(doc){
+    pdfHeader(doc, "Seat List", logo, busName);
+    doc.setFont("times","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(180,210,255);
+    doc.text(dateStr, pW - 12, 30, {align:"right"});
+
+    doc.setFont("times","normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60,60,60);
+    doc.text(tripLine, pW/2, 43, {align:"center"});
+    doc.setTextColor(0,0,0);
+
+    doc.autoTable({
+      startY: 50,
+      head: [["Seat","Name",placeLabel]],
+      body: rows,
+      theme: "grid",
+      tableWidth: tableW,
+      styles:{ font:"times", fontSize:9, cellPadding:{top:1.4,bottom:1.4,left:3,right:3},
+               textColor:[0,0,0], lineColor:[160,160,160], lineWidth:0.2,
+               overflow:"linebreak", valign:"middle" },
+      headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", font:"times" },
+      alternateRowStyles:{ fillColor:[245,245,245] },
+      columnStyles:{
+        0:{cellWidth:20, halign:"center", fontStyle:"bold"},
+        1:{cellWidth:70},
+        2:{cellWidth:50}
+      },
+      margin:{left:marginX, right:marginX},
+      didParseCell:(data)=>{
+        if(data.section==="body" && data.cell.raw==="—"){
+          data.cell.styles.textColor = [140,140,140];
+        }
+      }
+    });
+    return doc.lastAutoTable.finalY;
+  }
+
+  // Pass 1 — measure on a tall scratch page to get the exact list height
+  const scratch = new jsPDF({orientation:"portrait", unit:"mm", format:[pW, 3000]});
+  const listEndY = drawAll(scratch);
+
+  // Pass 2 — real document: page height fitted so the whole list + footer is on ONE page
+  const pH  = Math.ceil(listEndY + 30);
+  const doc = new jsPDF({orientation:"portrait", unit:"mm", format:[pW, pH]});
+  drawAll(doc);
+  pdfFooter(doc, dateStr);
+  return doc;
+}
+
+async function downloadSeatListPDF(){
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  try{
+    const doc = await buildSeatListPDF();
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seat-Names-"+new Date().toISOString().slice(0,10)+".pdf");
+  }catch(err){
+    alert("Could not generate Seat List. Please try again.");
     console.error(err);
   }
   btn.disabled = false;
