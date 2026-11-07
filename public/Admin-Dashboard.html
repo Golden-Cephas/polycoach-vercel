@@ -896,12 +896,25 @@ function waNumber(raw){
   if(d.startsWith(WA_DEFAULT_CC+"0")) d = WA_DEFAULT_CC + d.slice(WA_DEFAULT_CC.length+1); // +2650 99...
   return (d.length>=10 && d.length<=15) ? d : "";
 }
-const WA_OFFER_MSG = (name,intro)=>
+// Raffle dates — change here only
+const OFFER = {
+  entryDue: "Saturday, 14th November",
+  payBy:    "18th November",
+  draw:     "19th November",
+  trip:     "20th November"
+};
+
+// GROUP 1 — not booked yet
+const WA_OFFER_MSG = (name)=>
 `Hi ${name}! 👋
 
-${intro?intro+"\n\n":""}🎉 *PolyCoach Special Offer*
+🎉 *PolyCoach Special Offer*
 
-Pay your booking fee *before 5th November* to secure your seat and *save MK5,000* on our trip on *20th November*.
+Book a seat for our trip on *${OFFER.trip}* and you could *win a mug or a drinking bottle* in our raffle draw on *${OFFER.draw}*! 🎁
+
+⏳ Entries close *${OFFER.entryDue}*.
+
+Your deposit is part of your transport fare and starts from *MK5,000*.
 
 This time, you also get:
 📶 Free WiFi on board
@@ -909,7 +922,23 @@ This time, you also get:
 
 Seats are limited, and the earlier you book, the better we can plan your trip. 🚌
 
-Register now: https://polycoachmw.vercel.app/`;
+Book your seat here: https://polycoachmw.vercel.app/`;
+
+// GROUP 3 — just registered (pending): confirmation + pay deposit + payment methods
+const WA_REGISTERED_MSG = (name,seat)=>
+`Hi ${name}! 👋
+
+✅ Your registration for *Seat ${seat}* was successful! We'll message you as soon as your booking is confirmed.
+
+🎁 *PolyCoach Special Offer*
+
+Secure your seat by paying your deposit by *${OFFER.payBy}* to stand a chance of winning a *mug or a drinking bottle* in our raffle draw on *${OFFER.draw}*.
+
+💳 *Payment Methods*
+Bank Transfer (NB): 1012168938
+TNM Mpamba: 1609448
+Airtel Money: 0999261665
+Account name: Petros Mwakhwawa`;
 
 function waStore(key,val){
   try{
@@ -962,6 +991,17 @@ async function loadUsers(){
   try{
     const r=await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()});
     const users=await r.json();
+    // Booking status per phone (approved beats pending; rejected ignored) → picks the right WhatsApp message
+    const bkByPhone={};
+    try{
+      const br=await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()});
+      const bl=await br.json();
+      if(!Object.keys(_waSettings||{}).length){ try{ _waSettings=await (await fetch("/api/settings")).json(); }catch(e){} }
+      (Array.isArray(bl)?bl:[]).forEach(b=>{
+        const k=waNumber(b.phone); if(!k||b.status==="rejected") return;
+        if(!bkByPhone[k]||b.status==="approved") bkByPhone[k]=b;
+      });
+    }catch(e){}
     document.getElementById("us-total").textContent=users.length;
     // Update users panel title with bus name
     const uTitle=document.getElementById("usersTitle");
@@ -978,7 +1018,10 @@ async function loadUsers(){
       tr.id="user-row-"+uid;
       const displayPhone = u.phone && !u.phone.startsWith("admin-") ? u.phone : "—";
       const isOffer = waOfferPending(uid);
-      const waUrl = waLink(u.phone, u.fullName, isOffer);
+      const ubk = bkByPhone[waNumber(u.phone)];
+      const waUrl = isOffer
+        ? waUrlFromMsg(u.phone, ubk ? waBookingMsg(ubk) : WA_OFFER_MSG((u.fullName||"").trim()))
+        : waLink(u.phone, u.fullName, false);
       tr.innerHTML=`<td><strong>${u.fullName}</strong></td><td>${displayPhone}</td>
       <td>${_busNames[u.busId||"bus1"]||u.busId||"Bus 1"}</td>
       <td>${u.origin||u.hometown||u.from||"—"}</td>
@@ -1101,7 +1144,7 @@ function waUrlFromMsg(phone,msg){
 function waBookingMsg(b){
   const name = (b.passengerName||"").trim();
   if(b.status==="pending"){
-    return WA_OFFER_MSG(name, "✅ Your registration for *Seat "+b.seatNumber+"* has been received and is pending confirmation. We'll message you as soon as it's confirmed.");
+    return WA_REGISTERED_MSG(name, b.seatNumber);
   }
   const S  = _waSettings||{};
   const bk = (b.busId||currentBusId)==="bus2" ? "bus2" : "bus1";
@@ -1110,9 +1153,11 @@ function waBookingMsg(b){
   const time = S[bk+"Time"] || S.departureTime || "";
   let paid = String(b.deposit||"").trim();
   if(/^[\d,.\s]+$/.test(paid)) paid = "MK"+paid;
+  // GROUP 2 — already booked (approved)
   const lines = [
-    "✅ *Booking Confirmed!*","",
-    "Hi "+name+", your seat is reserved!",
+    "🎉 *Congratulations, "+name+"!*","",
+    "💺 *Seat "+b.seatNumber+"* — your booking is confirmed and you're now entered in our raffle draw on *"+OFFER.draw+"* for a chance to win a *mug or a drinking bottle*! 🎁","",
+    "👫 Invite *one friend* to book a seat to *double your chances*. Entries close *"+OFFER.entryDue+"*.","",
     "Here are your trip details:"
   ];
   if(from) lines.push("📍 From: "+from);
@@ -1160,7 +1205,7 @@ async function loadBookings(){
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
     const bWaUrl = (b.status==="pending"||b.status==="approved") ? waUrlFromMsg(b.phone, waBookingMsg(b)) : "";
-    const bWaTitle = b.status==="pending" ? "Send registration + offer on WhatsApp" : "Send booking confirmation on WhatsApp";
+    const bWaTitle = b.status==="pending" ? "Send registration confirmation on WhatsApp" : "Send booking confirmation on WhatsApp";
     const bWaBtn = b.status==="rejected" ? "" : (bWaUrl
       ? `<a class="btn" href="${bWaUrl}" target="_blank" rel="noopener" title="${bWaTitle}" style="background:${b.status==="pending"?"#e67e22":"#25d366"};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
       : `<span class="btn" title="No valid phone number" style="background:#ccc;color:#fff;opacity:0.6;cursor:not-allowed;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></span>`);
