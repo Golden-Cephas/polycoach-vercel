@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Register — PolyCoach</title>
 <link rel="stylesheet" href="/css/Home-Page.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
 .reg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
 .reg-grid .full{grid-column:span 2;}
@@ -21,6 +20,16 @@
 .seat-section{margin-top:22px;display:none;}
 .seat-section h3{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;color:var(--primary);margin-bottom:10px;}
 #regSeatTooltip{position:fixed;background:#333;color:#fff;padding:6px 12px;border-radius:5px;font-size:0.8rem;pointer-events:none;display:none;z-index:500;white-space:nowrap;}
+/* Best-seats picker: 5 per row */
+.best-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}
+.best-seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:58px;padding:0;border:2px solid #ddd;border-radius:8px;background:#fff;color:#333;cursor:pointer;font-family:inherit;transition:all 0.2s;}
+.best-seat:hover{border-color:var(--primary);}
+.best-seat .bs-num{font-size:1.05rem;font-weight:700;}
+.best-seat .bs-type{font-size:0.7rem;color:var(--muted);}
+.best-seat.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
+.best-seat.selected .bs-type{color:#fff;}
+.seat-more{display:none;width:100%;margin-top:12px;padding:10px;border:2px solid var(--primary);border-radius:8px;background:#fff;color:var(--primary);font-weight:700;font-family:inherit;cursor:pointer;}
+.seat-info{margin-top:10px;font-size:0.85rem;color:var(--muted);text-align:center;min-height:1.2em;}
 /* Page-specific background — uses Register.png if available, falls back to Background1.png */
 .Page-Body-Hero{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Register.png'),url('/Images/Background1.png');background-size:cover;background-position:center;}
 @media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
@@ -67,10 +76,10 @@
             <label>Choose Your Bus <span style="color:var(--danger);">*</span></label>
             <div class="bus-chooser" id="busChooser" style="visibility:hidden;">
               <div class="bus-choice" id="busChoice1" onclick="chooseBus('bus1')">
-                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel1"></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>&nbsp; <span id="busLabel1"></span>
               </div>
               <div class="bus-choice" id="busChoice2" onclick="chooseBus('bus2')">
-                <i class="fa-solid fa-bus"></i>&nbsp; <span id="busLabel2"></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="vertical-align:-2px"><path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/></svg>&nbsp; <span id="busLabel2"></span>
               </div>
             </div>
             <input type="hidden" id="busId" value="">
@@ -108,22 +117,13 @@
           </div>
 
         </div>
-        <!-- Seat map -->
+        <!-- Seat picker -->
         <div class="seat-section" id="seatSection">
-          <h3>Choose Your Seat</h3>
-          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Click an available seat to select it.</p>
-          <div class="bus-exterior">
-            <div class="driver-cabin">
-              <i class="fa-solid fa-dharmachakra"></i>
-              <span style="font-weight:700;color:#555;">Driver</span>
-            </div>
-            <div id="regSeatMap" class="bus-grid"></div>
-          </div>
-          <div class="seat-legend">
-            <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
-            <div class="legend-item"><div class="legend-box legend-pending"></div> Taken</div>
-            <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
-          </div>
+          <h3>Best seats available</h3>
+          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Tap a seat to choose it.</p>
+          <div id="regSeatMap" class="best-grid"></div>
+          <button type="button" class="seat-more" id="regSeatMore" onclick="showMoreSeats()">Show more seats</button>
+          <div class="seat-info" id="regSeatInfo">Pick a seat to see where it is</div>
           <input type="hidden" id="selectedSeatNum" value="">
         </div>
 
@@ -139,7 +139,7 @@
 <div id="regSeatTooltip"></div>
 
 <div class="Home-Page-Footer">
-  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
+  <div class="Home-Left-Footer"><img src="/Images/Logo3.png" loading="lazy" decoding="async" class="Logo1" alt="Logo"><div class="Logo-Text1">PolyCoach</div></div>
   <div class="Home-Mid-Footer">
     <button class="Footer-Button" onclick="openPopup('about')">About Us</button>
     <button class="Footer-Button" onclick="openPopup('faq')">FAQs</button>
@@ -148,9 +148,9 @@
   <div class="Home-Right-Footer">
     <div class="Footer-Text">Social Media:</div>
     <div class="Social-Container">
-      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png"></div></a>
-      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png"></div></a>
-      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Facebook.png" loading="lazy" decoding="async"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Twitter.png" loading="lazy" decoding="async"></div></a>
+      <a href="https://chat.whatsapp.com/IoxQg9cuzsI1FNG7Awt8Vj" target="_blank"><div class="Footer-Icons"><img src="/Images/Whatsapp.png" loading="lazy" decoding="async"></div></a>
     </div>
   </div>
 </div>
@@ -160,12 +160,24 @@
   <button class="close-btn" onclick="closePopup()">Close</button></div>
 </div>
 
-<script src="/js/popup.js"></script>
+<script src="/js/popup.js" defer></script>
 <script>
 let _settings = {};
 let _selectedBus = "";
 let _selectedSeat = null;
 const _regTooltip = document.getElementById("regSeatTooltip");
+
+/* ── Seat data: one request per bus, shared by the full-bus check and the picker ── */
+const _seatCache = {};
+function getSeats(busId){
+  const hit = _seatCache[busId];
+  if(hit && Date.now()-hit.t < 20000) return hit.p;
+  const p = fetch("/api/seats?busId="+busId).then(r=>r.json());
+  _seatCache[busId] = {t:Date.now(), p};
+  p.catch(()=>{ delete _seatCache[busId]; });
+  return p;
+}
+getSeats("bus1"); // start now, in parallel with /api/settings
 
 /* ── Load settings and apply trip mode ── */
 fetch("/api/settings").then(r=>r.json()).then(async s=>{
@@ -186,7 +198,7 @@ const BUS_CAPACITY = 72; // 13 rows x 5 seats + 7 back-row seats
 let _allFull = false;
 
 async function isBusFull(busId){
-  const seats = await (await fetch("/api/seats?busId="+busId)).json();
+  const seats = await getSeats(busId);
   const taken = new Set(
     seats.filter(x=>x.number>=1 && x.number<=BUS_CAPACITY && x.status!=="available").map(x=>x.number)
   );
@@ -245,59 +257,86 @@ function chooseBus(busId){
   loadRegSeats(busId);
 }
 
+/* ── Best-seats picker: 10 seats first, then one more row of 5 per tap ── */
+const SEAT_PAGE = 10;
+const SEAT_ROW  = 5;
+let _bestSeats = [];
+let _shownSeats = SEAT_PAGE;
+let _seatReq = 0;
+
+function describeSeat(n){
+  if(n>65){ // back row (66-72)
+    const win = (n===66 || n===72);
+    return {num:n, type: win?"Window":"Back", rank: win?0:3, where:"Back row"};
+  }
+  const row = Math.ceil(n/5), p = (n-1)%5; // left: window, aisle | right: aisle, middle, window
+  const type = ["Window","Aisle","Aisle","Middle","Window"][p];
+  const rank = {Window:0, Aisle:1, Middle:2}[type];
+  return {num:n, type, rank, where:"Row "+row+" · "+(p<2 ? "Left side" : "Right side")};
+}
+
 async function loadRegSeats(busId){
   const map = document.getElementById("regSeatMap");
-  map.innerHTML = "<div style='padding:12px;color:#888;'>Loading seats…</div>";
+  const more = document.getElementById("regSeatMore");
+  const myReq = ++_seatReq;
+  map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:#888;'>Loading seats…</div>";
+  more.style.display = "none";
   try{
-    const seats = await (await fetch("/api/seats?busId="+busId)).json();
-    map.innerHTML = "";
-    let counter = 1;
-    for(let row=0;row<13;row++){
-      for(let col=1;col<=6;col++){
-        if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
-        else if(counter<=65){renderRegSeat(seats,counter,map);counter++;}
-      }
+    const seats = await getSeats(busId);
+    if(myReq !== _seatReq) return; // a newer bus choice replaced this request
+    const taken = new Set();
+    seats.forEach(x=>{ if(x.status !== "available") taken.add(x.number); });
+    _bestSeats = [];
+    for(let n=1;n<=BUS_CAPACITY;n++){
+      if(!taken.has(n)) _bestSeats.push(describeSeat(n));
     }
-    const backRow=document.createElement("div");backRow.className="back-row-container";
-    for(let i=0;i<7;i++){renderRegSeat(seats,counter,backRow);counter++;}
-    map.appendChild(backRow);
+    _bestSeats.sort((x,y)=>x.rank-y.rank || x.num-y.num); // window, aisle, middle, back; front to back
+    _shownSeats = SEAT_PAGE;
+    renderBestSeats();
   }catch{
-    map.innerHTML="<div style='padding:12px;color:red;'>Failed to load seats.</div>";
+    if(myReq !== _seatReq) return;
+    map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:red;'>Failed to load seats.</div>";
   }
 }
 
-function renderRegSeat(seats,num,parent){
-  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
-  const displayStatus=data.status==="booked"?"pending":data.status; // merge booked+pending -> Taken (pending color)
-  const div=document.createElement("div");
-  div.className="seat "+displayStatus;
-  div.textContent=num;
-  div.addEventListener("mouseenter",()=>{
-    let tip=`Seat ${num}`;
-    if(data.passengerName) tip+=` — ${data.passengerName}`;
-    _regTooltip.textContent=tip;_regTooltip.style.display="block";
-  });
-  div.addEventListener("mouseleave",()=>_regTooltip.style.display="none");
-  if(displayStatus==="available"){
-    div.onclick=()=>selectRegSeat(num,div);
-  } else {
-    div.onclick=()=>showRegSeatMsg("Seat "+num+" is already taken.");
+function renderBestSeats(){
+  const map = document.getElementById("regSeatMap");
+  const more = document.getElementById("regSeatMore");
+  map.innerHTML = "";
+  if(!_bestSeats.length){
+    map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:#888;'>No seats are available on this bus right now.</div>";
+    more.style.display = "none";
+    updateSeatInfo();
+    return;
   }
-  parent.appendChild(div);
+  _bestSeats.slice(0,_shownSeats).forEach(s=>{
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "best-seat" + (s.num===_selectedSeat ? " selected" : "");
+    b.setAttribute("aria-label","Seat "+s.num+", "+s.type);
+    b.innerHTML = "<span class='bs-num'>"+s.num+"</span><span class='bs-type'>"+s.type+"</span>";
+    b.onclick = ()=>selectRegSeat(s.num);
+    map.appendChild(b);
+  });
+  more.style.display = _shownSeats >= _bestSeats.length ? "none" : "block";
+  updateSeatInfo();
 }
 
-function selectRegSeat(num,el){
-  document.querySelectorAll("#regSeatMap .seat.selected, #regSeatMap ~ * .seat.selected").forEach(s=>{
-    s.className="seat "+(s._origStatus||"available");
-  });
-  // Also clear back row
-  document.querySelectorAll(".back-row-container .seat.selected").forEach(s=>{
-    s.className="seat "+(s._origStatus||"available");
-  });
-  el._origStatus="available";
-  el.className="seat selected";
-  _selectedSeat=num;
-  document.getElementById("selectedSeatNum").value=num;
+function updateSeatInfo(){
+  const el = document.getElementById("regSeatInfo");
+  const s = _bestSeats.find(x=>x.num===_selectedSeat);
+  el.textContent = s ? ("Seat "+s.num+" · "+s.type+" · "+s.where) : "Pick a seat to see where it is";
+}
+
+function showMoreSeats(){
+  _shownSeats += SEAT_ROW;
+  renderBestSeats();
+}
+
+function selectRegSeat(num){
+  _selectedSeat = num;
+  document.getElementById("selectedSeatNum").value = num;
+  renderBestSeats();
 }
 
 function showRegSeatMsg(text){
