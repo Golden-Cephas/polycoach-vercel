@@ -125,6 +125,7 @@
           </div>
           <input type="hidden" id="selectedSeatNum" value="">
           <button type="button" class="submit-btn" id="completeBtn" style="margin-top:18px;">SUBMIT</button>
+          <p style="text-align:center;margin-top:12px;font-size:0.85rem;color:var(--muted);">Not you? <a href="#" id="startOverLink">Start over</a></p>
         </div>
 
         <button type="submit" class="submit-btn" id="chooseSeatBtn" style="margin-top:18px;">CHOOSE SEAT</button>
@@ -186,9 +187,10 @@ fetch("/api/settings").then(r=>r.json()).then(async s=>{
   applyTripMode(mode);
   document.getElementById("busLabel1").textContent = s.bus1Name||"Bus 1";
   document.getElementById("busLabel2").textContent = s.bus2Name||"Bus 2";
+  const resumed = restorePendingReg(mode); // reload after CHOOSE SEAT: keep their details, go straight back to the seat map
   if(mode==="backtoschool"){
     document.getElementById("busChooser").style.visibility = "visible";
-  } else {
+  } else if(!resumed){
     await autoAssignBus();   // holiday mode: fill bus1 first, then bus2
   }
 }).catch(()=>{});
@@ -338,6 +340,57 @@ function showRegSeatMsg(text){
   clearTimeout(el._t);el._t=setTimeout(()=>el.style.display="none",2200);
 }
 
+/* ── Keep the registration across reloads until SUBMIT is done ── */
+const PENDING_KEY = "polycoachPendingReg";
+const PENDING_TTL = 24*60*60*1000; // 24 hours
+
+function savePendingReg(mode){
+  try{ localStorage.setItem(PENDING_KEY, JSON.stringify({..._reg, mode, t:Date.now()})); }catch{}
+}
+function clearPendingReg(){
+  try{ localStorage.removeItem(PENDING_KEY); }catch{}
+}
+
+// Lock the details and show the seat map for the registered student
+function openSeatStep(scroll){
+  document.querySelectorAll("#regForm input:not([type=hidden]), #regForm select").forEach(el=>{ el.disabled = true; });
+  document.getElementById("chooseSeatBtn").style.display = "none";
+  const sec = document.getElementById("seatSection");
+  sec.style.display = "block";
+  loadRegSeats(_reg.busId);
+  if(scroll) sec.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+// On page load: if this device has a registration waiting for its seat, bring it back
+function restorePendingReg(mode){
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(PENDING_KEY) || "null"); }catch{}
+  if(!saved) return false;
+  if(saved.mode !== mode || !saved.busId || !saved.name || Date.now()-saved.t > PENDING_TTL){
+    clearPendingReg(); return false;
+  }
+  chooseBus(saved.busId); // sets the bus, venue and highlight (runs before the lock below)
+  document.getElementById("name").value  = saved.name;
+  document.getElementById("phone").value = saved.phone;
+  if(mode==="backtoschool") document.getElementById("origin").value = saved.origin || "";
+  else{
+    document.getElementById("destination").value = saved.dest || "";
+    const note = document.getElementById("busAssigned");
+    note.textContent = "You will be travelling on: " + (_settings[saved.busId+"Name"] || (saved.busId==="bus1" ? "Bus 1" : "Bus 2"));
+    note.style.display = "block";
+  }
+  _registered = true;
+  _reg = {name:saved.name, phone:saved.phone, busId:saved.busId, origin:saved.origin||"", dest:saved.dest||""};
+  openSeatStep(false);
+  return true;
+}
+
+document.getElementById("startOverLink").addEventListener("click", function(e){
+  e.preventDefault();
+  clearPendingReg();
+  location.reload();
+});
+
 /* ── Step 1: CHOOSE SEAT — register the student, then load the seat map ── */
 let _registered = false;
 let _reg = null;
@@ -387,16 +440,12 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
       btn.disabled=false; btn.textContent="CHOOSE SEAT"; return;
     }
 
-    // Registered: lock the details, then open the seat map
+    // Registered: remember it (survives a reload), lock the details, open the seat map
     _registered = true;
     _reg = {name, phone, busId, origin, dest};
     localStorage.setItem("polycoachBus", busId);
-    document.querySelectorAll("#regForm input:not([type=hidden]), #regForm select").forEach(el=>{ el.disabled = true; });
-    btn.style.display = "none";
-    const sec = document.getElementById("seatSection");
-    sec.style.display = "block";
-    loadRegSeats(busId);
-    sec.scrollIntoView({behavior:"smooth", block:"start"});
+    savePendingReg(_settings.tripMode||"holiday");
+    openSeatStep(true);
 
   }catch{
     msg.className="error"; msg.style.display="block";
@@ -446,6 +495,7 @@ document.getElementById("completeBtn").addEventListener("click", async function(
     }
 
     localStorage.setItem("polycoachBus", _reg.busId);
+    clearPendingReg(); // registration is complete
     window.location.href="Thanks-Remark1.html";
 
   }catch{
