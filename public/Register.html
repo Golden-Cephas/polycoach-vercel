@@ -110,7 +110,7 @@
         <!-- Seat map (shown after registration) -->
         <div class="seat-section" id="seatSection">
           <h3>Choose Your Seat</h3>
-          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">You are registered. Click an available seat, then tap Complete Booking.</p>
+          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">You are registered. Click an available seat, then tap Submit.</p>
           <div class="bus-exterior">
             <div class="driver-cabin">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color:#555"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M3.5 14l6.8-2M20.5 14l-6.8-2"/></svg>
@@ -124,7 +124,7 @@
             <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
           </div>
           <input type="hidden" id="selectedSeatNum" value="">
-          <button type="button" class="submit-btn" id="completeBtn" style="margin-top:18px;">COMPLETE BOOKING</button>
+          <button type="button" class="submit-btn" id="completeBtn" style="margin-top:18px;">SUBMIT</button>
         </div>
 
         <button type="submit" class="submit-btn" id="chooseSeatBtn" style="margin-top:18px;">CHOOSE SEAT</button>
@@ -405,7 +405,7 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
   }
 });
 
-/* ── Step 2: COMPLETE BOOKING — book the chosen seat, then show the success page ── */
+/* ── Step 2: SUBMIT — book the chosen seat, then show the success page ── */
 document.getElementById("completeBtn").addEventListener("click", async function(){
   const msg = document.getElementById("msg");
   const btn = this;
@@ -415,7 +415,7 @@ document.getElementById("completeBtn").addEventListener("click", async function(
     msg.textContent="Please select a seat to complete your booking."; return;
   }
 
-  btn.disabled=true; btn.textContent="Booking...";
+  btn.disabled=true; btn.textContent="Submitting...";
   msg.style.display="none";
 
   try{
@@ -442,7 +442,7 @@ document.getElementById("completeBtn").addEventListener("click", async function(
       _selectedSeat=null;
       document.getElementById("selectedSeatNum").value="";
       loadRegSeats(_reg.busId);
-      btn.disabled=false; btn.textContent="COMPLETE BOOKING"; return;
+      btn.disabled=false; btn.textContent="SUBMIT"; return;
     }
 
     localStorage.setItem("polycoachBus", _reg.busId);
@@ -451,7 +451,7 @@ document.getElementById("completeBtn").addEventListener("click", async function(
   }catch{
     msg.className="error"; msg.style.display="block";
     msg.textContent="Server error. Please try again.";
-    btn.disabled=false; btn.textContent="COMPLETE BOOKING";
+    btn.disabled=false; btn.textContent="SUBMIT";
   }
 });
 </script>
