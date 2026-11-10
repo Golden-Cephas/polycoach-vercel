@@ -20,16 +20,6 @@
 .seat-section{margin-top:22px;display:none;}
 .seat-section h3{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;color:var(--primary);margin-bottom:10px;}
 #regSeatTooltip{position:fixed;background:#333;color:#fff;padding:6px 12px;border-radius:5px;font-size:0.8rem;pointer-events:none;display:none;z-index:500;white-space:nowrap;}
-/* Best-seats picker: 5 per row */
-.best-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;}
-.best-seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:58px;padding:0;border:2px solid #ddd;border-radius:8px;background:#fff;color:#333;cursor:pointer;font-family:inherit;transition:all 0.2s;}
-.best-seat:hover{border-color:var(--primary);}
-.best-seat .bs-num{font-size:1.05rem;font-weight:700;}
-.best-seat .bs-type{font-size:0.7rem;color:var(--muted);}
-.best-seat.selected{border-color:var(--primary);background:var(--primary);color:#fff;}
-.best-seat.selected .bs-type{color:#fff;}
-.seat-more{display:none;width:100%;margin-top:12px;padding:10px;border:2px solid var(--primary);border-radius:8px;background:#fff;color:var(--primary);font-weight:700;font-family:inherit;cursor:pointer;}
-.seat-info{margin-top:10px;font-size:0.85rem;color:var(--muted);text-align:center;min-height:1.2em;}
 /* Page-specific background — uses Register.png if available, falls back to Background1.png */
 .Page-Body-Hero{background-image:linear-gradient(rgba(11,41,77,0.82),rgba(11,41,77,0.68)),url('/Images/Register.png'),url('/Images/Background1.png');background-size:cover;background-position:center;}
 @media(max-width:520px){.reg-grid{grid-template-columns:1fr;}.reg-grid .full{grid-column:span 1;}}
@@ -117,17 +107,27 @@
           </div>
 
         </div>
-        <!-- Seat picker -->
+        <!-- Seat map (shown after registration) -->
         <div class="seat-section" id="seatSection">
-          <h3>Best seats available</h3>
-          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">Tap a seat to choose it.</p>
-          <div id="regSeatMap" class="best-grid"></div>
-          <button type="button" class="seat-more" id="regSeatMore" onclick="showMoreSeats()">Show more seats</button>
-          <div class="seat-info" id="regSeatInfo">Pick a seat to see where it is</div>
+          <h3>Choose Your Seat</h3>
+          <p style="font-size:0.85rem;color:var(--muted);margin-bottom:10px;">You are registered. Click an available seat, then tap Complete Booking.</p>
+          <div class="bus-exterior">
+            <div class="driver-cabin">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color:#555"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 3v7M3.5 14l6.8-2M20.5 14l-6.8-2"/></svg>
+              <span style="font-weight:700;color:#555;">Driver</span>
+            </div>
+            <div id="regSeatMap" class="bus-grid"></div>
+          </div>
+          <div class="seat-legend">
+            <div class="legend-item"><div class="legend-box legend-available"></div> Available</div>
+            <div class="legend-item"><div class="legend-box legend-pending"></div> Taken</div>
+            <div class="legend-item"><div class="legend-box legend-selected"></div> Selected</div>
+          </div>
           <input type="hidden" id="selectedSeatNum" value="">
+          <button type="button" class="submit-btn" id="completeBtn" style="margin-top:18px;">COMPLETE BOOKING</button>
         </div>
 
-        <button type="submit" class="submit-btn" style="margin-top:18px;">REGISTER NOW</button>
+        <button type="submit" class="submit-btn" id="chooseSeatBtn" style="margin-top:18px;">CHOOSE SEAT</button>
         <div id="msg"></div>
         <div class="login-footer">
           <p>Already registered? <a href="Book-Login.html">Click here to book</a></p>
@@ -169,9 +169,9 @@ const _regTooltip = document.getElementById("regSeatTooltip");
 
 /* ── Seat data: one request per bus, shared by the full-bus check and the picker ── */
 const _seatCache = {};
-function getSeats(busId){
+function getSeats(busId, fresh){
   const hit = _seatCache[busId];
-  if(hit && Date.now()-hit.t < 20000) return hit.p;
+  if(!fresh && hit && Date.now()-hit.t < 20000) return hit.p;
   const p = fetch("/api/seats?busId="+busId).then(r=>r.json());
   _seatCache[busId] = {t:Date.now(), p};
   p.catch(()=>{ delete _seatCache[busId]; });
@@ -230,8 +230,15 @@ async function autoAssignBus(){
 
 document.addEventListener("mousemove",e=>{
   if(_regTooltip.style.display!=="none"){
-    _regTooltip.style.left=(e.clientX+14)+"px";
-    _regTooltip.style.top=(e.clientY-30)+"px";
+    const tw=_regTooltip.offsetWidth, th=_regTooltip.offsetHeight;
+    const vw=window.innerWidth,       vh=window.innerHeight;
+    let left=e.clientX+14;
+    if(left+tw+10>vw) left=e.clientX-tw-10;
+    let top=e.clientY-30;
+    if(top<0) top=e.clientY+14;
+    if(top+th>vh) top=vh-th-8;
+    _regTooltip.style.left=Math.max(4,left)+"px";
+    _regTooltip.style.top=Math.max(4,top)+"px";
   }
 });
 
@@ -244,6 +251,7 @@ function applyTripMode(mode){
 }
 
 function chooseBus(busId){
+  if(_registered) return; // bus is locked once the student is registered
   _selectedBus = busId;
   _selectedSeat = null;
   document.getElementById("busId").value = busId;
@@ -252,91 +260,75 @@ function chooseBus(busId){
   document.getElementById("busChoice2").classList.toggle("selected", busId==="bus2");
   const venue = _settings[busId+"Venue"] || _settings.departureVenue || "";
   document.getElementById("commonField").value = venue;
-  // Show and load seat map for chosen bus
-  document.getElementById("seatSection").style.display = "block";
-  loadRegSeats(busId);
 }
 
-/* ── Best-seats picker: 10 seats first, then one more row of 5 per tap ── */
-const SEAT_PAGE = 10;
-const SEAT_ROW  = 5;
-let _bestSeats = [];
-let _shownSeats = SEAT_PAGE;
+/* ── Seat map (bus view): loads after registration ── */
 let _seatReq = 0;
-
-function describeSeat(n){
-  if(n>65){ // back row (66-72)
-    const win = (n===66 || n===72);
-    return {num:n, type: win?"Window":"Back", rank: win?0:3, where:"Back row"};
-  }
-  const row = Math.ceil(n/5), p = (n-1)%5; // left: window, aisle | right: aisle, middle, window
-  const type = ["Window","Aisle","Aisle","Middle","Window"][p];
-  const rank = {Window:0, Aisle:1, Middle:2}[type];
-  return {num:n, type, rank, where:"Row "+row+" · "+(p<2 ? "Left side" : "Right side")};
-}
 
 async function loadRegSeats(busId){
   const map = document.getElementById("regSeatMap");
-  const more = document.getElementById("regSeatMore");
   const myReq = ++_seatReq;
-  map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:#888;'>Loading seats…</div>";
-  more.style.display = "none";
+  map.innerHTML = "<div style='padding:12px;color:#888;'>Loading seats…</div>";
   try{
-    const seats = await getSeats(busId);
-    if(myReq !== _seatReq) return; // a newer bus choice replaced this request
-    const taken = new Set();
-    seats.forEach(x=>{ if(x.status !== "available") taken.add(x.number); });
-    _bestSeats = [];
-    for(let n=1;n<=BUS_CAPACITY;n++){
-      if(!taken.has(n)) _bestSeats.push(describeSeat(n));
+    const seats = await getSeats(busId, true);
+    if(myReq !== _seatReq) return; // a newer load replaced this one
+    map.innerHTML = "";
+    let counter = 1;
+    for(let row=0;row<13;row++){
+      for(let col=1;col<=6;col++){
+        if(col===3){const a=document.createElement("div");a.className="seat aisle-space";map.appendChild(a);}
+        else if(counter<=65){renderRegSeat(seats,counter,map);counter++;}
+      }
     }
-    _bestSeats.sort((x,y)=>x.rank-y.rank || x.num-y.num); // window, aisle, middle, back; front to back
-    _shownSeats = SEAT_PAGE;
-    renderBestSeats();
+    const backRow=document.createElement("div");backRow.className="back-row-container";
+    for(let i=0;i<7;i++){renderRegSeat(seats,counter,backRow);counter++;}
+    map.appendChild(backRow);
   }catch{
     if(myReq !== _seatReq) return;
-    map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:red;'>Failed to load seats.</div>";
+    map.innerHTML="<div style='padding:12px;color:red;'>Failed to load seats.</div>";
   }
 }
 
-function renderBestSeats(){
-  const map = document.getElementById("regSeatMap");
-  const more = document.getElementById("regSeatMore");
-  map.innerHTML = "";
-  if(!_bestSeats.length){
-    map.innerHTML = "<div style='grid-column:1/-1;padding:12px;color:#888;'>No seats are available on this bus right now.</div>";
-    more.style.display = "none";
-    updateSeatInfo();
-    return;
-  }
-  _bestSeats.slice(0,_shownSeats).forEach(s=>{
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "best-seat" + (s.num===_selectedSeat ? " selected" : "");
-    b.setAttribute("aria-label","Seat "+s.num+", "+s.type);
-    b.innerHTML = "<span class='bs-num'>"+s.num+"</span><span class='bs-type'>"+s.type+"</span>";
-    b.onclick = ()=>selectRegSeat(s.num);
-    map.appendChild(b);
+function renderRegSeat(seats,num,parent){
+  const data=seats.find(s=>s.number===num)||{number:num,status:"available"};
+  const displayStatus=data.status==="booked"?"pending":data.status; // merge booked+pending -> Taken (pending color)
+  const div=document.createElement("div");
+  div.className="seat "+displayStatus;
+  div.textContent=num;
+  div.addEventListener("mouseenter",e=>{
+    let tip="Seat "+num;
+    if(data.passengerName) tip+=" — "+data.passengerName;
+    else tip+=" ("+(displayStatus==="available" ? "Available" : "Taken")+")";
+    _regTooltip.textContent=tip;
+    _regTooltip.style.visibility="hidden";
+    _regTooltip.style.display="block";
+    const tw=_regTooltip.offsetWidth, vw=window.innerWidth;
+    const left=e.clientX+14+tw+10>vw ? e.clientX-tw-10 : e.clientX+14;
+    _regTooltip.style.left=Math.max(4,left)+"px";
+    _regTooltip.style.top=Math.max(4,e.clientY-30)+"px";
+    _regTooltip.style.visibility="visible";
   });
-  more.style.display = _shownSeats >= _bestSeats.length ? "none" : "block";
-  updateSeatInfo();
+  div.addEventListener("mouseleave",()=>_regTooltip.style.display="none");
+  if(displayStatus==="available"){
+    div.onclick=()=>selectRegSeat(num,div);
+  } else {
+    div.onclick=()=>showRegSeatMsg("Seat "+num+" is already taken.");
+  }
+  parent.appendChild(div);
 }
 
-function updateSeatInfo(){
-  const el = document.getElementById("regSeatInfo");
-  const s = _bestSeats.find(x=>x.num===_selectedSeat);
-  el.textContent = s ? ("Seat "+s.num+" · "+s.type+" · "+s.where) : "Pick a seat to see where it is";
-}
-
-function showMoreSeats(){
-  _shownSeats += SEAT_ROW;
-  renderBestSeats();
-}
-
-function selectRegSeat(num){
-  _selectedSeat = num;
-  document.getElementById("selectedSeatNum").value = num;
-  renderBestSeats();
+function selectRegSeat(num,el){
+  document.querySelectorAll("#regSeatMap .seat.selected, #regSeatMap ~ * .seat.selected").forEach(s=>{
+    s.className="seat "+(s._origStatus||"available");
+  });
+  // Also clear back row
+  document.querySelectorAll(".back-row-container .seat.selected").forEach(s=>{
+    s.className="seat "+(s._origStatus||"available");
+  });
+  el._origStatus="available";
+  el.className="seat selected";
+  _selectedSeat=num;
+  document.getElementById("selectedSeatNum").value=num;
 }
 
 function showRegSeatMsg(text){
@@ -346,11 +338,15 @@ function showRegSeatMsg(text){
   clearTimeout(el._t);el._t=setTimeout(()=>el.style.display="none",2200);
 }
 
-/* ── Form submit ── */
+/* ── Step 1: CHOOSE SEAT — register the student, then load the seat map ── */
+let _registered = false;
+let _reg = null;
+
 document.getElementById("regForm").addEventListener("submit", async function(e){
   e.preventDefault();
+  if(_registered) return;
   const msg   = document.getElementById("msg");
-  const btn   = this.querySelector("button[type=submit]");
+  const btn   = document.getElementById("chooseSeatBtn");
   const name  = document.getElementById("name").value.trim();
   const phone = document.getElementById("phone").value.trim();
   const busId = document.getElementById("busId").value;
@@ -374,16 +370,11 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
     msg.className="error"; msg.style.display="block";
     msg.textContent="Please select your origin."; return;
   }
-  if(!_selectedSeat){
-    msg.className="error"; msg.style.display="block";
-    msg.textContent="Please select a seat before registering."; return;
-  }
 
   btn.disabled=true; btn.textContent="Registering...";
   msg.style.display="none";
 
   try{
-    // Step 1: Register the student
     const regRes = await fetch("/api/register",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -393,20 +384,51 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
     if(!regData.success){
       msg.className="error"; msg.style.display="block";
       msg.textContent=regData.message||"Registration failed. Please try again.";
-      btn.disabled=false; btn.textContent="REGISTER NOW"; return;
+      btn.disabled=false; btn.textContent="CHOOSE SEAT"; return;
     }
 
-    // Step 2: Book the chosen seat as pending
+    // Registered: lock the details, then open the seat map
+    _registered = true;
+    _reg = {name, phone, busId, origin, dest};
+    localStorage.setItem("polycoachBus", busId);
+    document.querySelectorAll("#regForm input:not([type=hidden]), #regForm select").forEach(el=>{ el.disabled = true; });
+    btn.style.display = "none";
+    const sec = document.getElementById("seatSection");
+    sec.style.display = "block";
+    loadRegSeats(busId);
+    sec.scrollIntoView({behavior:"smooth", block:"start"});
+
+  }catch{
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Server error. Please try again.";
+    btn.disabled=false; btn.textContent="CHOOSE SEAT";
+  }
+});
+
+/* ── Step 2: COMPLETE BOOKING — book the chosen seat, then show the success page ── */
+document.getElementById("completeBtn").addEventListener("click", async function(){
+  const msg = document.getElementById("msg");
+  const btn = this;
+  if(!_registered || !_reg) return;
+  if(!_selectedSeat){
+    msg.className="error"; msg.style.display="block";
+    msg.textContent="Please select a seat to complete your booking."; return;
+  }
+
+  btn.disabled=true; btn.textContent="Booking...";
+  msg.style.display="none";
+
+  try{
     const bookRes = await fetch("/api/book-seat",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
         seatNumber: Number(_selectedSeat),
-        busId,
-        passengerName: name,
-        destination: dest,
-        origin: origin,
-        phone,
+        busId: _reg.busId,
+        passengerName: _reg.name,
+        destination: _reg.dest,
+        origin: _reg.origin,
+        phone: _reg.phone,
         program: "",
         paymentProof: null,
         releaseOldSeat: null
@@ -414,17 +436,22 @@ document.getElementById("regForm").addEventListener("submit", async function(e){
     });
     const bookData = await bookRes.json();
     if(!bookData.success){
-      // Registration succeeded but seat booking failed — still continue
-      console.warn("Seat booking failed:", bookData.message);
+      // e.g. someone took the seat first: stay here, refresh the map, let them pick again
+      msg.className="error"; msg.style.display="block";
+      msg.textContent=bookData.message||"That seat could not be booked. Please choose another seat.";
+      _selectedSeat=null;
+      document.getElementById("selectedSeatNum").value="";
+      loadRegSeats(_reg.busId);
+      btn.disabled=false; btn.textContent="COMPLETE BOOKING"; return;
     }
 
-    localStorage.setItem("polycoachBus", busId);
+    localStorage.setItem("polycoachBus", _reg.busId);
     window.location.href="Thanks-Remark1.html";
 
   }catch{
     msg.className="error"; msg.style.display="block";
     msg.textContent="Server error. Please try again.";
-    btn.disabled=false; btn.textContent="REGISTER NOW";
+    btn.disabled=false; btn.textContent="COMPLETE BOOKING";
   }
 });
 </script>
