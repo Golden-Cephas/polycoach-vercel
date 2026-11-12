@@ -108,6 +108,12 @@ tr:hover td{background:#fafafa;}
 .btn-cancel{background:#eee;color:#333;padding:10px 20px;border-radius:6px;border:none;cursor:pointer;font-weight:700;}
 .proof-img{max-width:100%;border-radius:8px;margin-top:10px;max-height:220px;object-fit:contain;display:none;}
 
+/* RAFFLE */
+.rf-thumb{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#eef2f7;display:flex;align-items:center;justify-content:center;color:#9aa8bb;}
+.rf-photo-preview{width:100%;max-height:180px;object-fit:contain;border-radius:8px;margin-top:8px;display:none;background:#f4f6f9;}
+.rf-note{font-size:0.82rem;color:#777;margin-top:12px;line-height:1.5;}
+#rfSaved{display:none;background:#e6f4ea;color:#2e7d32;padding:10px 14px;border-radius:6px;font-weight:700;font-size:0.85rem;}
+
 /* RESPONSIVE */
 @media(max-width:900px){.bus-admin-grid{grid-template-columns:1fr;}.console-card{position:static;}}
 @media(max-width:700px){
@@ -130,6 +136,7 @@ tr:hover td{background:#fafafa;}
   <div class="nav-link active" onclick="showPanel('bus')"><i class="fa-solid fa-bus"></i> <span>Bus Layout</span></div>
   <div class="nav-link" onclick="showPanel('users')"><i class="fa-solid fa-users"></i> <span>Registered Users</span></div>
   <div class="nav-link" id="pendingNavBtn" onclick="showPanel('bookings')"><i class="fa-solid fa-file-invoice-dollar"></i> <span>Pending Approvals</span> <span class="badge" id="pendingBadge" style="display:none;"></span></div>
+  <div class="nav-link" onclick="showPanel('raffle')"><i class="fa-solid fa-gift"></i> <span>Raffle Draw</span></div>
   <div class="nav-link" onclick="showPanel('settings')"><i class="fa-solid fa-gear"></i> <span>Settings</span></div>
   <div class="nav-logout" onclick="adminLogout()"><i class="fa-solid fa-right-from-bracket"></i> <span>Logout</span></div>
 </nav>
@@ -405,6 +412,78 @@ tr:hover td{background:#fafafa;}
     </div>
 
   </div>
+
+  <!-- RAFFLE PANEL -->
+  <div id="panel-raffle" class="panel">
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="rfStatGifts">0</div><div class="lbl">Gifts</div></div>
+      <div class="stat-card"><div class="num" id="rfStatGiven">0</div><div class="lbl">Given Out</div></div>
+      <div class="stat-card"><div class="num" id="rfStatEligible">0</div><div class="lbl">Eligible People</div></div>
+      <div class="stat-card"><div class="num" id="rfStatLeft">0</div><div class="lbl">Still In The Draw</div></div>
+    </div>
+
+    <div class="settings-card" style="max-width:none;margin-bottom:22px;">
+      <h3>Who Can Take Part</h3>
+      <div class="settings-grid" style="max-width:none;">
+        <div>
+          <label class="settings-label">Eligible People</label>
+          <select class="settings-input" id="rfEligibility">
+            <option value="registered">Registered users</option>
+            <option value="booked">Booked only (approved bookings)</option>
+          </select>
+        </div>
+        <div>
+          <label class="settings-label">Bus</label>
+          <select class="settings-input" id="rfScope">
+            <option value="all">Both buses</option>
+            <option value="bus1">Bus 1 only</option>
+            <option value="bus2">Bus 2 only</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap;">
+        <button class="btn-save" onclick="saveRaffleSettings()">SAVE</button>
+        <div id="rfSaved">Saved</div>
+      </div>
+      <p class="rf-note">Each registered user, or each approved booking, is one entry. People are never matched by phone number, so two people sharing a number both stay in the draw. Anyone who has already won is left out of the next spins.</p>
+    </div>
+
+    <div class="table-card">
+      <div class="table-card-header">
+        <h3>Gifts</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-add" onclick="openGiftModal()"><i class="fa-solid fa-plus"></i> Add Gift</button>
+          <button class="btn" style="background:var(--primary);color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;" onclick="window.open('Status-Login.html?mode=raffle','_blank')"><i class="fa-solid fa-play"></i> Open Raffle Draw</button>
+          <button class="btn btn-delete" style="padding:9px 18px;border-radius:6px;font-size:0.88rem;" onclick="resetRaffle()"><i class="fa-solid fa-rotate-left"></i> Reset Raffle</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Photo</th><th>Gift</th><th>Description</th><th>Winner</th><th>Actions</th></tr></thead>
+          <tbody id="rfGiftRows"><tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No gifts yet. Click Add Gift.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- GIFT MODAL -->
+<div class="modal-overlay" id="giftModal">
+  <div class="modal-box">
+    <h3 id="giftModalTitle">Add Gift</h3>
+    <div class="cg"><label>Gift Name</label><input type="text" id="gf-name" placeholder="e.g. Bluetooth Speaker" maxlength="80"></div>
+    <div class="cg"><label>Description (optional)</label><input type="text" id="gf-desc" placeholder="e.g. Sponsored by ..." maxlength="160"></div>
+    <div class="cg">
+      <label>Photo (optional)</label>
+      <input type="file" id="gf-photo" accept="image/*" onchange="onGiftPhoto(this)">
+      <img id="gf-preview" class="rf-photo-preview" alt="Preview">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" style="flex:2;" id="gf-save" onclick="saveGift()">SAVE GIFT</button>
+      <button class="btn-cancel" style="flex:1;" onclick="closeModal('giftModal')">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- EDIT BOOKING MODAL -->
@@ -507,7 +586,7 @@ document.addEventListener("DOMContentLoaded",function(){
 async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
 /* ── PANELS ── */
-const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings"};
+const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings",raffle:"Raffle Draw Setup"};
 function showPanel(name,_navEl){
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav-link").forEach(l=>l.classList.remove("active"));
@@ -520,6 +599,7 @@ function showPanel(name,_navEl){
   if(name==="users") loadUsers();
   if(name==="bookings") loadBookings();
   if(name==="settings") loadSettings();
+  if(name==="raffle") loadRaffle();
 }
 
 /* ── BUS ── */
@@ -2628,7 +2708,129 @@ async function generateReceiptPDF(rc){
   doc.save(fname);
 }
 
-/* ── LOGOUT ── *//* ── LOGOUT ── */
+/* ── LOGOUT ── */
+/* ── RAFFLE ── */
+let _raffle={gifts:[]};
+let _giftEditId=null;
+let _giftPhoto;   // undefined = unchanged, "" = removed, string = new photo
+
+function rfEsc(t){return String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+async function loadRaffle(){
+  try{
+    const r=await fetch("/api/admin?action=raffle-get",{headers:authHeaders()});
+    const d=await r.json();
+    if(!d.success) return;
+    _raffle=d;
+    document.getElementById("rfEligibility").value=d.eligibility;
+    document.getElementById("rfScope").value=d.busScope;
+    const given=d.gifts.filter(g=>g.winner).length;
+    document.getElementById("rfStatGifts").textContent=d.gifts.length;
+    document.getElementById("rfStatGiven").textContent=given;
+    document.getElementById("rfStatEligible").textContent=d.eligibleCount;
+    document.getElementById("rfStatLeft").textContent=d.poolLeft;
+    const body=document.getElementById("rfGiftRows");
+    if(!d.gifts.length){
+      body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No gifts yet. Click Add Gift.</td></tr>';
+      return;
+    }
+    body.innerHTML=d.gifts.map(g=>{
+      const thumb=g.photo?'<img class="rf-thumb" src="'+rfEsc(g.photo)+'" alt="">':'<div class="rf-thumb"><i class="fa-solid fa-gift"></i></div>';
+      const win=g.winner?'<span class="badge-approved">'+rfEsc(g.winner.name)+'</span>':'<span style="color:#aaa;">—</span>';
+      return '<tr><td>'+thumb+'</td><td><strong>'+rfEsc(g.name)+'</strong></td><td>'+rfEsc(g.description)+'</td><td>'+win+'</td>'
+        +'<td><button class="btn btn-add" style="padding:6px 12px;font-size:0.8rem;" onclick="openGiftModal(\''+g.id+'\')">Edit</button> '
+        +'<button class="btn btn-delete" onclick="deleteGift(\''+g.id+'\')">Delete</button></td></tr>';
+    }).join("");
+  }catch(e){console.error("loadRaffle:",e);}
+}
+
+async function saveRaffleSettings(){
+  const r=await fetch("/api/admin?action=raffle-save",{method:"POST",headers:authHeaders(),body:JSON.stringify({
+    eligibility:document.getElementById("rfEligibility").value,
+    busScope:document.getElementById("rfScope").value
+  })});
+  const d=await r.json();
+  if(!d.success){alert(d.message||"Could not save.");return;}
+  const el=document.getElementById("rfSaved");
+  el.style.display="block";setTimeout(()=>el.style.display="none",2500);
+  loadRaffle();
+}
+
+function openGiftModal(id){
+  _giftEditId=id||null;_giftPhoto=undefined;
+  const g=id?_raffle.gifts.find(x=>x.id===id):null;
+  document.getElementById("giftModalTitle").textContent=g?"Edit Gift":"Add Gift";
+  document.getElementById("gf-name").value=g?g.name:"";
+  document.getElementById("gf-desc").value=g?g.description:"";
+  document.getElementById("gf-photo").value="";
+  const pv=document.getElementById("gf-preview");
+  if(g&&g.photo){pv.src=g.photo;pv.style.display="block";}else{pv.removeAttribute("src");pv.style.display="none";}
+  document.getElementById("giftModal").style.display="flex";
+}
+
+function rfCompress(file){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onerror=reject;
+    fr.onload=()=>{
+      const img=new Image();
+      img.onerror=reject;
+      img.onload=()=>{
+        const max=700,sc=Math.min(1,max/Math.max(img.width,img.height));
+        const w=Math.round(img.width*sc),h=Math.round(img.height*sc);
+        const c=document.createElement("canvas");c.width=w;c.height=h;
+        const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+        resolve(c.toDataURL("image/jpeg",0.82));
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+async function onGiftPhoto(input){
+  const f=input.files&&input.files[0];
+  if(!f) return;
+  try{
+    _giftPhoto=await rfCompress(f);
+    const pv=document.getElementById("gf-preview");
+    pv.src=_giftPhoto;pv.style.display="block";
+  }catch(e){alert("Could not read that image.");input.value="";}
+}
+
+async function saveGift(){
+  const name=document.getElementById("gf-name").value.trim();
+  if(!name){alert("Enter the gift name.");return;}
+  const btn=document.getElementById("gf-save");
+  btn.disabled=true;
+  try{
+    const r=await fetch("/api/admin?action=raffle-gift-save",{method:"POST",headers:authHeaders(),body:JSON.stringify({
+      giftId:_giftEditId||undefined,
+      name:name,
+      description:document.getElementById("gf-desc").value.trim(),
+      photo:_giftPhoto
+    })});
+    const d=await r.json();
+    if(!d.success){alert(d.message||"Could not save gift.");return;}
+    closeModal("giftModal");
+    loadRaffle();
+  }catch(e){alert("Network error. Try again.");}
+  finally{btn.disabled=false;}
+}
+
+async function deleteGift(id){
+  if(!confirm("Delete this gift?")) return;
+  await fetch("/api/admin?action=raffle-gift-delete&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  loadRaffle();
+}
+
+async function resetRaffle(){
+  if(!confirm("Reset the raffle? All winners are cleared and every gift goes back in the draw.")) return;
+  await fetch("/api/admin?action=raffle-reset",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  loadRaffle();
+}
+
+/* ── LOGOUT ── */
 async function adminLogout(){
   localStorage.removeItem("polycoachToken");
   localStorage.removeItem("polycoachUser");

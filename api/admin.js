@@ -20,6 +20,12 @@
 //   GET  /api/admin?action=proof&id=xxx
 //   GET  /api/admin?action=receipt&id=xxx
 //   GET  /api/admin?action=studentid&id=xxx
+//   GET  /api/admin?action=raffle-get
+//   POST /api/admin?action=raffle-save
+//   POST /api/admin?action=raffle-gift-save
+//   POST /api/admin?action=raffle-gift-delete&id=xxx
+//   POST /api/admin?action=raffle-draw
+//   POST /api/admin?action=raffle-reset
 
 const { connectDB, seedIfNeeded, User, Admin, Seat, Booking, Settings } = require("./_db");
 
@@ -47,6 +53,8 @@ async function buildReceiptNumber(seatNum, phone, Booking){
 }
 
 const { setHeaders, requireAdmin } = require("./_auth");
+const Raffle = require("./_raffle");
+const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 
 const DEFAULT_PASSWORDS = {
@@ -72,6 +80,46 @@ async function cleanExpiredBookings() {
       }
     }
   } catch(e) { console.error("Cleanup error:", e.message); }
+}
+
+// ── RAFFLE HELPERS ──
+async function getRaffle() {
+  let r = await Raffle.findOne();
+  if (!r) r = await Raffle.create({});
+  return r;
+}
+
+// Everyone who is currently eligible. Registered users and bookings are
+// never matched to each other (phones can be shared by two people), so
+// each User / approved Booking is its own entry.
+async function buildRafflePool(r) {
+  const filter = (r.busScope === "bus1" || r.busScope === "bus2") ? { busId: r.busScope } : {};
+  if (r.eligibility === "booked") {
+    const bks = await Booking.find({ ...filter, status: "approved" }).lean();
+    return bks.map(b => ({
+      entryId: "b:" + b._id,
+      name:    b.passengerName || "Passenger",
+      detail:  b.seatNumber ? "Seat " + (b.seatLabel || makeSeatLabel(Number(b.seatNumber))) : ""
+    }));
+  }
+  const us = await User.find(filter).select("fullName origin").lean();
+  return us.map(u => ({
+    entryId: "u:" + u._id,
+    name:    u.fullName || "Student",
+    detail:  u.origin || ""
+  }));
+}
+
+function raffleWonIds(r) {
+  return new Set(r.gifts.filter(g => g.winner).map(g => g.winner.entryId));
+}
+
+function raffleGiftOut(g) {
+  return {
+    id: String(g._id), name: g.name, description: g.description || "",
+    photo: g.photo || "",
+    winner: g.winner ? { name: g.winner.name, detail: g.winner.detail || "" } : null
+  };
 }
 
 // Helper: get bus-specific settings fields
@@ -132,6 +180,21 @@ module.exports = async (req, res) => {
       if (action === "seats") {
         const seats = await Seat.find({ busId }).sort({ number: 1 });
         return res.json(seats);
+      }
+
+      // Raffle: settings + gifts + counts
+      if (action === "raffle-get") {
+        const r = await getRaffle();
+        const pool = await buildRafflePool(r);
+        const won  = raffleWonIds(r);
+        return res.json({
+          success: true,
+          eligibility: r.eligibility,
+          busScope: r.busScope,
+          gifts: r.gifts.map(raffleGiftOut),
+          eligibleCount: pool.length,
+          poolLeft: pool.filter(p => !won.has(p.entryId)).length
+        });
       }
 
       // Get settings
@@ -312,6 +375,317 @@ module.exports = async (req, res) => {
         } else if (destination !== undefined || origin !== undefined) {
           const settings  = await Settings.findOne();
           const venue     = settings ? (settings[busId+"Venue"] || settings.departureVenue || "") : "";
+          const isHoliday = ((settings && settings.tripMode) || "holiday") !== "backtoschool";
+          const place     = destination !== undefined ? destination : origin;
+          seat.origin      = isHoliday ? venue : (place || "");
+          seat.destination = isHoliday ? (place || "") : venue;
+        }
+        seat.phone         = phone || seat.phone || "";
+        await seat.save();
+
+        // If clearing seat, cancel its active booking
+        if(!status || status === "available"){
+          await Booking.findOneAndUpdate(
+            { seatNumber: seatN, busId, status: { $ne: "rejected" } },
+            { status: "rejected" }
+          );
+        }
+
+        // If part of a seat switch — clear old seat by number
+        if(clearSeatNum && Number(clearSeatNum) !== seatN){
+          const oldSeatN = Number(clearSeatNum);
+          await Seat.findOneAndUpdate(
+            { number: oldSeatN, busId },
+            { status: "available", passengerName: null, destination: "", origin: "", phone: "" }
+          );
+          await Booking.findOneAndUpdate(
+            { seatNumber: oldSeatN, busId, status: { $ne: "rejected" } },
+            { status: "rejected" }
+          );
+        }
+
+        let bookingCreated = false;
+        let bookingId      = null;
+
+        if (status === "booked" && passengerName) {
+          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
+          if (!nameExists) {
+            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
+          }
+          const settings = await Settings.findOne();
+          const bs = getBusSettings(settings, busId);
+          // Deposit is money — always prefer what the admin entered in the
+          // confirm popup; the default booking fee is only a last-resort fallback.
+          const depositAmt = deposit || bs.bookingFee;
+          const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
+          if (!existing) {
+            const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, phone||"", Booking);
+            const booking = await Booking.create({
+              busId,
+              seatNumber:    seatN,
+              passengerName,
+              destination:   seat.destination||"",
+              origin:        seat.origin||"",
+              phone:         phone||"",
+              program:       "",
+              receiptNumber: receiptNo,
+              seatLabel:     lbl,
+              deposit:       depositAmt,
+              departureDate: bs.departureDate,
+              departureVenue:bs.departureVenue,
+              paymentProof:  null,
+              status:        "approved"
+            });
+            bookingCreated=true;
+            bookingId=booking._id;
+          } else if(existing.status==="pending"){
+            existing.status="approved";
+            existing.deposit=depositAmt;
+            if(!existing.receiptNumber){
+              const {receiptNumber:receiptNo2, seatLabel:lbl2} = await buildReceiptNumber(seatN, existing.phone||phone||"", Booking);
+              existing.receiptNumber = receiptNo2;
+              if(!existing.seatLabel) existing.seatLabel = lbl2;
+            }
+            await existing.save();
+            bookingId=existing._id;
+          } else {
+            existing.deposit=depositAmt;
+            await existing.save();
+            bookingId=existing._id;
+          }
+        }
+
+        // Also create pending booking record
+        if (status === "pending" && passengerName) {
+          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
+          if (!nameExists) {
+            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
+          }
+          const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
+          if (!existing) {
+            const settings = await Settings.findOne();
+            const bs = getBusSettings(settings, busId);
+            await Booking.create({
+              busId,
+              seatNumber:    seatN,
+              passengerName,
+              destination:   seat.destination||"",
+              origin:        seat.origin||"",
+              phone:         phone||"",
+              program:       "",
+              receiptNumber: "",
+              seatLabel:     makeSeatLabel(seatN),
+              // No deposit for pending seats — only booked/approved people
+              // have a deposit amount attached.
+              departureDate: bs.departureDate,
+              departureVenue:bs.departureVenue,
+              paymentProof:  null,
+              status:        "pending"
+            });
+            bookingCreated=true;
+          } else {
+            existing.passengerName = passengerName;
+            existing.destination   = seat.destination||existing.destination;
+            existing.origin        = seat.origin||existing.origin;
+            await existing.save();
+            bookingId=existing._id;
+          }
+        }
+
+        return res.json({ success: true, bookingCreated, bookingId });
+      }
+
+      // Reset seats for a specific bus
+      if (action === "reset-seats") {
+        await Seat.updateMany({ busId }, { status: "available", passengerName: null, destination: "", origin: "", phone: "" });
+        await Booking.deleteMany({ busId });
+        return res.json({ success: true });
+      }
+
+      // Save settings
+      if (action === "save-settings") {
+        let s = await Settings.findOne();
+        if (!s) s = new Settings();
+        Object.assign(s, req.body);
+        await s.save();
+        return res.json({ success: true, settings: s });
+      }
+
+      // Change admin password
+      if (action === "change-password") {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword || newPassword.length < 4)
+          return res.json({ success: false, message: "Invalid password data." });
+        const adminDoc = await Admin.findOne({ phone: admin.phone });
+        if (!adminDoc) return res.json({ success: false, message: "Admin not found." });
+        if (!await bcrypt.compare(currentPassword, adminDoc.password))
+          return res.json({ success: false, message: "Current password is incorrect." });
+        adminDoc.password = await bcrypt.hash(newPassword, 10);
+        await adminDoc.save();
+        return res.json({ success: true, message: "Password changed successfully." });
+      }
+
+      // Reset another admin to default password
+      if (action === "reset-admin-password") {
+        const { targetPhone } = req.body;
+        if (!DEFAULT_PASSWORDS[targetPhone])
+          return res.json({ success: false, message: "No default found for this admin." });
+        const adminDoc = await Admin.findOne({ phone: targetPhone });
+        if (!adminDoc) return res.json({ success: false, message: "Admin not found." });
+        adminDoc.password = await bcrypt.hash(DEFAULT_PASSWORDS[targetPhone], 10);
+        await adminDoc.save();
+        return res.json({ success: true, message: `Password for ${adminDoc.fullName} reset to default.` });
+      }
+
+      // Update booking missing fields
+      if (action === "update-booking" && id) {
+        const b = await Booking.findById(id);
+        if (!b) return res.status(404).json({ success: false });
+        const {passengerName,phone,destination,origin,deposit,departureDate,departureVenue}=req.body||{};
+        if(passengerName)  b.passengerName  = passengerName;
+        if(phone)          b.phone          = phone;
+        if(destination)    b.destination    = destination;
+        if(origin)         b.origin         = origin;
+        if(deposit)        b.deposit        = deposit;
+        if(departureDate)  b.departureDate  = departureDate;
+        if(departureVenue) b.departureVenue = departureVenue;
+        if(!b.receiptNumber){
+          const {receiptNumber,seatLabel} = await buildReceiptNumber(b.seatNumber, b.phone||"", Booking);
+          b.receiptNumber = receiptNumber;
+          b.seatLabel     = seatLabel;
+        }
+        if(!b.departureDate||!b.departureVenue||!b.deposit){
+          const settings = await Settings.findOne();
+          const bs = getBusSettings(settings, b.busId||"bus1");
+          if(!b.departureDate)  b.departureDate  = bs.departureDate;
+          if(!b.departureVenue) b.departureVenue = bs.departureVenue;
+          if(!b.deposit)        b.deposit        = bs.bookingFee;
+        }
+        await b.save();
+        return res.json({ success: true });
+      }
+
+      // Edit user credentials
+      if (action === "edit-user" && id) {
+        const { fullName, phone, program, destination, origin } = req.body;
+        const user = await User.findById(id);
+        if (!user) return res.status(404).json({ success: false });
+        if(fullName)     user.fullName    = fullName;
+        if(phone)        user.phone       = phone;
+        if(program)      user.program     = program;
+        if(destination !== undefined)  user.destination = destination;
+        if(origin !== undefined)       user.origin      = origin;
+        await user.save();
+        return res.json({ success: true });
+      }
+
+      // Reset registration list for a specific bus
+      if (action === "reset-users") {
+        await User.deleteMany({ busId });
+        return res.json({ success: true });
+      }
+
+      // Register passenger
+      if (action === "register-passenger") {
+        const { fullName, destination } = req.body;
+        if (!fullName) return res.json({ success: false, message: "Name required." });
+        const exists = await User.findOne({ fullName: { $regex: "^"+fullName.trim()+"$", $options: "i" } });
+        if (exists) return res.json({ success: true, existing: true });
+        await User.create({ busId, fullName: fullName.trim(), phone: "admin-"+Date.now(), program: "Admin Assigned", destination: destination||"" });
+        return res.json({ success: true, existing: false });
+      }
+
+      // Raffle: who can take part
+      if (action === "raffle-save") {
+        const { eligibility, busScope } = req.body || {};
+        if (!["registered", "booked"].includes(eligibility) || !["all", "bus1", "bus2"].includes(busScope))
+          return res.json({ success: false, message: "Invalid raffle settings." });
+        const r = await getRaffle();
+        r.eligibility = eligibility;
+        r.busScope    = busScope;
+        await r.save();
+        return res.json({ success: true });
+      }
+
+      // Raffle: add or edit a gift
+      if (action === "raffle-gift-save") {
+        const { giftId, name, description, photo } = req.body || {};
+        if (!name || !String(name).trim()) return res.json({ success: false, message: "Gift name required." });
+        if (photo && (!String(photo).startsWith("data:image/") || String(photo).length > 1500000))
+          return res.json({ success: false, message: "Photo is invalid or too large." });
+        const r = await getRaffle();
+        if (giftId) {
+          const g = r.gifts.id(giftId);
+          if (!g) return res.status(404).json({ success: false, message: "Gift not found." });
+          g.name = String(name).trim();
+          g.description = description || "";
+          if (photo !== undefined) g.photo = photo || "";
+        } else {
+          r.gifts.push({ name: String(name).trim(), description: description || "", photo: photo || "" });
+        }
+        await r.save();
+        return res.json({ success: true });
+      }
+
+      // Raffle: delete a gift
+      if (action === "raffle-gift-delete" && id) {
+        const r = await getRaffle();
+        const g = r.gifts.id(id);
+        if (g) { g.deleteOne(); await r.save(); }
+        return res.json({ success: true });
+      }
+
+      // Raffle: draw the winner of the next undrawn gift (server decides, so a refresh can't re-roll)
+      if (action === "raffle-draw") {
+        const r = await getRaffle();
+        const gift = r.gifts.find(g => !g.winner);
+        if (!gift) return res.json({ success: false, done: true, message: "All gifts have been given out." });
+
+        const pool  = await buildRafflePool(r);
+        const won   = raffleWonIds(r);
+        const avail = pool.filter(p => !won.has(p.entryId));
+        if (!avail.length) return res.json({ success: false, message: "No eligible people left to draw." });
+
+        const winner = avail[crypto.randomInt(avail.length)];
+        const saved = await Raffle.findOneAndUpdate(
+          { _id: r._id, gifts: { $elemMatch: { _id: gift._id, winner: null } } },
+          { $set: { "gifts.$.winner": { entryId: winner.entryId, name: winner.name, detail: winner.detail, wonAt: new Date() } } },
+          { new: true }
+        );
+        if (!saved) return res.json({ success: false, message: "That gift was just drawn. Please refresh." });
+
+        // Names for the spinning reel (display only)
+        const reel = avail.map(p => p.name);
+        for (let i = reel.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [reel[i], reel[j]] = [reel[j], reel[i]];
+        }
+        return res.json({
+          success: true,
+          gift: raffleGiftOut(gift),
+          winner: { name: winner.name, detail: winner.detail },
+          reel: reel.slice(0, 40),
+          poolLeft: avail.length - 1,
+          giftsLeft: saved.gifts.filter(g => !g.winner).length
+        });
+      }
+
+      // Raffle: clear all winners, gifts stay
+      if (action === "raffle-reset") {
+        await Raffle.updateOne({}, { $set: { "gifts.$[].winner": null } });
+        return res.json({ success: true });
+      }
+
+      return res.status(400).json({ success: false, message: "Unknown POST action: " + action });
+    }
+
+    res.status(405).end();
+
+  } catch (err) {
+    console.error("Admin error [" + action + "]:", err.message);
+    res.status(500).json({ success: false, message: "Server error: " + err.message });
+  }
+}; (settings[busId+"Venue"] || settings.departureVenue || "") : "";
           const isHoliday = ((settings && settings.tripMode) || "holiday") !== "backtoschool";
           const place     = destination !== undefined ? destination : origin;
           seat.origin      = isHoliday ? venue : (place || "");

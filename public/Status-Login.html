@@ -6,8 +6,72 @@
 <title>View Bus Status — PolyCoach</title>
 <link rel="stylesheet" href="/css/Home-Page.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;900&family=Lato:wght@400;700&display=swap">
 <style>
 #errMsg{display:none;background:#fff8e1;color:#7b5c00;border-radius:6px;padding:12px;margin-top:12px;font-weight:600;font-size:0.9rem;}
+/* ── RAFFLE STAGE ── */
+.rf-stage{position:relative;min-height:84vh;color:#fff;font-family:'Lato',Arial,sans-serif;overflow:hidden;
+  background:radial-gradient(1200px 620px at 50% -10%,#14487f 0%,#0b294d 48%,#061528 100%);padding:18px 22px 26px;}
+.rf-stage:fullscreen{overflow:auto;min-height:100vh;}
+.rf-confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:20;}
+.rf-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.rf-brand{font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:1.9rem;font-weight:900;letter-spacing:1px;}
+.rf-brand i{color:#ffc83d;margin-right:8px;}
+.rf-brand span{color:#ffc83d;}
+.rf-chips{display:flex;gap:10px;flex-wrap:wrap;}
+.rf-chip{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:7px 16px;text-align:center;min-width:104px;}
+.rf-chip b{display:block;font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:1.35rem;font-weight:900;}
+.rf-chip small{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.6px;color:rgba(255,255,255,0.6);font-weight:700;}
+.rf-tools{display:flex;gap:8px;}
+.rf-tools button{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;padding:10px 14px;font-weight:700;font-size:0.85rem;cursor:pointer;font-family:'Lato',Arial,sans-serif;}
+.rf-tools button:hover{background:rgba(255,255,255,0.2);}
+.rf-tools .rf-reset{background:rgba(229,62,62,0.2);border-color:rgba(229,62,62,0.6);}
+.rf-tools .rf-reset:hover{background:rgba(229,62,62,0.4);}
+.rf-body{display:grid;grid-template-columns:1fr 310px;gap:22px;align-items:start;}
+.rf-main{display:flex;flex-direction:column;align-items:center;gap:20px;min-width:0;}
+.rf-gift{display:flex;gap:26px;align-items:center;width:100%;max-width:820px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:22px;}
+.rf-photo{flex:0 0 240px;height:240px;border-radius:16px;background:#0a2140;border:3px solid #ffc83d;box-shadow:0 0 36px rgba(255,200,61,0.35);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.rf-photo img{width:100%;height:100%;object-fit:contain;}
+.rf-photo i{font-size:5rem;color:#ffc83d;opacity:0.85;}
+.rf-kicker{font-size:0.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#7fc8ff;}
+.rf-gname{font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:3rem;font-weight:900;line-height:1.05;margin:6px 0 8px;color:#ffc83d;word-break:break-word;}
+.rf-gdesc{color:rgba(255,255,255,0.75);font-size:1rem;line-height:1.5;}
+.rf-window{position:relative;width:100%;max-width:820px;height:216px;overflow:hidden;border-radius:16px;background:rgba(0,0,0,0.35);border:2px solid rgba(255,255,255,0.15);}
+.rf-window::before,.rf-window::after{content:"";position:absolute;left:0;right:0;height:72px;z-index:2;pointer-events:none;}
+.rf-window::before{top:0;background:linear-gradient(#061528,rgba(6,21,40,0));}
+.rf-window::after{bottom:0;background:linear-gradient(rgba(6,21,40,0),#061528);}
+.rf-mid{position:absolute;left:0;right:0;top:72px;height:72px;border-top:3px solid #ffc83d;border-bottom:3px solid #ffc83d;background:rgba(255,200,61,0.08);z-index:1;pointer-events:none;}
+.rf-strip{position:relative;z-index:0;will-change:transform;}
+.rf-row{height:72px;line-height:72px;text-align:center;font-size:2rem;font-weight:700;color:rgba(255,255,255,0.55);padding:0 20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rf-row.rf-idle{color:rgba(255,255,255,0.9);letter-spacing:4px;font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-weight:900;}
+.rf-row.win{color:#ffc83d;font-weight:900;font-size:2.4rem;}
+.rf-winner{display:none;text-align:center;animation:rfPop 0.5s ease;}
+.rf-winner .rf-congrats{font-size:0.85rem;letter-spacing:3px;font-weight:700;color:#7fc8ff;text-transform:uppercase;}
+.rf-winner .rf-wname{font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:2.8rem;font-weight:900;color:#fff;line-height:1.1;}
+.rf-winner .rf-wdetail{color:rgba(255,255,255,0.7);font-size:0.95rem;margin-top:2px;}
+@keyframes rfPop{from{transform:scale(0.7);opacity:0;}to{transform:scale(1);opacity:1;}}
+.rf-btn{background:linear-gradient(#ffd75e,#ffb400);color:#3a2a00;border:none;border-radius:50px;padding:16px 56px;font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:1.7rem;font-weight:900;letter-spacing:2px;cursor:pointer;box-shadow:0 8px 24px rgba(255,180,0,0.4);transition:transform 0.15s,opacity 0.2s;}
+.rf-btn:hover:not(:disabled){transform:translateY(-2px) scale(1.03);}
+.rf-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.rf-hint{font-size:0.75rem;color:rgba(255,255,255,0.45);}
+.rf-empty{max-width:560px;text-align:center;padding:60px 20px;color:rgba(255,255,255,0.8);}
+.rf-empty i{font-size:4rem;color:#ffc83d;margin-bottom:16px;}
+.rf-empty h2{font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:2.4rem;margin-bottom:10px;}
+.rf-empty a{color:#7fc8ff;font-weight:700;}
+.rf-board{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:16px;max-height:76vh;overflow-y:auto;}
+.rf-board h3{font-family:'Barlow Condensed',Arial Narrow,sans-serif;font-size:1.4rem;margin-bottom:12px;}
+.rf-board h3 i{color:#ffc83d;margin-right:6px;}
+.rf-bi{display:flex;align-items:center;gap:12px;padding:9px;border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.05);border:1px solid transparent;}
+.rf-bi.now{border-color:#ffc83d;background:rgba(255,200,61,0.1);}
+.rf-bi.done{background:rgba(40,167,69,0.14);}
+.rf-bi .th{flex:0 0 44px;height:44px;border-radius:8px;background:#0a2140;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#ffc83d;}
+.rf-bi .th img{width:100%;height:100%;object-fit:cover;}
+.rf-bi b{display:block;font-size:0.9rem;}
+.rf-bi span{font-size:0.82rem;color:rgba(255,255,255,0.6);}
+.rf-bi.done span{color:#8be9a0;font-weight:700;}
+.rf-notice{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#e53e3e;color:#fff;padding:12px 22px;border-radius:8px;font-weight:700;display:none;z-index:50;max-width:90%;}
+@media(max-width:900px){.rf-body{grid-template-columns:1fr;}.rf-gift{flex-direction:column;text-align:center;}.rf-photo{flex-basis:auto;width:220px;height:220px;}.rf-gname{font-size:2.3rem;}.rf-row{font-size:1.5rem;}.rf-row.win{font-size:1.8rem;}.rf-winner .rf-wname{font-size:2rem;}}
+
 </style>
 </head>
 <body>
@@ -17,7 +81,7 @@
   <div class="Right-Header">
     <button class="Header-Button" onclick="location.href='Home-Page.html'">Home</button>
     <button class="Header-Button" onclick="location.href='Book-Login.html'">Book</button>
-    <button class="Header-Button" onclick="location.href='Help.html'">Help</button>
+    <button class="Header-Button" onclick="location.href='Status-Login.html?mode=raffle'">Raffle Draw</button>
     <button class="Register-Button" onclick="location.href='Register.html'">Register</button>
   </div>
 </div>
@@ -43,6 +107,29 @@
       </form>
     </div>
   </div>
+</div>
+
+
+<div id="raffleStage" class="rf-stage" style="display:none;">
+  <canvas id="rfConfetti" class="rf-confetti"></canvas>
+  <div class="rf-top">
+    <div class="rf-brand"><i class="fa-solid fa-gift"></i>PolyCoach <span>Raffle Draw</span></div>
+    <div class="rf-chips">
+      <div class="rf-chip"><b id="rfWho">-</b><small>Taking part</small></div>
+      <div class="rf-chip"><b id="rfLeft">0</b><small>Still in the draw</small></div>
+      <div class="rf-chip"><b id="rfGiftsLeft">0</b><small>Gifts left</small></div>
+    </div>
+    <div class="rf-tools">
+      <button type="button" onclick="rfFullscreen()" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
+      <button type="button" onclick="location.href='Admin-Dashboard.html'" title="Admin dashboard"><i class="fa-solid fa-table-columns"></i></button>
+      <button type="button" class="rf-reset" onclick="rfReset()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+    </div>
+  </div>
+  <div class="rf-body">
+    <div class="rf-main" id="rfMain"></div>
+    <aside class="rf-board"><h3><i class="fa-solid fa-trophy"></i>Winners</h3><div id="rfBoard"></div></aside>
+  </div>
+  <div id="rfNotice" class="rf-notice"></div>
 </div>
 
 <div class="Home-Page-Footer">
@@ -83,7 +170,16 @@ document.getElementById("statusForm").addEventListener("submit", async function(
       // Admin credentials — store JWT token and go to dashboard
       localStorage.setItem("polycoachToken", d.token);
       localStorage.setItem("polycoachUser", JSON.stringify(d.user));
+      if(RAFFLE_MODE){
+        btn.disabled=false; btn.textContent="ENTER RAFFLE";
+        openRaffleStage(d.token);
+        return;
+      }
       window.location.href="Admin-Dashboard.html";
+    } else if(RAFFLE_MODE){
+      btn.disabled=false; btn.textContent="ENTER RAFFLE";
+      err.style.display="block";
+      err.textContent="Only the admin can run the raffle draw.";
     } else {
       // Wrong credentials or not admin — go to bus status anyway
       // Show brief message then redirect
@@ -92,9 +188,222 @@ document.getElementById("statusForm").addEventListener("submit", async function(
       setTimeout(()=>window.location.href="Bust-Status-Lay.html", 1000);
     }
   }catch{
+    if(RAFFLE_MODE){
+      btn.disabled=false; btn.textContent="ENTER RAFFLE";
+      err.style.display="block";
+      err.textContent="Could not connect. Please try again.";
+      return;
+    }
     // Any error — just go to bus status
     window.location.href="Bust-Status-Lay.html";
   }
+});
+
+// Raffle mode: same page, different heading + stage after admin login
+const RAFFLE_MODE = new URLSearchParams(location.search).get("mode")==="raffle";
+if(RAFFLE_MODE){
+  document.title="Raffle Draw — PolyCoach";
+  document.querySelector(".page-hero-title h1").textContent="Raffle Draw";
+  document.querySelector(".page-hero-title p").textContent="Admin login to run the draw.";
+  document.getElementById("viewBtn").textContent="ENTER RAFFLE";
+}
+
+let rfToken="", rf={gifts:[],eligibility:"registered",eligibleCount:0,poolLeft:0}, rfBusy=false, rfPhase="ready";
+
+function rfEsc(t){return String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function rfEl(id){return document.getElementById(id);}
+
+async function rfApi(action,method,body){
+  const r=await fetch("/api/admin?action="+action,{
+    method:method||"GET",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+rfToken},
+    body:body?JSON.stringify(body):undefined
+  });
+  if(r.status===403){rfExpired();throw new Error("auth");}
+  return r.json();
+}
+
+function rfNotice(msg){
+  const n=rfEl("rfNotice");n.textContent=msg;n.style.display="block";
+  clearTimeout(rfNotice._t);rfNotice._t=setTimeout(()=>n.style.display="none",4500);
+}
+
+function rfExpired(){
+  rfEl("raffleStage").style.display="none";
+  document.querySelector(".Page-Body-Hero").style.display="";
+  const err=rfEl("errMsg");err.style.display="block";err.textContent="Session expired. Please log in again.";
+}
+
+async function openRaffleStage(token){
+  rfToken=token;
+  document.querySelector(".Page-Body-Hero").style.display="none";
+  rfEl("raffleStage").style.display="block";
+  rfPhase="ready";
+  await rfLoad();
+}
+
+async function rfLoad(){
+  try{
+    const d=await rfApi("raffle-get");
+    if(!d.success){rfNotice("Could not load the raffle.");return;}
+    rf=d;
+    rfRenderAll();
+  }catch(e){if(e.message!=="auth")rfNotice("Could not load the raffle.");}
+}
+
+function rfCurrent(){return rf.gifts.find(g=>!g.winner);}
+
+function rfRenderAll(){
+  rfEl("rfWho").textContent=(rf.eligibility==="booked"?"Booked":"Registered")+" ("+rf.eligibleCount+")";
+  rfEl("rfLeft").textContent=rf.poolLeft;
+  rfEl("rfGiftsLeft").textContent=rf.gifts.filter(g=>!g.winner).length;
+  rfRenderMain();
+  rfRenderBoard();
+}
+
+function rfThumb(g){return g.photo?'<img src="'+rfEsc(g.photo)+'" alt="">':'<i class="fa-solid fa-gift"></i>';}
+
+function rfRenderMain(){
+  const m=rfEl("rfMain"), cur=rfCurrent();
+  if(!rf.gifts.length){
+    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-gift"></i><h2>No gifts yet</h2><p>Add the gifts in <a href="Admin-Dashboard.html">Admin Dashboard &rarr; Raffle Draw</a>, then come back here.</p></div>';
+    return;
+  }
+  if(!cur){
+    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-trophy"></i><h2>All gifts have been given out!</h2><p>Congratulations to every winner. Use Reset to run the draw again.</p></div>';
+    return;
+  }
+  const done=rf.gifts.filter(g=>g.winner).length, total=rf.gifts.length;
+  m.innerHTML=
+   '<div class="rf-gift"><div class="rf-photo">'+rfThumb(cur)+'</div><div>'
+   +'<div class="rf-kicker">Gift '+(done+1)+' of '+total+'</div>'
+   +'<div class="rf-gname">'+rfEsc(cur.name)+'</div>'
+   +(cur.description?'<div class="rf-gdesc">'+rfEsc(cur.description)+'</div>':'')
+   +'</div></div>'
+   +'<div class="rf-window"><div class="rf-mid"></div><div class="rf-strip" id="rfStrip">'
+   +'<div class="rf-row"></div><div class="rf-row rf-idle">READY TO DRAW</div><div class="rf-row"></div></div></div>'
+   +'<div class="rf-winner" id="rfWinner"><div class="rf-congrats"><i class="fa-solid fa-trophy"></i> Congratulations</div>'
+   +'<div class="rf-wname" id="rfWName"></div><div class="rf-wdetail" id="rfWDetail"></div></div>'
+   +'<button type="button" class="rf-btn" id="rfBtn" onclick="rfAction()">SPIN</button>'
+   +'<div class="rf-hint">Press Space to spin</div>';
+  rfPhase="ready";
+}
+
+function rfRenderBoard(){
+  const cur=rfCurrent();
+  rfEl("rfBoard").innerHTML=rf.gifts.length?rf.gifts.map(g=>{
+    const cls=g.winner?"done":(cur&&cur.id===g.id?"now":"");
+    return '<div class="rf-bi '+cls+'"><div class="th">'+rfThumb(g)+'</div><div><b>'+rfEsc(g.name)+'</b><span>'
+      +(g.winner?rfEsc(g.winner.name):(cls==="now"?"Up next":"Waiting"))+'</span></div></div>';
+  }).join(""):'<div style="color:rgba(255,255,255,0.5);font-size:0.9rem;">No gifts yet.</div>';
+}
+
+// Button: SPIN -> (after win) NEXT GIFT
+function rfAction(){
+  if(rfBusy) return;
+  if(rfPhase==="won"){rfRenderAll();return;}
+  rfSpin();
+}
+
+async function rfSpin(){
+  rfBusy=true;
+  const btn=rfEl("rfBtn");btn.disabled=true;btn.textContent="DRAWING...";
+  let d;
+  try{ d=await rfApi("raffle-draw","POST",{}); }
+  catch(e){ rfBusy=false; if(e.message!=="auth"){rfNotice("Network error. Try again.");btn.disabled=false;btn.textContent="SPIN";} return; }
+  if(!d.success){
+    rfNotice(d.message||"Could not draw.");
+    rfBusy=false;
+    if(d.done){await rfLoad();return;}
+    btn.disabled=false;btn.textContent="SPIN";
+    return;
+  }
+  await rfAnimate(d.reel,d.winner.name);
+  const g=rf.gifts.find(x=>x.id===d.gift.id);
+  if(g) g.winner={name:d.winner.name,detail:d.winner.detail};
+  rf.poolLeft=d.poolLeft;
+  rfEl("rfLeft").textContent=rf.poolLeft;
+  rfEl("rfGiftsLeft").textContent=d.giftsLeft;
+  rfEl("rfWName").textContent=d.winner.name;
+  rfEl("rfWDetail").textContent=d.winner.detail||"";
+  rfEl("rfWinner").style.display="block";
+  rfRenderBoard();
+  rfConfetti();
+  rfPhase="won";
+  rfBusy=false;
+  btn.disabled=false;
+  btn.textContent=d.giftsLeft>0?"NEXT GIFT":"FINISH";
+}
+
+function rfAnimate(names,winner){
+  return new Promise(resolve=>{
+    const ROW=72, DUR=5200;
+    const strip=rfEl("rfStrip");
+    const base=(names&&names.length)?names:[winner];
+    let pre=[];
+    while(pre.length<35) pre=pre.concat(base);
+    const N=pre.length;
+    const items=pre.concat([winner,base[0],base[base.length>1?1:0]]);
+    strip.style.transition="none";
+    strip.style.transform="translateY(0)";
+    strip.innerHTML=items.map(n=>'<div class="rf-row">'+rfEsc(n)+'</div>').join("");
+    void strip.offsetHeight;
+    strip.style.transition="transform "+DUR+"ms cubic-bezier(.12,.62,.08,1)";
+    strip.style.transform="translateY(-"+((N-1)*ROW)+"px)";
+    setTimeout(()=>{ strip.children[N].classList.add("win"); resolve(); },DUR+150);
+  });
+}
+
+function rfConfetti(){
+  const c=rfEl("rfConfetti"), st=rfEl("raffleStage");
+  c.width=st.clientWidth;c.height=st.clientHeight;
+  const ctx=c.getContext("2d");
+  const cols=["#ffc83d","#0099ff","#ffffff","#ff5c8a","#4cd964"];
+  const ps=[];
+  for(let i=0;i<170;i++) ps.push({
+    x:c.width*0.4+Math.random()*c.width*0.2, y:c.height*0.5,
+    vx:(Math.random()-0.5)*18, vy:-Math.random()*17-4,
+    s:Math.random()*8+5, r:Math.random()*6.28, vr:(Math.random()-0.5)*0.4,
+    col:cols[Math.floor(Math.random()*cols.length)]
+  });
+  let f=0;
+  (function tick(){
+    ctx.clearRect(0,0,c.width,c.height);
+    ps.forEach(p=>{
+      p.vy+=0.35;p.x+=p.vx;p.y+=p.vy;p.vx*=0.99;p.r+=p.vr;
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);
+      ctx.fillStyle=p.col;ctx.fillRect(-p.s/2,-p.s/3,p.s,p.s*0.6);ctx.restore();
+    });
+    f++;
+    if(f<240) requestAnimationFrame(tick); else ctx.clearRect(0,0,c.width,c.height);
+  })();
+}
+
+async function rfReset(){
+  if(rfBusy) return;
+  if(!confirm("Reset the raffle? All winners are cleared and every gift goes back in the draw.")) return;
+  try{
+    const d=await rfApi("raffle-reset","POST",{});
+    if(!d.success){rfNotice("Could not reset.");return;}
+    await rfLoad();
+    rfNotice("Raffle reset.");
+  }catch(e){ if(e.message!=="auth") rfNotice("Network error. Try again."); }
+}
+
+function rfFullscreen(){
+  const el=rfEl("raffleStage");
+  if(document.fullscreenElement){ document.exitFullscreen(); return; }
+  const req=el.requestFullscreen||el.webkitRequestFullscreen;
+  if(req) req.call(el); else rfNotice("Fullscreen is not supported on this browser.");
+}
+
+document.addEventListener("keydown",function(e){
+  if(e.code!=="Space"||rfEl("raffleStage").style.display==="none") return;
+  const t=e.target.tagName;
+  if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT") return;
+  e.preventDefault();
+  const btn=rfEl("rfBtn");
+  if(btn&&!btn.disabled) rfAction();
 });
 </script>
 </body>
