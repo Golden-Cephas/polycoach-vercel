@@ -117,7 +117,7 @@
     <div class="rf-chips">
       <div class="rf-chip"><b id="rfWho">-</b><small>Taking part</small></div>
       <div class="rf-chip"><b id="rfLeft">0</b><small>Still in the draw</small></div>
-      <div class="rf-chip"><b id="rfGiftsLeft">0</b><small>Gifts left</small></div>
+      <div class="rf-chip"><b id="rfGiftsLeft">0</b><small>Prizes left</small></div>
     </div>
     <div class="rf-tools">
       <button type="button" onclick="rfFullscreen()" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
@@ -266,17 +266,17 @@ function rfThumb(g){return g.photo?'<img src="'+rfEsc(g.photo)+'" alt="">':'<i c
 function rfRenderMain(){
   const m=rfEl("rfMain"), cur=rfCurrent();
   if(!rf.gifts.length){
-    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-gift"></i><h2>No gifts yet</h2><p>Add the gifts in <a href="Admin-Dashboard.html">Admin Dashboard &rarr; Raffle Draw</a>, then come back here.</p></div>';
+    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-gift"></i><h2>No prizes yet</h2><p>Add the prizes in <a href="Admin-Dashboard.html">Admin Dashboard &rarr; Raffle Draw</a>, then come back here.</p></div>';
     return;
   }
   if(!cur){
-    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-trophy"></i><h2>All gifts have been given out!</h2><p>Congratulations to every winner. Use Reset to run the draw again.</p></div>';
+    m.innerHTML='<div class="rf-empty"><i class="fa-solid fa-trophy"></i><h2>All prizes have been given out!</h2><p>Congratulations to every winner. Use Reset to run the draw again.</p></div>';
     return;
   }
   const done=rf.gifts.filter(g=>g.winner).length, total=rf.gifts.length;
   m.innerHTML=
    '<div class="rf-gift"><div class="rf-photo">'+rfThumb(cur)+'</div><div>'
-   +'<div class="rf-kicker">Gift '+(done+1)+' of '+total+'</div>'
+   +'<div class="rf-kicker">Prize '+(done+1)+' of '+total+'</div>'
    +'<div class="rf-gname">'+rfEsc(cur.name)+'</div>'
    +(cur.description?'<div class="rf-gdesc">'+rfEsc(cur.description)+'</div>':'')
    +'</div></div>'
@@ -295,7 +295,7 @@ function rfRenderBoard(){
     const cls=g.winner?"done":(cur&&cur.id===g.id?"now":"");
     return '<div class="rf-bi '+cls+'"><div class="th">'+rfThumb(g)+'</div><div><b>'+rfEsc(g.name)+'</b><span>'
       +(g.winner?rfEsc(g.winner.name):(cls==="now"?"Up next":"Waiting"))+'</span></div></div>';
-  }).join(""):'<div style="color:rgba(255,255,255,0.5);font-size:0.9rem;">No gifts yet.</div>';
+  }).join(""):'<div style="color:rgba(255,255,255,0.5);font-size:0.9rem;">No prizes yet.</div>';
 }
 
 // Button: SPIN -> (after win) NEXT GIFT
@@ -332,7 +332,7 @@ async function rfSpin(){
   rfPhase="won";
   rfBusy=false;
   btn.disabled=false;
-  btn.textContent=d.giftsLeft>0?"NEXT GIFT":"FINISH";
+  btn.textContent=d.giftsLeft>0?"NEXT PRIZE":"FINISH";
 }
 
 function rfAnimate(names,winner){
@@ -381,7 +381,7 @@ function rfConfetti(){
 
 async function rfReset(){
   if(rfBusy) return;
-  if(!confirm("Reset the raffle? All winners are cleared and every gift goes back in the draw.")) return;
+  if(!confirm("Reset the raffle? All winners are cleared and every prize goes back in the draw.")) return;
   try{
     const d=await rfApi("raffle-reset","POST",{});
     if(!d.success){rfNotice("Could not reset.");return;}
