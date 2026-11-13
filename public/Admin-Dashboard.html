@@ -250,6 +250,7 @@ tr:hover td{background:#fafafa;}
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
+          <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareSeatListWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Seat List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -2328,6 +2329,53 @@ async function downloadSeatListPDF(){
   }
   btn.disabled = false;
   btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Seat List';
+}
+
+/* ════════════════════════════════════════
+   SEAT LIST → WHATSAPP MESSAGE
+   Seats 1–72 as text. Booked seats end with a ✅ (pending seats show the
+   name without a tick; empty seats show "—"). Opens WhatsApp's share
+   screen so you pick the chat/group; also copies the text as a fallback.
+════════════════════════════════════════ */
+async function shareSeatListWhatsApp(){
+  const btn = event.currentTarget;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
+  try{
+    const [seatsRes, settingsRes] = await Promise.all([
+      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
+      fetch("/api/settings")
+    ]);
+    const seats    = await seatsRes.json();
+    const settings = await settingsRes.json();
+    const busName  = _busNames[currentBusId]||currentBusId;
+    const isBackToSchool = (settings.tripMode||"holiday") === "backtoschool";
+    const b = currentBusId==="bus2" ? "bus2" : "bus1";
+    const depDate = settings[b+"Date"] || settings.departureDate || "";
+    const depTime = settings[b+"Time"] || settings.departureTime || "";
+
+    let msg = "*"+busName+" — Seat List*\n";
+    if(depDate||depTime) msg += (depDate?depDate:"")+(depTime?" at "+depTime:"")+"\n";
+    msg += "\n";
+
+    for(let n=1; n<=72; n++){
+      const seat  = seats.find(x=>Number(x.number)===n);
+      const taken = !!(seat && seat.status && seat.status!=="available");
+      if(!taken){ msg += n+". —\n"; continue; }
+      const place = isBackToSchool ? seat.origin : seat.destination;
+      msg += n+". "+(seat.passengerName||"—")+(place?" ("+place+")":"")+(seat.status==="booked"?" ✅":"")+"\n";
+    }
+    msg = msg.trimEnd();
+
+    try{ await navigator.clipboard.writeText(msg); }catch(e){}
+    window.open("https://wa.me/?text="+encodeURIComponent(msg), "_blank", "noopener");
+  }catch(err){
+    alert("Could not prepare the Seat List message. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = label;
 }
 
 /* ════════════════════════════════════════
