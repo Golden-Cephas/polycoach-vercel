@@ -53,9 +53,29 @@ async function buildReceiptNumber(seatNum, phone, Booking){
 }
 
 const { setHeaders, requireAdmin } = require("./_auth");
-const Raffle = require("./_raffle");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+
+// ── RAFFLE MODEL (built in, so no separate _raffle.js file is needed) ──
+const mongoose = require("mongoose");
+const RaffleWinnerSchema = new mongoose.Schema({
+  entryId: { type: String, required: true },
+  name:    { type: String, default: "" },
+  detail:  { type: String, default: "" },
+  wonAt:   { type: Date,   default: Date.now }
+}, { _id: false });
+const RaffleGiftSchema = new mongoose.Schema({
+  name:        { type: String, required: true, trim: true },
+  description: { type: String, default: "" },
+  photo:       { type: String, default: "" },
+  winner:      { type: RaffleWinnerSchema, default: null }
+});
+const RaffleSchema = new mongoose.Schema({
+  eligibility: { type: String, enum: ["registered", "booked"], default: "registered" },
+  busScope:    { type: String, enum: ["all", "bus1", "bus2"],  default: "all" },
+  gifts:       { type: [RaffleGiftSchema], default: [] }
+}, { timestamps: true });
+const Raffle = mongoose.models.Raffle || mongoose.model("Raffle", RaffleSchema);
 
 const DEFAULT_PASSWORDS = {
   "0981136268": "Golden Cephas",
@@ -674,236 +694,6 @@ module.exports = async (req, res) => {
       if (action === "raffle-reset") {
         await Raffle.updateOne({}, { $set: { "gifts.$[].winner": null } });
         return res.json({ success: true });
-      }
-
-      return res.status(400).json({ success: false, message: "Unknown POST action: " + action });
-    }
-
-    res.status(405).end();
-
-  } catch (err) {
-    console.error("Admin error [" + action + "]:", err.message);
-    res.status(500).json({ success: false, message: "Server error: " + err.message });
-  }
-}; (settings[busId+"Venue"] || settings.departureVenue || "") : "";
-          const isHoliday = ((settings && settings.tripMode) || "holiday") !== "backtoschool";
-          const place     = destination !== undefined ? destination : origin;
-          seat.origin      = isHoliday ? venue : (place || "");
-          seat.destination = isHoliday ? (place || "") : venue;
-        }
-        seat.phone         = phone || seat.phone || "";
-        await seat.save();
-
-        // If clearing seat, cancel its active booking
-        if(!status || status === "available"){
-          await Booking.findOneAndUpdate(
-            { seatNumber: seatN, busId, status: { $ne: "rejected" } },
-            { status: "rejected" }
-          );
-        }
-
-        // If part of a seat switch — clear old seat by number
-        if(clearSeatNum && Number(clearSeatNum) !== seatN){
-          const oldSeatN = Number(clearSeatNum);
-          await Seat.findOneAndUpdate(
-            { number: oldSeatN, busId },
-            { status: "available", passengerName: null, destination: "", origin: "", phone: "" }
-          );
-          await Booking.findOneAndUpdate(
-            { seatNumber: oldSeatN, busId, status: { $ne: "rejected" } },
-            { status: "rejected" }
-          );
-        }
-
-        let bookingCreated = false;
-        let bookingId      = null;
-
-        if (status === "booked" && passengerName) {
-          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
-          if (!nameExists) {
-            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
-          }
-          const settings = await Settings.findOne();
-          const bs = getBusSettings(settings, busId);
-          // Deposit is money — always prefer what the admin entered in the
-          // confirm popup; the default booking fee is only a last-resort fallback.
-          const depositAmt = deposit || bs.bookingFee;
-          const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
-          if (!existing) {
-            const {receiptNumber:receiptNo, seatLabel:lbl} = await buildReceiptNumber(seatN, phone||"", Booking);
-            const booking = await Booking.create({
-              busId,
-              seatNumber:    seatN,
-              passengerName,
-              destination:   seat.destination||"",
-              origin:        seat.origin||"",
-              phone:         phone||"",
-              program:       "",
-              receiptNumber: receiptNo,
-              seatLabel:     lbl,
-              deposit:       depositAmt,
-              departureDate: bs.departureDate,
-              departureVenue:bs.departureVenue,
-              paymentProof:  null,
-              status:        "approved"
-            });
-            bookingCreated=true;
-            bookingId=booking._id;
-          } else if(existing.status==="pending"){
-            existing.status="approved";
-            existing.deposit=depositAmt;
-            if(!existing.receiptNumber){
-              const {receiptNumber:receiptNo2, seatLabel:lbl2} = await buildReceiptNumber(seatN, existing.phone||phone||"", Booking);
-              existing.receiptNumber = receiptNo2;
-              if(!existing.seatLabel) existing.seatLabel = lbl2;
-            }
-            await existing.save();
-            bookingId=existing._id;
-          } else {
-            existing.deposit=depositAmt;
-            await existing.save();
-            bookingId=existing._id;
-          }
-        }
-
-        // Also create pending booking record
-        if (status === "pending" && passengerName) {
-          const nameExists = await User.findOne({ fullName: { $regex: "^"+passengerName.trim()+"$", $options: "i" } });
-          if (!nameExists) {
-            await User.create({ busId, fullName: passengerName.trim(), phone: phone||"", program: "Admin Assigned", destination: seat.destination||"", origin: seat.origin||"" });
-          }
-          const existing = await Booking.findOne({ seatNumber: seatN, busId, status: { $ne: "rejected" } });
-          if (!existing) {
-            const settings = await Settings.findOne();
-            const bs = getBusSettings(settings, busId);
-            await Booking.create({
-              busId,
-              seatNumber:    seatN,
-              passengerName,
-              destination:   seat.destination||"",
-              origin:        seat.origin||"",
-              phone:         phone||"",
-              program:       "",
-              receiptNumber: "",
-              seatLabel:     makeSeatLabel(seatN),
-              // No deposit for pending seats — only booked/approved people
-              // have a deposit amount attached.
-              departureDate: bs.departureDate,
-              departureVenue:bs.departureVenue,
-              paymentProof:  null,
-              status:        "pending"
-            });
-            bookingCreated=true;
-          } else {
-            existing.passengerName = passengerName;
-            existing.destination   = seat.destination||existing.destination;
-            existing.origin        = seat.origin||existing.origin;
-            await existing.save();
-            bookingId=existing._id;
-          }
-        }
-
-        return res.json({ success: true, bookingCreated, bookingId });
-      }
-
-      // Reset seats for a specific bus
-      if (action === "reset-seats") {
-        await Seat.updateMany({ busId }, { status: "available", passengerName: null, destination: "", origin: "", phone: "" });
-        await Booking.deleteMany({ busId });
-        return res.json({ success: true });
-      }
-
-      // Save settings
-      if (action === "save-settings") {
-        let s = await Settings.findOne();
-        if (!s) s = new Settings();
-        Object.assign(s, req.body);
-        await s.save();
-        return res.json({ success: true, settings: s });
-      }
-
-      // Change admin password
-      if (action === "change-password") {
-        const { currentPassword, newPassword } = req.body;
-        if (!currentPassword || !newPassword || newPassword.length < 4)
-          return res.json({ success: false, message: "Invalid password data." });
-        const adminDoc = await Admin.findOne({ phone: admin.phone });
-        if (!adminDoc) return res.json({ success: false, message: "Admin not found." });
-        if (!await bcrypt.compare(currentPassword, adminDoc.password))
-          return res.json({ success: false, message: "Current password is incorrect." });
-        adminDoc.password = await bcrypt.hash(newPassword, 10);
-        await adminDoc.save();
-        return res.json({ success: true, message: "Password changed successfully." });
-      }
-
-      // Reset another admin to default password
-      if (action === "reset-admin-password") {
-        const { targetPhone } = req.body;
-        if (!DEFAULT_PASSWORDS[targetPhone])
-          return res.json({ success: false, message: "No default found for this admin." });
-        const adminDoc = await Admin.findOne({ phone: targetPhone });
-        if (!adminDoc) return res.json({ success: false, message: "Admin not found." });
-        adminDoc.password = await bcrypt.hash(DEFAULT_PASSWORDS[targetPhone], 10);
-        await adminDoc.save();
-        return res.json({ success: true, message: `Password for ${adminDoc.fullName} reset to default.` });
-      }
-
-      // Update booking missing fields
-      if (action === "update-booking" && id) {
-        const b = await Booking.findById(id);
-        if (!b) return res.status(404).json({ success: false });
-        const {passengerName,phone,destination,origin,deposit,departureDate,departureVenue}=req.body||{};
-        if(passengerName)  b.passengerName  = passengerName;
-        if(phone)          b.phone          = phone;
-        if(destination)    b.destination    = destination;
-        if(origin)         b.origin         = origin;
-        if(deposit)        b.deposit        = deposit;
-        if(departureDate)  b.departureDate  = departureDate;
-        if(departureVenue) b.departureVenue = departureVenue;
-        if(!b.receiptNumber){
-          const {receiptNumber,seatLabel} = await buildReceiptNumber(b.seatNumber, b.phone||"", Booking);
-          b.receiptNumber = receiptNumber;
-          b.seatLabel     = seatLabel;
-        }
-        if(!b.departureDate||!b.departureVenue||!b.deposit){
-          const settings = await Settings.findOne();
-          const bs = getBusSettings(settings, b.busId||"bus1");
-          if(!b.departureDate)  b.departureDate  = bs.departureDate;
-          if(!b.departureVenue) b.departureVenue = bs.departureVenue;
-          if(!b.deposit)        b.deposit        = bs.bookingFee;
-        }
-        await b.save();
-        return res.json({ success: true });
-      }
-
-      // Edit user credentials
-      if (action === "edit-user" && id) {
-        const { fullName, phone, program, destination, origin } = req.body;
-        const user = await User.findById(id);
-        if (!user) return res.status(404).json({ success: false });
-        if(fullName)     user.fullName    = fullName;
-        if(phone)        user.phone       = phone;
-        if(program)      user.program     = program;
-        if(destination !== undefined)  user.destination = destination;
-        if(origin !== undefined)       user.origin      = origin;
-        await user.save();
-        return res.json({ success: true });
-      }
-
-      // Reset registration list for a specific bus
-      if (action === "reset-users") {
-        await User.deleteMany({ busId });
-        return res.json({ success: true });
-      }
-
-      // Register passenger
-      if (action === "register-passenger") {
-        const { fullName, destination } = req.body;
-        if (!fullName) return res.json({ success: false, message: "Name required." });
-        const exists = await User.findOne({ fullName: { $regex: "^"+fullName.trim()+"$", $options: "i" } });
-        if (exists) return res.json({ success: true, existing: true });
-        await User.create({ busId, fullName: fullName.trim(), phone: "admin-"+Date.now(), program: "Admin Assigned", destination: destination||"" });
-        return res.json({ success: true, existing: false });
       }
 
       return res.status(400).json({ success: false, message: "Unknown POST action: " + action });
