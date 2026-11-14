@@ -85,7 +85,11 @@
 .rf-exit-fs:hover{opacity:.9;}
 
 /* ── FULL SCREEN: top bar gone, prize card + reel + spin fit one screen ── */
-html.rf-lock,html.rf-lock body{overflow:hidden;}
+html.rf-lock,html.rf-lock body{overflow:hidden;background:#0b294d;}
+.rf-stage:fullscreen,.rf-stage:-webkit-full-screen{background:radial-gradient(ellipse at 50% 0%,#1b4f8f 0%,#0b294d 42%,#050f1f 100%);}
+.rf-stage::backdrop{background:#0b294d;}
+.rf-loading{display:none;padding:90px 20px;text-align:center;font-weight:700;font-size:1.05rem;color:#0b294d;}
+.rf-loading.show{display:block;}
 .rf-stage.rf-open.rf-fs{position:fixed;inset:0;z-index:99999;width:100%;height:calc(var(--u)*100);display:flex;flex-direction:column;overflow:hidden;--rowH:clamp(40px,calc(var(--u)*9),104px);padding:max(env(safe-area-inset-top),calc(var(--u)*1.6)) max(env(safe-area-inset-right),14px) max(env(safe-area-inset-bottom),calc(var(--u)*1.6)) max(env(safe-area-inset-left),14px);}
 .rf-fs .rf-toolbar{display:none;}
 .rf-fs .rf-exit-fs{display:block;top:max(env(safe-area-inset-top),8px);}
@@ -157,6 +161,8 @@ html.rf-lock,html.rf-lock body{overflow:hidden;}
     </div>
   </div>
 </div>
+
+<div id="rfLoading" class="rf-loading"><i class="fa-solid fa-circle-notch fa-spin"></i>&nbsp; Opening raffle draw...</div>
 
 <!-- RAFFLE STAGE (shown only after the admin logs in on ?mode=raffle) -->
 <section id="rfStage" class="rf-stage">
@@ -467,6 +473,7 @@ async function rfToggleFs(){
   if (st.classList.contains("rf-fs")) { rfExitFs(); return; }
   st.classList.add("rf-fs");
   document.documentElement.classList.add("rf-lock");
+  rfSetBars(true);
   const req = st.requestFullscreen || st.webkitRequestFullscreen;
   if (req) {
     try { await req.call(st); }
@@ -476,8 +483,30 @@ async function rfToggleFs(){
   }
 }
 
+/* Browser bars (the strip that shows the site name on phones) take the page colour instead of white */
+let rfPrevViewport = null, rfThemeMeta = null;
+function rfSetBars(on){
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (on) {
+    if (vp && rfPrevViewport === null) {
+      rfPrevViewport = vp.getAttribute("content") || "width=device-width, initial-scale=1.0";
+      vp.setAttribute("content", rfPrevViewport.replace(/,?\s*viewport-fit=\w+/, "") + ", viewport-fit=cover");
+    }
+    if (!rfThemeMeta) {
+      rfThemeMeta = document.createElement("meta");
+      rfThemeMeta.name = "theme-color";
+      rfThemeMeta.content = "#0b294d";
+      document.head.appendChild(rfThemeMeta);
+    }
+  } else {
+    if (vp && rfPrevViewport !== null) { vp.setAttribute("content", rfPrevViewport); rfPrevViewport = null; }
+    if (rfThemeMeta) { rfThemeMeta.remove(); rfThemeMeta = null; }
+  }
+}
+
 function rfExitFs(){
   const st = $("rfStage");
+  rfSetBars(false);
   st.classList.remove("rf-fs", "rf-pseudo");
   document.documentElement.classList.remove("rf-lock");
   if (rfRealFs()) {
@@ -489,6 +518,7 @@ function rfExitFs(){
 function rfOnFsChange(){
   const st = $("rfStage");
   if (!rfRealFs() && !st.classList.contains("rf-pseudo")) {   // left via swipe / Esc
+    rfSetBars(false);
     st.classList.remove("rf-fs");
     document.documentElement.classList.remove("rf-lock");
   }
@@ -561,10 +591,24 @@ document.getElementById("statusForm").addEventListener("submit", async function(
   }
 });
 
-/* Admin already logged in on this device? Skip the login form in raffle mode. */
-if (RAFFLE_MODE && localStorage.getItem("polycoachToken")) {
-  rfEnter().catch(() => {});
+/* Admin already logged in on this device? Go straight to the stage (also after a reload or Back). */
+function rfAutoEnter(){
+  if (!RAFFLE_MODE || !localStorage.getItem("polycoachToken")) return;
+  if ($("rfStage").classList.contains("rf-open")) return;
+  const hero = document.querySelector(".Page-Body-Hero");
+  hero.style.display = "none";
+  $("rfLoading").classList.add("show");
+  rfEnter().catch(ex => {
+    hero.style.display = "";
+    const err = $("errMsg");
+    err.style.display = "block";
+    err.textContent = (ex.status === 401 || ex.status === 403)
+      ? "Session expired. Please log in again."
+      : (ex.message || "Could not open the raffle.");
+  }).then(() => $("rfLoading").classList.remove("show"));
 }
+rfAutoEnter();
+window.addEventListener("pageshow", e => { if (e.persisted) rfAutoEnter(); });
 </script>
 </body>
 </html>
