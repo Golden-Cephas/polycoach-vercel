@@ -113,7 +113,9 @@ tr:hover td{background:#fafafa;}
 .rf-gift-cell{display:flex;align-items:center;gap:12px;}
 .rf-gift-name{font-weight:700;color:var(--primary);}
 .rf-gift-desc{font-size:0.78rem;color:#888;margin-top:2px;max-width:320px;}
-.badge-winner{background:#e6f4ea;color:#2e7d32;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;}
+.badge-winner{background:#e6f4ea;color:#2e7d32;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;cursor:pointer;display:inline-block;transition:background .15s;}
+.badge-winner:hover{background:#cfeBd6;}
+.badge-winner .fa-whatsapp{color:#25d366;margin-left:6px;}
 .rf-note{font-size:0.8rem;color:#7b5c00;background:#fff8e1;border-radius:6px;padding:10px 12px;margin-top:12px;display:none;}
 .rf-preview{max-width:100%;max-height:160px;border-radius:8px;margin-top:8px;display:none;object-fit:contain;}
 
@@ -253,6 +255,7 @@ tr:hover td{background:#fafafa;}
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
+          <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareSeatListWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Seat List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -435,6 +438,7 @@ tr:hover td{background:#fafafa;}
       <div class="rf-note" id="rfNote"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
         <button class="btn-save" onclick="location.href='Status-Login.html?mode=raffle'"><i class="fa-solid fa-dice"></i>&nbsp; Open Raffle Stage</button>
+        <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareRaffleWinnersWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Winners</button>
         <button class="btn" style="background:var(--danger);color:#fff;padding:10px 18px;border-radius:6px;font-size:0.88rem;" onclick="rfReset()"><i class="fa-solid fa-rotate-left"></i>&nbsp; Reset Raffle</button>
       </div>
     </div>
@@ -2318,6 +2322,53 @@ async function downloadSeatListPDF(){
 }
 
 /* ════════════════════════════════════════
+   SEAT LIST → WHATSAPP MESSAGE
+   Seats 1–72 as text. Booked seats end with a ✅ (pending seats show the
+   name without a tick; empty seats show "—"). Opens WhatsApp's share
+   screen so you pick the chat/group; also copies the text as a fallback.
+════════════════════════════════════════ */
+async function shareSeatListWhatsApp(){
+  const btn = event.currentTarget;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
+  try{
+    const [seatsRes, settingsRes] = await Promise.all([
+      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
+      fetch("/api/settings")
+    ]);
+    const seats    = await seatsRes.json();
+    const settings = await settingsRes.json();
+    const busName  = _busNames[currentBusId]||currentBusId;
+    const isBackToSchool = (settings.tripMode||"holiday") === "backtoschool";
+    const b = currentBusId==="bus2" ? "bus2" : "bus1";
+    const depDate = settings[b+"Date"] || settings.departureDate || "";
+    const depTime = settings[b+"Time"] || settings.departureTime || "";
+
+    let msg = "*"+busName+" — Seat List*\n";
+    if(depDate||depTime) msg += (depDate?depDate:"")+(depTime?" at "+depTime:"")+"\n";
+    msg += "\n";
+
+    for(let n=1; n<=72; n++){
+      const seat  = seats.find(x=>Number(x.number)===n);
+      const taken = !!(seat && seat.status && seat.status!=="available");
+      if(!taken){ msg += n+". —\n"; continue; }
+      const place = isBackToSchool ? seat.origin : seat.destination;
+      msg += n+". "+(seat.passengerName||"—")+(place?" ("+place+")":"")+(seat.status==="booked"?" ✅":"")+"\n";
+    }
+    msg = msg.trimEnd();
+
+    try{ await navigator.clipboard.writeText(msg); }catch(e){}
+    window.open("https://wa.me/?text="+encodeURIComponent(msg), "_blank", "noopener");
+  }catch(err){
+    alert("Could not prepare the Seat List message. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = label;
+}
+
+/* ════════════════════════════════════════
    DOWNLOAD REGISTRATION LIST
 ════════════════════════════════════════ */
 async function downloadUsersPDF(){
@@ -2695,6 +2746,62 @@ async function generateReceiptPDF(rc){
   doc.save(fname);
 }
 
+/* ════════════════════════════════════════
+   RAFFLE WINNERS → WHATSAPP MESSAGE
+   Same behaviour as Share Seat List: builds the text, copies it as a
+   fallback and opens WhatsApp's share screen so you pick the chat/group.
+   Prizes already drawn end with a ✅; prizes not drawn yet show "—".
+════════════════════════════════════════ */
+async function shareRaffleWinnersWhatsApp(){
+  const btn = event.currentTarget;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
+  try{
+    const res = await fetch("/api/admin?action=raffle-get",{headers:authHeaders()});
+    const d   = await res.json();
+    if(!d.success) throw new Error(d.message||"Could not load the raffle");
+    const gifts = d.gifts||[];
+    if(!gifts.length){
+      alert("There are no prizes to share yet.");
+      btn.disabled = false;
+      btn.innerHTML = label;
+      return;
+    }
+
+    let msg = "*PolyCoach Raffle — Winners*\n\n";
+    gifts.forEach((g,i)=>{
+      const winner = g.winner ? g.winner.name : (g.winnerName||"");
+      msg += (i+1)+". "+g.name+" — "+(winner||"—")+(winner?" ✅":"")+"\n";
+    });
+    msg = msg.trimEnd();
+
+    try{ await navigator.clipboard.writeText(msg); }catch(e){}
+    window.open("https://wa.me/?text="+encodeURIComponent(msg), "_blank", "noopener");
+  }catch(err){
+    alert("Could not prepare the Winners message. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = label;
+}
+
+/* ── MESSAGE A RAFFLE WINNER (click the trophy badge) ── */
+function rfNotifyWinner(id){
+  const g=_raffle.gifts.find(x=>x.id===id);
+  if(!g||!g.winnerId) return;
+  const name=(g.winnerName||"").trim();
+  const msg=[
+    "🎉 *Congratulations, "+name+"!*","",
+    "🎁 You have won *"+g.name+"* in the PolyCoach raffle draw!","",
+    "Please reply to this message or call us at "+WA_SUPPORT_PHONE+" to arrange collecting your prize.","",
+    "Thank you for travelling with PolyCoach! 🛣️"
+  ].join("\n");
+  const url=waUrlFromMsg(g.winnerPhone,msg);
+  if(!url){ alert("There is no valid phone number on record for "+(name||"this winner")+"."); return; }
+  window.open(url,"_blank","noopener");
+}
+
 /* ── RAFFLE ── */
 let _raffle={eligibility:"registered",gifts:[],poolSize:0,available:0};
 let _rfEditId=null;
@@ -2735,7 +2842,7 @@ function renderRaffle(){
   }
   body.innerHTML=_raffle.gifts.map((g,i)=>{
     const thumb=g.photo?'<img class="rf-thumb" src="'+g.photo+'" alt="">':'<div class="rf-thumb"><i class="fa-solid fa-gift"></i></div>';
-    const status=g.winnerId?'<span class="badge-winner"><i class="fa-solid fa-trophy"></i> '+rfEsc(g.winnerName)+'</span>':'<span class="badge-pending">Waiting</span>';
+    const status=g.winnerId?'<span class="badge-winner" title="Message the winner on WhatsApp" onclick="rfNotifyWinner(\''+g.id+'\')"><i class="fa-solid fa-trophy"></i> '+rfEsc(g.winnerName)+'<i class="fa-brands fa-whatsapp"></i></span>':'<span class="badge-pending">Waiting</span>';
     return '<tr><td>'+(i+1)+'</td>'+
       '<td><div class="rf-gift-cell">'+thumb+'<div><div class="rf-gift-name">'+rfEsc(g.name)+'</div>'+(g.description?'<div class="rf-gift-desc">'+rfEsc(g.description)+'</div>':'')+'</div></div></td>'+
       '<td>'+status+'</td>'+

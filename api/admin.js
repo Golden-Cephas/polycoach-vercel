@@ -70,10 +70,11 @@ async function buildRafflePool(eligibility) {
   }));
 }
 
-function mapRaffleGift(g) {
+function mapRaffleGift(g, phones) {
   return {
     id: String(g._id), name: g.name, description: g.description || "", photo: g.photo || "",
     winnerId: g.winnerId || null, winnerName: g.winnerName || "", winnerSub: g.winnerSub || "",
+    winnerPhone: (phones && g.winnerId && phones[g.winnerId]) || "",
     drawnAt: g.drawnAt || null
   };
 }
@@ -253,10 +254,19 @@ module.exports = async (req, res) => {
         const r    = await getRaffleDoc();
         const pool = await buildRafflePool(r.eligibility);
         const won  = new Set(r.gifts.filter(g => g.winnerId).map(g => g.winnerId));
+        // Winners' phone numbers (admin only) so the dashboard can message them. Looked up by id; never stored on the raffle.
+        const phones = {};
+        try {
+          if (won.size) {
+            const Model = r.eligibility === "booked" ? Booking : User;
+            const docs  = await Model.find({ _id: { $in: [...won] } }).select("phone").lean();
+            docs.forEach(x => { phones[String(x._id)] = x.phone || ""; });
+          }
+        } catch (e) { /* a missing number must never break the raffle */ }
         return res.json({
           success: true,
           eligibility: r.eligibility,
-          gifts: r.gifts.map(mapRaffleGift),
+          gifts: r.gifts.map(g => mapRaffleGift(g, phones)),
           poolSize: pool.length,
           available: pool.filter(p => !won.has(p.id)).length
         });
