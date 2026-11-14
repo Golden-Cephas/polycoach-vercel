@@ -324,11 +324,11 @@ function rfShowCurrent(){
   RF.state = "ready"; RF.busy = false;
   rfMsg(""); rfPill();
 
-  if (!d.gifts.length) { rfDone("No gifts yet", "Gifts will appear here once they have been added.", false); return; }
-  if (!g) { rfDone("All gifts have been given out!", "Congratulations to every winner.", true); return; }
+  if (!d.gifts.length) { rfDone("No prizes yet", "Prizes will appear here once they have been added.", false); return; }
+  if (!g) { rfDone("All prizes have been given out!", "Congratulations to every winner.", true); return; }
 
   $("rfStage").classList.remove("rf-complete");
-  $("rfCounter").textContent = "GIFT " + (d.gifts.indexOf(g) + 1) + " OF " + d.gifts.length;
+  $("rfCounter").textContent = "PRIZE " + (d.gifts.indexOf(g) + 1) + " OF " + d.gifts.length;
   $("rfGiftName").textContent = g.name;
   $("rfGiftDesc").textContent = g.description || "";
   const ph = $("rfPhoto");
@@ -430,7 +430,7 @@ function rfReveal(d){
 
   const more = RF.data.gifts.some(x => !x.winnerId);
   RF.state = "revealed"; RF.busy = false;
-  rfSetSpinBtn(more ? "NEXT GIFT →" : "SEE ALL WINNERS", true, false);
+  rfSetSpinBtn(more ? "NEXT PRIZE →" : "SEE ALL WINNERS", true, false);
 }
 
 function rfOnSpinBtn(){

@@ -634,7 +634,7 @@ module.exports = async (req, res) => {
 
       if (action === "raffle-add-gift") {
         const { name, description, photo } = req.body || {};
-        if (!name || !String(name).trim()) return res.json({ success: false, message: "Gift name required." });
+        if (!name || !String(name).trim()) return res.json({ success: false, message: "Prize name required." });
         const ph = cleanRafflePhoto(photo);
         if (!ph.ok) return res.json({ success: false, message: "Photo is invalid or too large." });
         const r = await getRaffleDoc();
@@ -647,9 +647,9 @@ module.exports = async (req, res) => {
         const { name, description, photo } = req.body || {};
         const r = await getRaffleDoc();
         const g = r.gifts.id(id);
-        if (!g) return res.status(404).json({ success: false, message: "Gift not found." });
+        if (!g) return res.status(404).json({ success: false, message: "Prize not found." });
         if (name !== undefined) {
-          if (!String(name).trim()) return res.json({ success: false, message: "Gift name required." });
+          if (!String(name).trim()) return res.json({ success: false, message: "Prize name required." });
           g.name = String(name).trim().slice(0, 80);
         }
         if (description !== undefined) g.description = String(description || "").trim().slice(0, 200);
@@ -674,12 +674,12 @@ module.exports = async (req, res) => {
       if (action === "raffle-draw") {
         const r    = await getRaffleDoc();
         const gift = r.gifts.find(g => !g.winnerId);
-        if (!gift) return res.json({ success: false, done: true, message: "All gifts have been given out." });
+        if (!gift) return res.json({ success: false, done: true, message: "All prizes have been given out." });
 
         const pool  = await buildRafflePool(r.eligibility);
         const won   = new Set(r.gifts.filter(g => g.winnerId).map(g => g.winnerId));
         const avail = pool.filter(p => !won.has(p.id));
-        if (!avail.length) return res.json({ success: false, message: "No eligible participants left for this gift." });
+        if (!avail.length) return res.json({ success: false, message: "No eligible participants left for this prize." });
 
         const winner = avail[crypto.randomInt(avail.length)];
         // Atomic: only succeeds if this gift still has no winner

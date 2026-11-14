@@ -423,8 +423,8 @@ tr:hover td{background:#fafafa;}
   <div id="panel-raffle" class="panel">
     <div class="stats-row">
       <div class="stat-card"><div class="num" id="rfStatEligible">0</div><div class="lbl">Eligible People</div></div>
-      <div class="stat-card"><div class="num" id="rfStatGifts">0</div><div class="lbl">Gifts</div></div>
-      <div class="stat-card"><div class="num" id="rfStatDrawn">0</div><div class="lbl">Gifts Given Out</div></div>
+      <div class="stat-card"><div class="num" id="rfStatGifts">0</div><div class="lbl">Prizes</div></div>
+      <div class="stat-card"><div class="num" id="rfStatDrawn">0</div><div class="lbl">Prizes Given Out</div></div>
     </div>
 
     <div class="settings-card" style="margin-bottom:22px;">
@@ -445,13 +445,13 @@ tr:hover td{background:#fafafa;}
 
     <div class="table-card">
       <div class="table-card-header">
-        <h3>Gifts</h3>
-        <button class="btn btn-add" onclick="openRaffleGiftModal()"><i class="fa-solid fa-plus"></i>&nbsp; Add Gift</button>
+        <h3>Prizes</h3>
+        <button class="btn btn-add" onclick="openRaffleGiftModal()"><i class="fa-solid fa-plus"></i>&nbsp; Add Prize</button>
       </div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>#</th><th>Gift</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="rfGiftRows"><tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No gifts yet. Add the first one.</td></tr></tbody>
+          <thead><tr><th>#</th><th>Prize</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="rfGiftRows"><tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No prizes yet. Add the first one.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -461,17 +461,17 @@ tr:hover td{background:#fafafa;}
 <!-- RAFFLE GIFT MODAL -->
 <div class="modal-overlay" id="rfGiftModal">
   <div class="modal-box">
-    <h3 id="rfGiftModalTitle">Add Gift</h3>
-    <div class="cg"><label>Gift Name</label><input type="text" id="rf-name" class="settings-input" maxlength="80" placeholder="e.g. Bluetooth Speaker"></div>
+    <h3 id="rfGiftModalTitle">Add Prize</h3>
+    <div class="cg"><label>Prize Name</label><input type="text" id="rf-name" class="settings-input" maxlength="80" placeholder="e.g. Bluetooth Speaker"></div>
     <div class="cg"><label>Description (optional)</label><input type="text" id="rf-desc" class="settings-input" maxlength="200" placeholder="Short line shown on the stage"></div>
     <div class="cg">
       <label>Photo (optional)</label>
       <input type="file" id="rf-file" accept="image/*" class="settings-input" onchange="rfPickPhoto(this)">
-      <img class="rf-preview" id="rf-preview" alt="Gift preview">
+      <img class="rf-preview" id="rf-preview" alt="Prize preview">
       <button type="button" class="btn" id="rf-removePhoto" style="display:none;margin-top:8px;background:#f0f2f5;color:#555;" onclick="rfRemovePhoto()">Remove photo</button>
     </div>
     <div class="modal-actions">
-      <button class="btn-save" id="rf-saveBtn" onclick="rfSaveGift()">SAVE GIFT</button>
+      <button class="btn-save" id="rf-saveBtn" onclick="rfSaveGift()">SAVE PRIZE</button>
       <button class="btn-cancel" onclick="closeModal('rfGiftModal')">Cancel</button>
     </div>
   </div>
@@ -2832,12 +2832,12 @@ function renderRaffle(){
   const waiting=_raffle.gifts.length-drawn;
   if(waiting>_raffle.available){
     note.style.display="block";
-    note.textContent="Heads up: "+waiting+" gift(s) still to draw but only "+_raffle.available+" eligible person(s) left. Some gifts will not get a winner.";
+    note.textContent="Heads up: "+waiting+" prize(s) still to draw but only "+_raffle.available+" eligible person(s) left. Some prizes will not get a winner.";
   }else{note.style.display="none";}
 
   const body=document.getElementById("rfGiftRows");
   if(!_raffle.gifts.length){
-    body.innerHTML='<tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No gifts yet. Add the first one.</td></tr>';
+    body.innerHTML='<tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No prizes yet. Add the first one.</td></tr>';
     return;
   }
   body.innerHTML=_raffle.gifts.map((g,i)=>{
@@ -2871,7 +2871,7 @@ function openRaffleGiftModal(id){
   _rfEditId=id||null;
   _rfPhoto=undefined;
   const g=id?_raffle.gifts.find(x=>x.id===id):null;
-  document.getElementById("rfGiftModalTitle").textContent=g?"Edit Gift":"Add Gift";
+  document.getElementById("rfGiftModalTitle").textContent=g?"Edit Prize":"Add Prize";
   document.getElementById("rf-name").value=g?g.name:"";
   document.getElementById("rf-desc").value=g?g.description:"";
   document.getElementById("rf-file").value="";
@@ -2924,7 +2924,7 @@ function rfRemovePhoto(){
 async function rfSaveGift(){
   const name=document.getElementById("rf-name").value.trim();
   const description=document.getElementById("rf-desc").value.trim();
-  if(!name){alert("Please enter the gift name.");return;}
+  if(!name){alert("Please enter the prize name.");return;}
   const btn=document.getElementById("rf-saveBtn");
   btn.disabled=true;
   const body={name,description};
@@ -2933,14 +2933,14 @@ async function rfSaveGift(){
   try{
     const r=await fetch(url,{method:"POST",headers:authHeaders(),body:JSON.stringify(body)});
     const d=await r.json();
-    if(!d.success){alert(d.message||"Could not save the gift.");}
+    if(!d.success){alert(d.message||"Could not save the prize.");}
     else{closeModal("rfGiftModal");loadRaffle();}
   }catch(e){alert("Network error.");}
   btn.disabled=false;
 }
 
 async function rfDeleteGift(id){
-  if(!confirm("Delete this gift?")) return;
+  if(!confirm("Delete this prize?")) return;
   try{
     await fetch("/api/admin?action=raffle-delete-gift&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
   }catch(e){alert("Network error.");}
@@ -2948,7 +2948,7 @@ async function rfDeleteGift(id){
 }
 
 async function rfReset(){
-  if(!confirm("Reset the raffle? All winners are cleared and every gift goes back into the draw.")) return;
+  if(!confirm("Reset the raffle? All winners are cleared and every prize goes back into the draw.")) return;
   try{
     await fetch("/api/admin?action=raffle-reset",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
   }catch(e){alert("Network error.");}
