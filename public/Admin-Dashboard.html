@@ -109,10 +109,13 @@ tr:hover td{background:#fafafa;}
 .proof-img{max-width:100%;border-radius:8px;margin-top:10px;max-height:220px;object-fit:contain;display:none;}
 
 /* RAFFLE */
-.rf-thumb{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#eef2f7;display:flex;align-items:center;justify-content:center;color:#9aa8bb;}
-.rf-photo-preview{width:100%;max-height:180px;object-fit:contain;border-radius:8px;margin-top:8px;display:none;background:#f4f6f9;}
-.rf-note{font-size:0.82rem;color:#777;margin-top:12px;line-height:1.5;}
-#rfSaved{display:none;background:#e6f4ea;color:#2e7d32;padding:10px 14px;border-radius:6px;font-weight:700;font-size:0.85rem;}
+.rf-thumb{width:52px;height:52px;border-radius:8px;object-fit:cover;background:#eef1f5;display:flex;align-items:center;justify-content:center;color:#b5bcc7;font-size:1.3rem;flex-shrink:0;}
+.rf-gift-cell{display:flex;align-items:center;gap:12px;}
+.rf-gift-name{font-weight:700;color:var(--primary);}
+.rf-gift-desc{font-size:0.78rem;color:#888;margin-top:2px;max-width:320px;}
+.badge-winner{background:#e6f4ea;color:#2e7d32;padding:3px 10px;border-radius:12px;font-weight:700;font-size:0.78rem;}
+.rf-note{font-size:0.8rem;color:#7b5c00;background:#fff8e1;border-radius:6px;padding:10px 12px;margin-top:12px;display:none;}
+.rf-preview{max-width:100%;max-height:160px;border-radius:8px;margin-top:8px;display:none;object-fit:contain;}
 
 /* RESPONSIVE */
 @media(max-width:900px){.bus-admin-grid{grid-template-columns:1fr;}.console-card{position:static;}}
@@ -250,7 +253,6 @@ tr:hover td{background:#fafafa;}
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
-          <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareSeatListWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Seat List</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -417,72 +419,56 @@ tr:hover td{background:#fafafa;}
   <!-- RAFFLE PANEL -->
   <div id="panel-raffle" class="panel">
     <div class="stats-row">
-      <div class="stat-card"><div class="num" id="rfStatGifts">0</div><div class="lbl">Prizes</div></div>
-      <div class="stat-card"><div class="num" id="rfStatGiven">0</div><div class="lbl">Given Out</div></div>
       <div class="stat-card"><div class="num" id="rfStatEligible">0</div><div class="lbl">Eligible People</div></div>
-      <div class="stat-card"><div class="num" id="rfStatLeft">0</div><div class="lbl">Still In The Draw</div></div>
+      <div class="stat-card"><div class="num" id="rfStatGifts">0</div><div class="lbl">Gifts</div></div>
+      <div class="stat-card"><div class="num" id="rfStatDrawn">0</div><div class="lbl">Gifts Given Out</div></div>
     </div>
 
-    <div class="settings-card" style="max-width:none;margin-bottom:22px;">
+    <div class="settings-card" style="margin-bottom:22px;">
       <h3>Who Can Take Part</h3>
-      <div class="settings-grid" style="max-width:none;">
-        <div>
-          <label class="settings-label">Eligible People</label>
-          <select class="settings-input" id="rfEligibility">
-            <option value="registered">Registered users</option>
-            <option value="booked">Booked only (approved bookings)</option>
-          </select>
-        </div>
-        <div>
-          <label class="settings-label">Bus</label>
-          <select class="settings-input" id="rfScope">
-            <option value="all">Both buses</option>
-            <option value="bus1">Bus 1 only</option>
-            <option value="bus2">Bus 2 only</option>
-          </select>
-        </div>
+      <label class="settings-label">Eligibility</label>
+      <select class="settings-input" id="rfEligibility" onchange="rfSetEligibility()">
+        <option value="registered">Registered users (everyone on the registration list)</option>
+        <option value="booked">Booked only (approved bookings)</option>
+      </select>
+      <p style="font-size:0.8rem;color:#888;margin-top:10px;">Covers both buses. Each registered user or approved booking is one entry, and nobody can win twice. This can only be changed before the draw starts.</p>
+      <div class="rf-note" id="rfNote"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;">
+        <button class="btn-save" onclick="window.open('Status-Login.html?mode=raffle','_blank')"><i class="fa-solid fa-dice"></i>&nbsp; Open Raffle Stage</button>
+        <button class="btn" style="background:var(--danger);color:#fff;padding:10px 18px;border-radius:6px;font-size:0.88rem;" onclick="rfReset()"><i class="fa-solid fa-rotate-left"></i>&nbsp; Reset Raffle</button>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap;">
-        <button class="btn-save" onclick="saveRaffleSettings()">SAVE</button>
-        <div id="rfSaved">Saved</div>
-      </div>
-      <p class="rf-note">Each registered user, or each approved booking, is one entry. People are never matched by phone number, so two people sharing a number both stay in the draw. Anyone who has already won is left out of the next spins.</p>
     </div>
 
     <div class="table-card">
       <div class="table-card-header">
-        <h3>Prizes</h3>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-add" onclick="openGiftModal()"><i class="fa-solid fa-plus"></i> Add Prize</button>
-          <button class="btn" style="background:var(--primary);color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;" onclick="window.open('Status-Login.html?mode=raffle','_blank')"><i class="fa-solid fa-play"></i> Open Raffle Draw</button>
-          <button class="btn btn-delete" style="padding:9px 18px;border-radius:6px;font-size:0.88rem;" onclick="resetRaffle()"><i class="fa-solid fa-rotate-left"></i> Reset Raffle</button>
-        </div>
+        <h3>Gifts</h3>
+        <button class="btn btn-add" onclick="openRaffleGiftModal()"><i class="fa-solid fa-plus"></i>&nbsp; Add Gift</button>
       </div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>Photo</th><th>Prize</th><th>Description</th><th>Winner</th><th>Actions</th></tr></thead>
-          <tbody id="rfGiftRows"><tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No prizes yet. Click Add Prize.</td></tr></tbody>
+          <thead><tr><th>#</th><th>Gift</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="rfGiftRows"><tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No gifts yet. Add the first one.</td></tr></tbody>
         </table>
       </div>
     </div>
   </div>
-
 </div>
 
-<!-- GIFT MODAL -->
-<div class="modal-overlay" id="giftModal">
+<!-- RAFFLE GIFT MODAL -->
+<div class="modal-overlay" id="rfGiftModal">
   <div class="modal-box">
-    <h3 id="giftModalTitle">Add Prize</h3>
-    <div class="cg"><label>Prize Name</label><input type="text" id="gf-name" placeholder="e.g. Bluetooth Speaker" maxlength="80"></div>
-    <div class="cg"><label>Description (optional)</label><input type="text" id="gf-desc" placeholder="e.g. Sponsored by ..." maxlength="160"></div>
+    <h3 id="rfGiftModalTitle">Add Gift</h3>
+    <div class="cg"><label>Gift Name</label><input type="text" id="rf-name" class="settings-input" maxlength="80" placeholder="e.g. Bluetooth Speaker"></div>
+    <div class="cg"><label>Description (optional)</label><input type="text" id="rf-desc" class="settings-input" maxlength="200" placeholder="Short line shown on the stage"></div>
     <div class="cg">
       <label>Photo (optional)</label>
-      <input type="file" id="gf-photo" accept="image/*" onchange="onGiftPhoto(this)">
-      <img id="gf-preview" class="rf-photo-preview" alt="Preview">
+      <input type="file" id="rf-file" accept="image/*" class="settings-input" onchange="rfPickPhoto(this)">
+      <img class="rf-preview" id="rf-preview" alt="Gift preview">
+      <button type="button" class="btn" id="rf-removePhoto" style="display:none;margin-top:8px;background:#f0f2f5;color:#555;" onclick="rfRemovePhoto()">Remove photo</button>
     </div>
     <div class="modal-actions">
-      <button class="btn-save" style="flex:2;" id="gf-save" onclick="saveGift()">SAVE PRIZE</button>
-      <button class="btn-cancel" style="flex:1;" onclick="closeModal('giftModal')">Cancel</button>
+      <button class="btn-save" id="rf-saveBtn" onclick="rfSaveGift()">SAVE GIFT</button>
+      <button class="btn-cancel" onclick="closeModal('rfGiftModal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -587,7 +573,7 @@ document.addEventListener("DOMContentLoaded",function(){
 async function loadAll(){await Promise.all([loadBus(),loadUsers(),loadBookings(),loadSettings()]);}
 
 /* ── PANELS ── */
-const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings",raffle:"Raffle Draw Setup"};
+const PANEL_TITLES={bus:"Bus Layout & Seat Control",users:"Registered Users",bookings:"Pending Approvals",settings:"Site Settings",raffle:"Raffle Draw"};
 function showPanel(name,_navEl){
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav-link").forEach(l=>l.classList.remove("active"));
@@ -676,7 +662,7 @@ function switchBus(busId){
 async function loadBus(){
   try{
     const r=await fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()});
-    if(!r.ok){ let why=""; try{ why=(await r.text()).replace(/\s+/g," ").slice(0,300); }catch(e){} throw new Error("Seats fetch failed: "+r.status+(why?" — "+why:"")); }
+    if(!r.ok) throw new Error("Seats fetch failed: "+r.status);
     const seats=await r.json();
     const map=document.getElementById("adminSeatMap");
     map.innerHTML="";
@@ -2332,53 +2318,6 @@ async function downloadSeatListPDF(){
 }
 
 /* ════════════════════════════════════════
-   SEAT LIST → WHATSAPP MESSAGE
-   Seats 1–72 as text. Booked seats end with a ✅ (pending seats show the
-   name without a tick; empty seats show "—"). Opens WhatsApp's share
-   screen so you pick the chat/group; also copies the text as a fallback.
-════════════════════════════════════════ */
-async function shareSeatListWhatsApp(){
-  const btn = event.currentTarget;
-  const label = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing...';
-  try{
-    const [seatsRes, settingsRes] = await Promise.all([
-      fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
-      fetch("/api/settings")
-    ]);
-    const seats    = await seatsRes.json();
-    const settings = await settingsRes.json();
-    const busName  = _busNames[currentBusId]||currentBusId;
-    const isBackToSchool = (settings.tripMode||"holiday") === "backtoschool";
-    const b = currentBusId==="bus2" ? "bus2" : "bus1";
-    const depDate = settings[b+"Date"] || settings.departureDate || "";
-    const depTime = settings[b+"Time"] || settings.departureTime || "";
-
-    let msg = "*"+busName+" — Seat List*\n";
-    if(depDate||depTime) msg += (depDate?depDate:"")+(depTime?" at "+depTime:"")+"\n";
-    msg += "\n";
-
-    for(let n=1; n<=72; n++){
-      const seat  = seats.find(x=>Number(x.number)===n);
-      const taken = !!(seat && seat.status && seat.status!=="available");
-      if(!taken){ msg += n+". —\n"; continue; }
-      const place = isBackToSchool ? seat.origin : seat.destination;
-      msg += n+". "+(seat.passengerName||"—")+(place?" ("+place+")":"")+(seat.status==="booked"?" ✅":"")+"\n";
-    }
-    msg = msg.trimEnd();
-
-    try{ await navigator.clipboard.writeText(msg); }catch(e){}
-    window.open("https://wa.me/?text="+encodeURIComponent(msg), "_blank", "noopener");
-  }catch(err){
-    alert("Could not prepare the Seat List message. Please try again.");
-    console.error(err);
-  }
-  btn.disabled = false;
-  btn.innerHTML = label;
-}
-
-/* ════════════════════════════════════════
    DOWNLOAD REGISTRATION LIST
 ════════════════════════════════════════ */
 async function downloadUsersPDF(){
@@ -2756,13 +2695,12 @@ async function generateReceiptPDF(rc){
   doc.save(fname);
 }
 
-/* ── LOGOUT ── */
 /* ── RAFFLE ── */
-let _raffle={gifts:[]};
-let _giftEditId=null;
-let _giftPhoto;   // undefined = unchanged, "" = removed, string = new photo
+let _raffle={eligibility:"registered",gifts:[],poolSize:0,available:0};
+let _rfEditId=null;
+let _rfPhoto=undefined; // undefined = unchanged, "" = removed, string = new image
 
-function rfEsc(t){return String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function rfEsc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 async function loadRaffle(){
   try{
@@ -2770,65 +2708,87 @@ async function loadRaffle(){
     const d=await r.json();
     if(!d.success) return;
     _raffle=d;
-    document.getElementById("rfEligibility").value=d.eligibility;
-    document.getElementById("rfScope").value=d.busScope;
-    const given=d.gifts.filter(g=>g.winner).length;
-    document.getElementById("rfStatGifts").textContent=d.gifts.length;
-    document.getElementById("rfStatGiven").textContent=given;
-    document.getElementById("rfStatEligible").textContent=d.eligibleCount;
-    document.getElementById("rfStatLeft").textContent=d.poolLeft;
-    const body=document.getElementById("rfGiftRows");
-    if(!d.gifts.length){
-      body.innerHTML='<tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No prizes yet. Click Add Prize.</td></tr>';
-      return;
-    }
-    body.innerHTML=d.gifts.map(g=>{
-      const thumb=g.photo?'<img class="rf-thumb" src="'+rfEsc(g.photo)+'" alt="">':'<div class="rf-thumb"><i class="fa-solid fa-gift"></i></div>';
-      const win=g.winner?'<span class="badge-approved">'+rfEsc(g.winner.name)+'</span>':'<span style="color:#aaa;">—</span>';
-      return '<tr><td>'+thumb+'</td><td><strong>'+rfEsc(g.name)+'</strong></td><td>'+rfEsc(g.description)+'</td><td>'+win+'</td>'
-        +'<td><button class="btn btn-add" style="padding:6px 12px;font-size:0.8rem;" onclick="openGiftModal(\''+g.id+'\')">Edit</button> '
-        +'<button class="btn btn-delete" onclick="deleteGift(\''+g.id+'\')">Delete</button></td></tr>';
-    }).join("");
-  }catch(e){console.error("loadRaffle:",e);}
+    renderRaffle();
+  }catch(e){console.error("Raffle load error:",e);}
 }
 
-async function saveRaffleSettings(){
-  const r=await fetch("/api/admin?action=raffle-save",{method:"POST",headers:authHeaders(),body:JSON.stringify({
-    eligibility:document.getElementById("rfEligibility").value,
-    busScope:document.getElementById("rfScope").value
-  })});
-  const d=await r.json();
-  if(!d.success){alert(d.message||"Could not save.");return;}
-  const el=document.getElementById("rfSaved");
-  el.style.display="block";setTimeout(()=>el.style.display="none",2500);
+function renderRaffle(){
+  const drawn=_raffle.gifts.filter(g=>g.winnerId).length;
+  const sel=document.getElementById("rfEligibility");
+  sel.value=_raffle.eligibility;
+  sel.disabled=drawn>0;
+  document.getElementById("rfStatEligible").textContent=_raffle.poolSize;
+  document.getElementById("rfStatGifts").textContent=_raffle.gifts.length;
+  document.getElementById("rfStatDrawn").textContent=drawn;
+
+  const note=document.getElementById("rfNote");
+  const waiting=_raffle.gifts.length-drawn;
+  if(waiting>_raffle.available){
+    note.style.display="block";
+    note.textContent="Heads up: "+waiting+" gift(s) still to draw but only "+_raffle.available+" eligible person(s) left. Some gifts will not get a winner.";
+  }else{note.style.display="none";}
+
+  const body=document.getElementById("rfGiftRows");
+  if(!_raffle.gifts.length){
+    body.innerHTML='<tr><td colspan="4" style="text-align:center;color:#999;padding:24px;">No gifts yet. Add the first one.</td></tr>';
+    return;
+  }
+  body.innerHTML=_raffle.gifts.map((g,i)=>{
+    const thumb=g.photo?'<img class="rf-thumb" src="'+g.photo+'" alt="">':'<div class="rf-thumb"><i class="fa-solid fa-gift"></i></div>';
+    const status=g.winnerId?'<span class="badge-winner"><i class="fa-solid fa-trophy"></i> '+rfEsc(g.winnerName)+'</span>':'<span class="badge-pending">Waiting</span>';
+    return '<tr><td>'+(i+1)+'</td>'+
+      '<td><div class="rf-gift-cell">'+thumb+'<div><div class="rf-gift-name">'+rfEsc(g.name)+'</div>'+(g.description?'<div class="rf-gift-desc">'+rfEsc(g.description)+'</div>':'')+'</div></div></td>'+
+      '<td>'+status+'</td>'+
+      '<td><button class="btn btn-approve" onclick="openRaffleGiftModal(\''+g.id+'\')">Edit</button> <button class="btn btn-delete" onclick="rfDeleteGift(\''+g.id+'\')">Delete</button></td></tr>';
+  }).join("");
+}
+
+async function rfSetEligibility(){
+  const sel=document.getElementById("rfEligibility");
+  try{
+    const r=await fetch("/api/admin?action=raffle-set-eligibility",{method:"POST",headers:authHeaders(),body:JSON.stringify({eligibility:sel.value})});
+    const d=await r.json();
+    if(!d.success) alert(d.message||"Could not change eligibility.");
+  }catch(e){alert("Network error.");}
   loadRaffle();
 }
 
-function openGiftModal(id){
-  _giftEditId=id||null;_giftPhoto=undefined;
-  const g=id?_raffle.gifts.find(x=>x.id===id):null;
-  document.getElementById("giftModalTitle").textContent=g?"Edit Prize":"Add Prize";
-  document.getElementById("gf-name").value=g?g.name:"";
-  document.getElementById("gf-desc").value=g?g.description:"";
-  document.getElementById("gf-photo").value="";
-  const pv=document.getElementById("gf-preview");
-  if(g&&g.photo){pv.src=g.photo;pv.style.display="block";}else{pv.removeAttribute("src");pv.style.display="none";}
-  document.getElementById("giftModal").style.display="flex";
+function rfShowPreview(src){
+  const img=document.getElementById("rf-preview");
+  const rm=document.getElementById("rf-removePhoto");
+  if(src){img.src=src;img.style.display="block";rm.style.display="inline-block";}
+  else{img.removeAttribute("src");img.style.display="none";rm.style.display="none";}
 }
 
-function rfCompress(file){
+function openRaffleGiftModal(id){
+  _rfEditId=id||null;
+  _rfPhoto=undefined;
+  const g=id?_raffle.gifts.find(x=>x.id===id):null;
+  document.getElementById("rfGiftModalTitle").textContent=g?"Edit Gift":"Add Gift";
+  document.getElementById("rf-name").value=g?g.name:"";
+  document.getElementById("rf-desc").value=g?g.description:"";
+  document.getElementById("rf-file").value="";
+  rfShowPreview(g?g.photo:"");
+  document.getElementById("rfGiftModal").style.display="flex";
+}
+
+function rfCompressImage(file){
   return new Promise((resolve,reject)=>{
     const fr=new FileReader();
-    fr.onerror=reject;
+    fr.onerror=()=>reject(new Error("read failed"));
     fr.onload=()=>{
       const img=new Image();
-      img.onerror=reject;
+      img.onerror=()=>reject(new Error("bad image"));
       img.onload=()=>{
-        const max=700,sc=Math.min(1,max/Math.max(img.width,img.height));
-        const w=Math.round(img.width*sc),h=Math.round(img.height*sc);
-        const c=document.createElement("canvas");c.width=w;c.height=h;
-        const ctx=c.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-        resolve(c.toDataURL("image/jpeg",0.82));
+        const max=700;
+        let w=img.width,h=img.height;
+        if(w>max||h>max){const k=max/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
+        const c=document.createElement("canvas");
+        c.width=w;c.height=h;
+        const x=c.getContext("2d");
+        x.fillStyle="#fff";x.fillRect(0,0,w,h);
+        x.drawImage(img,0,0,w,h);
+        resolve(c.toDataURL("image/jpeg",0.8));
       };
       img.src=fr.result;
     };
@@ -2836,45 +2796,55 @@ function rfCompress(file){
   });
 }
 
-async function onGiftPhoto(input){
+async function rfPickPhoto(input){
   const f=input.files&&input.files[0];
   if(!f) return;
   try{
-    _giftPhoto=await rfCompress(f);
-    const pv=document.getElementById("gf-preview");
-    pv.src=_giftPhoto;pv.style.display="block";
-  }catch(e){alert("Could not read that image.");input.value="";}
+    _rfPhoto=await rfCompressImage(f);
+    rfShowPreview(_rfPhoto);
+  }catch(e){
+    alert("Could not read that image. Try another one.");
+    input.value="";
+  }
 }
 
-async function saveGift(){
-  const name=document.getElementById("gf-name").value.trim();
-  if(!name){alert("Enter the prize name.");return;}
-  const btn=document.getElementById("gf-save");
+function rfRemovePhoto(){
+  _rfPhoto="";
+  document.getElementById("rf-file").value="";
+  rfShowPreview("");
+}
+
+async function rfSaveGift(){
+  const name=document.getElementById("rf-name").value.trim();
+  const description=document.getElementById("rf-desc").value.trim();
+  if(!name){alert("Please enter the gift name.");return;}
+  const btn=document.getElementById("rf-saveBtn");
   btn.disabled=true;
+  const body={name,description};
+  if(_rfPhoto!==undefined) body.photo=_rfPhoto;
+  const url=_rfEditId?"/api/admin?action=raffle-edit-gift&id="+_rfEditId:"/api/admin?action=raffle-add-gift";
   try{
-    const r=await fetch("/api/admin?action=raffle-gift-save",{method:"POST",headers:authHeaders(),body:JSON.stringify({
-      giftId:_giftEditId||undefined,
-      name:name,
-      description:document.getElementById("gf-desc").value.trim(),
-      photo:_giftPhoto
-    })});
+    const r=await fetch(url,{method:"POST",headers:authHeaders(),body:JSON.stringify(body)});
     const d=await r.json();
-    if(!d.success){alert(d.message||"Could not save prize.");return;}
-    closeModal("giftModal");
-    loadRaffle();
-  }catch(e){alert("Network error. Try again.");}
-  finally{btn.disabled=false;}
+    if(!d.success){alert(d.message||"Could not save the gift.");}
+    else{closeModal("rfGiftModal");loadRaffle();}
+  }catch(e){alert("Network error.");}
+  btn.disabled=false;
 }
 
-async function deleteGift(id){
-  if(!confirm("Delete this prize?")) return;
-  await fetch("/api/admin?action=raffle-gift-delete&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+async function rfDeleteGift(id){
+  if(!confirm("Delete this gift?")) return;
+  try{
+    await fetch("/api/admin?action=raffle-delete-gift&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  }catch(e){alert("Network error.");}
   loadRaffle();
 }
 
-async function resetRaffle(){
-  if(!confirm("Reset the raffle? All winners are cleared and every prize goes back in the draw.")) return;
-  await fetch("/api/admin?action=raffle-reset",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+async function rfReset(){
+  if(!confirm("Reset the raffle? All winners are cleared and every gift goes back into the draw.")) return;
+  try{
+    await fetch("/api/admin?action=raffle-reset",{method:"POST",headers:authHeaders(),body:JSON.stringify({})});
+  }catch(e){alert("Network error.");}
   loadRaffle();
 }
 

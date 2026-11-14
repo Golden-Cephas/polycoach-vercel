@@ -21,13 +21,69 @@
 //   GET  /api/admin?action=receipt&id=xxx
 //   GET  /api/admin?action=studentid&id=xxx
 //   GET  /api/admin?action=raffle-get
-//   POST /api/admin?action=raffle-save
-//   POST /api/admin?action=raffle-gift-save
-//   POST /api/admin?action=raffle-gift-delete&id=xxx
-//   POST /api/admin?action=raffle-draw
-//   POST /api/admin?action=raffle-reset
+//   POST /api/admin?action=raffle-set-eligibility | raffle-add-gift | raffle-edit-gift&id=x
+//   POST /api/admin?action=raffle-delete-gift&id=x | raffle-draw | raffle-reset
 
 const { connectDB, seedIfNeeded, User, Admin, Seat, Booking, Settings } = require("./_db");
+const mongoose = require("mongoose");
+const crypto   = require("crypto");
+
+/* ── RAFFLE MODEL (single document: eligibility + gift list with winners) ── */
+const raffleSchema = new mongoose.Schema({
+  eligibility: { type: String, enum: ["registered", "booked"], default: "registered" },
+  gifts: [{
+    name:        { type: String, required: true },
+    description: { type: String, default: "" },
+    photo:       { type: String, default: "" },
+    winnerId:    { type: String, default: null },
+    winnerName:  { type: String, default: "" },
+    winnerSub:   { type: String, default: "" },
+    drawnAt:     { type: Date,   default: null }
+  }]
+}, { timestamps: true });
+const Raffle = mongoose.models.Raffle || mongoose.model("Raffle", raffleSchema);
+
+async function getRaffleDoc() {
+  let r = await Raffle.findOne();
+  if (!r) r = await Raffle.create({});
+  return r;
+}
+
+// Every entry is identified by its own database _id, so two users who share
+// one phone number are still two separate entries.
+async function buildRafflePool(eligibility) {
+  const settings = (await Settings.findOne()) || {};
+  const busName  = id => getBusSettings(settings, id || "bus1").busName;
+  if (eligibility === "booked") {
+    const bks = await Booking.find({ status: "approved" }).lean();
+    return bks.map(b => ({
+      id:   String(b._id),
+      name: (b.passengerName || "").trim() || "Unnamed",
+      sub:  (b.seatNumber ? "Seat " + makeSeatLabel(Number(b.seatNumber)) + " · " : "") + busName(b.busId)
+    }));
+  }
+  const users = await User.find({}).select("fullName busId").lean();
+  return users.map(u => ({
+    id:   String(u._id),
+    name: (u.fullName || "").trim() || "Unnamed",
+    sub:  busName(u.busId)
+  }));
+}
+
+function mapRaffleGift(g) {
+  return {
+    id: String(g._id), name: g.name, description: g.description || "", photo: g.photo || "",
+    winnerId: g.winnerId || null, winnerName: g.winnerName || "", winnerSub: g.winnerSub || "",
+    drawnAt: g.drawnAt || null
+  };
+}
+
+function cleanRafflePhoto(photo) {
+  if (photo === undefined || photo === null || photo === "") return { ok: true, value: "" };
+  if (typeof photo !== "string" || !photo.startsWith("data:image/") || photo.length > 1500000)
+    return { ok: false };
+  return { ok: true, value: photo };
+}
 
 // Safe seat label: 1A-1E per row, BR1-BR7 for back row
 function makeSeatLabel(n){
@@ -53,29 +109,7 @@ async function buildReceiptNumber(seatNum, phone, Booking){
 }
 
 const { setHeaders, requireAdmin } = require("./_auth");
-const crypto = require("crypto");
 const bcrypt = require("bcrypt");
-
-// ── RAFFLE MODEL (built in, so no separate _raffle.js file is needed) ──
-const mongoose = require("mongoose");
-const RaffleWinnerSchema = new mongoose.Schema({
-  entryId: { type: String, required: true },
-  name:    { type: String, default: "" },
-  detail:  { type: String, default: "" },
-  wonAt:   { type: Date,   default: Date.now }
-}, { _id: false });
-const RaffleGiftSchema = new mongoose.Schema({
-  name:        { type: String, required: true, trim: true },
-  description: { type: String, default: "" },
-  photo:       { type: String, default: "" },
-  winner:      { type: RaffleWinnerSchema, default: null }
-});
-const RaffleSchema = new mongoose.Schema({
-  eligibility: { type: String, enum: ["registered", "booked"], default: "registered" },
-  busScope:    { type: String, enum: ["all", "bus1", "bus2"],  default: "all" },
-  gifts:       { type: [RaffleGiftSchema], default: [] }
-}, { timestamps: true });
-const Raffle = mongoose.models.Raffle || mongoose.model("Raffle", RaffleSchema);
 
 const DEFAULT_PASSWORDS = {
   "0981136268": "Golden Cephas",
@@ -100,46 +134,6 @@ async function cleanExpiredBookings() {
       }
     }
   } catch(e) { console.error("Cleanup error:", e.message); }
-}
-
-// ── RAFFLE HELPERS ──
-async function getRaffle() {
-  let r = await Raffle.findOne();
-  if (!r) r = await Raffle.create({});
-  return r;
-}
-
-// Everyone who is currently eligible. Registered users and bookings are
-// never matched to each other (phones can be shared by two people), so
-// each User / approved Booking is its own entry.
-async function buildRafflePool(r) {
-  const filter = (r.busScope === "bus1" || r.busScope === "bus2") ? { busId: r.busScope } : {};
-  if (r.eligibility === "booked") {
-    const bks = await Booking.find({ ...filter, status: "approved" }).lean();
-    return bks.map(b => ({
-      entryId: "b:" + b._id,
-      name:    b.passengerName || "Passenger",
-      detail:  b.seatNumber ? "Seat " + (b.seatLabel || makeSeatLabel(Number(b.seatNumber))) : ""
-    }));
-  }
-  const us = await User.find(filter).select("fullName origin").lean();
-  return us.map(u => ({
-    entryId: "u:" + u._id,
-    name:    u.fullName || "Student",
-    detail:  u.origin || ""
-  }));
-}
-
-function raffleWonIds(r) {
-  return new Set(r.gifts.filter(g => g.winner).map(g => g.winner.entryId));
-}
-
-function raffleGiftOut(g) {
-  return {
-    id: String(g._id), name: g.name, description: g.description || "",
-    photo: g.photo || "",
-    winner: g.winner ? { name: g.winner.name, detail: g.winner.detail || "" } : null
-  };
 }
 
 // Helper: get bus-specific settings fields
@@ -202,21 +196,6 @@ module.exports = async (req, res) => {
         return res.json(seats);
       }
 
-      // Raffle: settings + gifts + counts
-      if (action === "raffle-get") {
-        const r = await getRaffle();
-        const pool = await buildRafflePool(r);
-        const won  = raffleWonIds(r);
-        return res.json({
-          success: true,
-          eligibility: r.eligibility,
-          busScope: r.busScope,
-          gifts: r.gifts.map(raffleGiftOut),
-          eligibleCount: pool.length,
-          poolLeft: pool.filter(p => !won.has(p.entryId)).length
-        });
-      }
-
       // Get settings
       if (action === "settings") {
         let s = await Settings.findOne();
@@ -267,6 +246,20 @@ module.exports = async (req, res) => {
         if (!user || !user.studentID)
           return res.status(404).json({ success: false, message: "No student ID found." });
         return res.json({ success: true, image: user.studentID, name: user.fullName });
+      }
+
+      // Raffle: settings, gifts, winners and pool size
+      if (action === "raffle-get") {
+        const r    = await getRaffleDoc();
+        const pool = await buildRafflePool(r.eligibility);
+        const won  = new Set(r.gifts.filter(g => g.winnerId).map(g => g.winnerId));
+        return res.json({
+          success: true,
+          eligibility: r.eligibility,
+          gifts: r.gifts.map(mapRaffleGift),
+          poolSize: pool.length,
+          available: pool.filter(p => !won.has(p.id)).length
+        });
       }
 
       return res.status(400).json({ success: false, message: "Unknown GET action: " + action });
@@ -615,84 +608,103 @@ module.exports = async (req, res) => {
         return res.json({ success: true, existing: false });
       }
 
-      // Raffle: who can take part
-      if (action === "raffle-save") {
-        const { eligibility, busScope } = req.body || {};
-        if (!["registered", "booked"].includes(eligibility) || !["all", "bus1", "bus2"].includes(busScope))
-          return res.json({ success: false, message: "Invalid raffle settings." });
-        const r = await getRaffle();
+      /* ── RAFFLE ── */
+
+      if (action === "raffle-set-eligibility") {
+        const { eligibility } = req.body || {};
+        if (!["registered", "booked"].includes(eligibility))
+          return res.json({ success: false, message: "Invalid option." });
+        const r = await getRaffleDoc();
+        if (r.gifts.some(g => g.winnerId))
+          return res.json({ success: false, message: "The draw has started. Reset the raffle before changing who can take part." });
         r.eligibility = eligibility;
-        r.busScope    = busScope;
         await r.save();
         return res.json({ success: true });
       }
 
-      // Raffle: add or edit a gift
-      if (action === "raffle-gift-save") {
-        const { giftId, name, description, photo } = req.body || {};
+      if (action === "raffle-add-gift") {
+        const { name, description, photo } = req.body || {};
         if (!name || !String(name).trim()) return res.json({ success: false, message: "Gift name required." });
-        if (photo && (!String(photo).startsWith("data:image/") || String(photo).length > 1500000))
-          return res.json({ success: false, message: "Photo is invalid or too large." });
-        const r = await getRaffle();
-        if (giftId) {
-          const g = r.gifts.id(giftId);
-          if (!g) return res.status(404).json({ success: false, message: "Gift not found." });
-          g.name = String(name).trim();
-          g.description = description || "";
-          if (photo !== undefined) g.photo = photo || "";
-        } else {
-          r.gifts.push({ name: String(name).trim(), description: description || "", photo: photo || "" });
+        const ph = cleanRafflePhoto(photo);
+        if (!ph.ok) return res.json({ success: false, message: "Photo is invalid or too large." });
+        const r = await getRaffleDoc();
+        r.gifts.push({ name: String(name).trim().slice(0, 80), description: String(description || "").trim().slice(0, 200), photo: ph.value });
+        await r.save();
+        return res.json({ success: true });
+      }
+
+      if (action === "raffle-edit-gift" && id) {
+        const { name, description, photo } = req.body || {};
+        const r = await getRaffleDoc();
+        const g = r.gifts.id(id);
+        if (!g) return res.status(404).json({ success: false, message: "Gift not found." });
+        if (name !== undefined) {
+          if (!String(name).trim()) return res.json({ success: false, message: "Gift name required." });
+          g.name = String(name).trim().slice(0, 80);
+        }
+        if (description !== undefined) g.description = String(description || "").trim().slice(0, 200);
+        if (photo !== undefined) {
+          const ph = cleanRafflePhoto(photo);
+          if (!ph.ok) return res.json({ success: false, message: "Photo is invalid or too large." });
+          g.photo = ph.value;
         }
         await r.save();
         return res.json({ success: true });
       }
 
-      // Raffle: delete a gift
-      if (action === "raffle-gift-delete" && id) {
-        const r = await getRaffle();
-        const g = r.gifts.id(id);
-        if (g) { g.deleteOne(); await r.save(); }
+      if (action === "raffle-delete-gift" && id) {
+        const r = await getRaffleDoc();
+        r.gifts.pull({ _id: id });
+        await r.save();
         return res.json({ success: true });
       }
 
-      // Raffle: draw the winner of the next undrawn gift (server decides, so a refresh can't re-roll)
+      // Draw the next undrawn gift. The winner is chosen HERE, on the server,
+      // so a page refresh can never re-roll a result.
       if (action === "raffle-draw") {
-        const r = await getRaffle();
-        const gift = r.gifts.find(g => !g.winner);
+        const r    = await getRaffleDoc();
+        const gift = r.gifts.find(g => !g.winnerId);
         if (!gift) return res.json({ success: false, done: true, message: "All gifts have been given out." });
 
-        const pool  = await buildRafflePool(r);
-        const won   = raffleWonIds(r);
-        const avail = pool.filter(p => !won.has(p.entryId));
-        if (!avail.length) return res.json({ success: false, message: "No eligible people left to draw." });
+        const pool  = await buildRafflePool(r.eligibility);
+        const won   = new Set(r.gifts.filter(g => g.winnerId).map(g => g.winnerId));
+        const avail = pool.filter(p => !won.has(p.id));
+        if (!avail.length) return res.json({ success: false, message: "No eligible participants left for this gift." });
 
         const winner = avail[crypto.randomInt(avail.length)];
-        const saved = await Raffle.findOneAndUpdate(
-          { _id: r._id, gifts: { $elemMatch: { _id: gift._id, winner: null } } },
-          { $set: { "gifts.$.winner": { entryId: winner.entryId, name: winner.name, detail: winner.detail, wonAt: new Date() } } },
-          { new: true }
+        // Atomic: only succeeds if this gift still has no winner
+        const upd = await Raffle.findOneAndUpdate(
+          { _id: r._id, gifts: { $elemMatch: { _id: gift._id, winnerId: null } } },
+          { $set: {
+              "gifts.$.winnerId":   winner.id,
+              "gifts.$.winnerName": winner.name,
+              "gifts.$.winnerSub":  winner.sub,
+              "gifts.$.drawnAt":    new Date()
+          } }
         );
-        if (!saved) return res.json({ success: false, message: "That gift was just drawn. Please refresh." });
+        if (!upd) return res.json({ success: false, message: "Another draw just happened. Refreshing..." });
 
-        // Names for the spinning reel (display only)
-        const reel = avail.map(p => p.name);
-        for (let i = reel.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [reel[i], reel[j]] = [reel[j], reel[i]];
+        const others = avail.filter(p => p.id !== winner.id).map(p => p.name);
+        for (let i = others.length - 1; i > 0; i--) {
+          const j = crypto.randomInt(i + 1);
+          [others[i], others[j]] = [others[j], others[i]];
         }
         return res.json({
           success: true,
-          gift: raffleGiftOut(gift),
-          winner: { name: winner.name, detail: winner.detail },
-          reel: reel.slice(0, 40),
-          poolLeft: avail.length - 1,
-          giftsLeft: saved.gifts.filter(g => !g.winner).length
+          giftId: String(gift._id),
+          winner: { id: winner.id, name: winner.name, sub: winner.sub },
+          reel: others.slice(0, 40)
         });
       }
 
-      // Raffle: clear all winners, gifts stay
       if (action === "raffle-reset") {
-        await Raffle.updateOne({}, { $set: { "gifts.$[].winner": null } });
+        const r = await getRaffleDoc();
+        if (r.gifts.length) {
+          await Raffle.updateOne({ _id: r._id }, { $set: {
+            "gifts.$[].winnerId": null, "gifts.$[].winnerName": "",
+            "gifts.$[].winnerSub": "", "gifts.$[].drawnAt": null
+          } });
+        }
         return res.json({ success: true });
       }
 
