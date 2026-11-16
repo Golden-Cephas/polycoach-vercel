@@ -375,6 +375,28 @@ tr:hover td{background:#fafafa;}
       <div id="paymentSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ Payment details saved!</div>
     </div>
 
+    <!-- WHATSAPP TEMPLATE SETTINGS -->
+    <div class="settings-card" style="margin-bottom:22px;">
+      <h3>💬 WhatsApp Message — Pending Bookings</h3>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:14px;">Sent from the Pending Approvals panel to bookings that are <strong>pending with no payment proof</strong>. Placeholders are filled in automatically.</p>
+      <div style="font-size:0.78rem;color:#555;margin-bottom:12px;line-height:1.7;">
+        <code>{name}</code> <code>{departure}</code> <code>{destination}</code> <code>{seat}</code> <code>{date}</code> <code>{deposit}</code> <code>{payment}</code>
+      </div>
+      <label class="settings-label">Message template</label>
+      <textarea class="settings-input" id="setWaPendingTpl" rows="11" style="resize:vertical;line-height:1.5;" oninput="updateWaPendingPreview()"></textarea>
+      <div style="margin-top:14px;max-width:260px;">
+        <label class="settings-label">Minimum deposit ({deposit})</label>
+        <input class="settings-input" type="text" id="setWaDeposit" placeholder="MK5,000" oninput="updateWaPendingPreview()">
+      </div>
+      <label class="settings-label" style="margin-top:16px;">Preview</label>
+      <pre id="waPendingPreview" style="white-space:pre-wrap;word-break:break-word;background:#f0f7f0;border:1px solid #cfe5cf;border-radius:8px;padding:12px;font-family:'Lato',sans-serif;font-size:0.85rem;margin:0;"></pre>
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+        <button class="btn-save" onclick="saveWaPendingTemplate()">SAVE MESSAGE</button>
+        <button class="btn-cancel" style="padding:11px 18px;" onclick="resetWaPendingTemplate()">Reset to default</button>
+      </div>
+      <div id="waPendingSaved" style="display:none;background:#e6f4ea;color:#2e7d32;padding:12px;border-radius:6px;margin-top:14px;font-weight:700;">✅ WhatsApp message saved!</div>
+    </div>
+
     <!-- ADMIN PASSWORD MANAGEMENT -->
     <div class="settings-card">
       <h3>🔐 Admin Password Management</h3>
@@ -1214,8 +1236,93 @@ function waUrlFromMsg(phone,msg){
   const n = waNumber(phone);
   return n ? "https://wa.me/"+n+"?text="+encodeURIComponent(msg) : "";
 }
+const WA_PENDING_DEPOSIT_DEFAULT = "MK5,000";
+const WA_PENDING_DEFAULT =
+`Hi {name}! 👋
+
+Your registration details:
+📍 From: *{departure}*
+🏁 To: *{destination}*
+💺 Seat: *{seat}*
+
+Please verify your presence on *{date}* by paying a deposit starting from *{deposit}* so that your seat is locked for you (kept only for you) to avoid inconveniences.
+
+💳 *Payment Methods*
+{payment}
+
+— PolyCoach 🚌`;
+
+function waPaymentBlock(S){
+  const nb  = S.payNationalBank || "1012168938";
+  const tnm = S.payTNMMpamba    || "1609448";
+  const air = S.payAirtelMoney  || "0999261665";
+  const acc = S.payAccountName  || "Petros Mwakhwawa";
+  return "Bank Transfer (NB): "+nb+"\nTNM Mpamba: "+tnm+"\nAirtel Money: "+air+"\nAccount name: "+acc;
+}
+function waFillPending(tpl, v){
+  return tpl.replace(/\{(name|departure|destination|seat|date|deposit|payment)\}/g, (m,k)=> (v[k]===undefined||v[k]===null) ? "" : v[k]);
+}
+function waPendingNoProofMsg(b){
+  const S  = _waSettings||{};
+  const bk = (b.busId||currentBusId)==="bus2" ? "bus2" : "bus1";
+  const venue = S[bk+"Venue"] || S.departureVenue || "";
+  const back = (window._tripMode||"holiday")==="backtoschool";
+  const departure   = back ? venue : (b.origin || venue);
+  const destination = back ? (b.origin||"") : (b.destination||"");
+  const tpl = (S.waPendingTemplate||"").trim() || WA_PENDING_DEFAULT;
+  return waFillPending(tpl,{
+    name:(b.passengerName||"").trim(), departure, destination, seat:b.seatNumber,
+    date: S[bk+"Date"] || S.departureDate || "",
+    deposit: (S.waPendingDeposit||"").trim() || WA_PENDING_DEPOSIT_DEFAULT,
+    payment: waPaymentBlock(S)
+  });
+}
+function updateWaPendingPreview(){
+  const t=document.getElementById("setWaPendingTpl"), out=document.getElementById("waPendingPreview");
+  if(!t||!out) return;
+  out.textContent = waFillPending(t.value,{
+    name:"Chimwemwe Banda", departure:"MUBAS Main Gate", destination:"Mzuzu", seat:"12",
+    date:"20 November 2026",
+    deposit:(document.getElementById("setWaDeposit").value||"").trim()||WA_PENDING_DEPOSIT_DEFAULT,
+    payment: waPaymentBlock({
+      payNationalBank:(document.getElementById("setNB")||{}).value,
+      payTNMMpamba:(document.getElementById("setTNM")||{}).value,
+      payAirtelMoney:(document.getElementById("setAirtel")||{}).value,
+      payAccountName:(document.getElementById("setAcctName")||{}).value
+    })
+  });
+}
+function resetWaPendingTemplate(){
+  document.getElementById("setWaPendingTpl").value = WA_PENDING_DEFAULT;
+  document.getElementById("setWaDeposit").value = WA_PENDING_DEPOSIT_DEFAULT;
+  updateWaPendingPreview();
+}
+async function saveWaPendingTemplate(){
+  const tpl = document.getElementById("setWaPendingTpl").value.trim();
+  const dep = document.getElementById("setWaDeposit").value.trim();
+  if(!tpl){ alert("The message cannot be empty. Use 'Reset to default' to restore the original."); return; }
+  try{
+    const r=await fetch("/api/admin?action=save-settings",{method:"POST",headers:authHeaders(),body:JSON.stringify({waPendingTemplate:tpl,waPendingDeposit:dep})});
+    const d=await r.json();
+    if(!d.success){ alert("Error saving the WhatsApp message."); return; }
+    // Verify the server really kept the new fields
+    const chk = await (await fetch("/api/settings")).json();
+    if((chk.waPendingTemplate||"").trim()!==tpl){
+      alert("Saved, but the server did not keep the message. The backend save-settings handler must allow the fields waPendingTemplate and waPendingDeposit.");
+      return;
+    }
+    _waSettings = chk;
+    const msg=document.getElementById("waPendingSaved");
+    msg.style.display="block"; setTimeout(()=>msg.style.display="none",3000);
+    loadBookings();
+  }catch(e){ alert("Server error. Please try again."); }
+}
+
 function waBookingMsg(b){
   const name = (b.passengerName||"").trim();
+  if(b.status==="pending" && !b.hasPaymentProof){
+    return waPendingNoProofMsg(b);
+  }
   if(b.status==="pending"){
     return WA_REGISTERED_MSG(name, b.seatNumber);
   }
@@ -1521,6 +1628,12 @@ async function loadSettings(){
   document.getElementById("setTNM").value      = s.payTNMMpamba     || "";
   document.getElementById("setAcctName").value = s.payAccountName   || "";
   document.getElementById("setHeroSubtitle").value = s.heroSubtitle || "";
+  const _tplEl = document.getElementById("setWaPendingTpl");
+  if(_tplEl){
+    _tplEl.value = (s.waPendingTemplate||"").trim() || WA_PENDING_DEFAULT;
+    document.getElementById("setWaDeposit").value = s.waPendingDeposit || WA_PENDING_DEPOSIT_DEFAULT;
+    updateWaPendingPreview();
+  }
   const mode = s.tripMode || "holiday";
   window._tripMode = mode;
   _busNames = { bus1: s.bus1Name||"Bus 1", bus2: s.bus2Name||"Bus 2" };
