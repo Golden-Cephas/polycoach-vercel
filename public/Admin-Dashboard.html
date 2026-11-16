@@ -58,6 +58,9 @@ tr:hover td{background:#fafafa;}
 
 /* BUTTONS */
 .btn{border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:700;font-size:0.8rem;transition:opacity 0.2s;}
+.wa-btn{position:relative;}
+.wa-btn.wa-sent{background:#607d8b !important;}
+.wa-tick{position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:#2e7d32;color:#fff;font-size:0.6rem;line-height:16px;text-align:center;border:2px solid #fff;box-sizing:content-box;}
 .btn:hover{opacity:0.82;}
 .btn-approve{background:var(--success);color:#fff;}
 .btn-reject{background:var(--warning);color:#fff;}
@@ -255,6 +258,7 @@ tr:hover td{background:#fafafa;}
           <input class="search-input" type="text" placeholder="Search passenger..." oninput="filterTable('bookingsTable',this.value,0)">
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
+          <button class="btn" style="background:#00796b;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListDepositsPDF()"><i class="fa-solid fa-money-bill-wave"></i> Seat List + Deposits</button>
           <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareSeatListWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Seat List</button>
         </div>
       </div>
@@ -799,7 +803,7 @@ async function saveSeatEdit(){
         const allSeatsNow = await newSeatRes.json();
         const newSeatData = allSeatsNow.find(s=>Number(s.number)===currentSeatNum);
         const nameOnNewSeat = (newSeatData && newSeatData.status!=="available") ? newSeatData.passengerName : null;
-        await switchSeats(currentSeatNum, matchSeat.number, name, nameOnNewSeat, dest, matchSeat.destination, status, matchSeat.status);
+        await switchSeats(currentSeatNum, matchSeat.number, name, nameOnNewSeat, dest, matchSeat.destination, status, matchSeat.status, matchedPhone);
         return;
       }
       // "new-entry" — fall through to normal save
@@ -941,21 +945,38 @@ function _ncpChoice(val){
   if(window._ncpResolve){ window._ncpResolve(val); window._ncpResolve=null; }
 }
 
-async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, statusB){
+async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, statusB, phoneA){
   // seatA = seat admin is currently editing (the new seat for nameA)
   // seatB = nameA's current/old seat
   // statusA = status admin is assigning (travels with nameA to seatA)
   // statusB = status of seatA's current occupant (travels with nameB to seatB)
   try{
+    // Look up each person's phone + deposit BEFORE the move, so it travels with them to the new seat
+    let _bks = [];
+    try{ _bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json(); }catch(e){}
+    const _live = Array.isArray(_bks) ? _bks.filter(x=>x.status!=="rejected") : [];
+    const _nm = v=>(v||"").trim().toLowerCase();
+    const _pick = (seat,name)=> _live.find(x=>Number(x.seatNumber)===Number(seat)&&_nm(x.passengerName)===_nm(name))
+                              || _live.find(x=>Number(x.seatNumber)===Number(seat))
+                              || _live.find(x=>_nm(x.passengerName)===_nm(name)) || null;
+    const _carry = (bk,status,phoneOverride)=>{
+      const o = {};
+      const ph = phoneOverride || (bk && bk.phone) || "";
+      if(ph && !String(ph).startsWith("admin-")) o.phone = ph;
+      if(status==="booked" && bk && bk.deposit) o.deposit = bk.deposit;
+      return o;
+    };
+    const carryA = _carry(_pick(seatB,nameA), statusA, phoneA);
+    const carryB = nameB ? _carry(_pick(seatA,nameB), statusB) : {};
     if(nameB){
       // seatA is occupied — assign each person to their new seat, clearing the other seat atomically
-      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
-      await fetch("/api/admin?action=edit-seat&num="+seatB+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||""})});
+      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB,...carryA})});
+      await fetch("/api/admin?action=edit-seat&num="+seatB+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||"",...carryB})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
       // seatA is empty — assign to new seat and tell backend to clear old seat by number
-      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB})});
+      await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB,...carryA})});
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
       alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
     }
@@ -1052,6 +1073,46 @@ function waLink(phone,name,offer){
   const msg = offer ? WA_OFFER_MSG(nm) : "Hi " + nm + ",";
   return "https://wa.me/" + n + "?text=" + encodeURIComponent(msg);
 }
+/* ── WHATSAPP "ALREADY SENT" TRACKING (per phone number + message type, kept in this browser) ── */
+const WA_LOG_KEY = "pc_wa_log";
+function waLogGet(){ return waStore(WA_LOG_KEY) || {}; }
+function waSentEntry(phone,kind){ const n=waNumber(phone); return n ? (waLogGet()[n+"|"+kind]||null) : null; }
+function waSentWhen(e){ return new Date(e.ts).toLocaleString([],{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); }
+function waEsc(v){ return String(v==null?"":v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+function waBtnHtml(o){ // o: {url, phone, name, kind, base, title, offer}
+  const e = waSentEntry(o.phone,o.kind);
+  const title = e ? ("Sent "+waSentWhen(e)+" — click to send again") : o.title;
+  return `<a class="btn wa-btn${e?" wa-sent":""}" href="${o.url}" target="_blank" rel="noopener"
+    data-phone="${waEsc(o.phone)}" data-name="${waEsc(o.name)}" data-kind="${o.kind}" data-base="${o.base}" data-title="${waEsc(o.title)}"${o.offer?' data-offer="1"':""}
+    onclick="return waGuard(event,this)" title="${waEsc(title)}"
+    style="background:${o.base};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i>${e?'<span class="wa-tick">✓</span>':""}</a>`;
+}
+function waMarkAsSent(el){
+  el.classList.add("wa-sent");
+  if(!el.querySelector(".wa-tick")){ const t=document.createElement("span"); t.className="wa-tick"; t.textContent="✓"; el.appendChild(t); }
+  el.title = "Sent "+waSentWhen({ts:Date.now()})+" — click to send again";
+}
+// Runs on every WhatsApp button click: asks before re-sending, records the send, updates the button
+function waGuard(ev,el){
+  const phone = el.dataset.phone, kind = el.dataset.kind, n = waNumber(phone);
+  const prev = waSentEntry(phone,kind);
+  if(prev && !confirm("You already sent this message to "+(el.dataset.name||"this person")+" on "+waSentWhen(prev)+".\n\nSend again?")){
+    ev.preventDefault(); return false;
+  }
+  if(n){ const log=waLogGet(); log[n+"|"+kind]={ts:Date.now(),name:el.dataset.name||""}; waStore(WA_LOG_KEY,log); }
+  setTimeout(()=>{
+    if(el.dataset.offer){ // Users panel offer: record it, then the button goes back to the normal "Hi name" link
+      const sent=waOfferSent(), id=String(el.dataset.offer);
+      if(!sent.includes(id)){ sent.push(id); waStore("pc_offer_sent",sent); }
+      el.href = waLink(phone, el.dataset.name, false);
+      delete el.dataset.offer;
+      updateOfferBtn();
+    }
+    waMarkAsSent(el);
+  },50);
+  return true;
+}
+
 // Called when an offer button is clicked: mark user as sent, then revert the button to the default message
 function waMarkSent(uid,el,phone,name){
   const sent = waOfferSent(); const id = String(uid);
@@ -1124,7 +1185,7 @@ async function loadUsers(){
       <td style="font-size:0.78rem;color:#888;">${u.createdAt?new Date(u.createdAt).toLocaleDateString():"-"}</td>
       <td style="display:flex;gap:5px;">
         ${waUrl
-          ? `<a class="btn" href="${waUrl}" target="_blank" rel="noopener" ${isOffer?`onclick="waMarkSent('${uid}',this,'${(u.phone||"").replace(/'/g,"")}','${(u.fullName||"").replace(/'/g,"")}')"`:""} title="${isOffer?"Send offer on WhatsApp":"Message on WhatsApp"}" style="background:${isOffer?"#e67e22":"#25d366"};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
+          ? waBtnHtml({url:waUrl, phone:u.phone, name:u.fullName, kind:"user", base:isOffer?"#e67e22":"#25d366", title:isOffer?"Send offer on WhatsApp":"Message on WhatsApp", offer:isOffer?uid:""})
           : `<span class="btn" title="No valid phone number" style="background:#ccc;color:#fff;opacity:0.6;cursor:not-allowed;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></span>`}
         <button class="btn" style="background:#f0c040;color:#333;" onclick="openEditUserModal('${uid}','${u.fullName}','${displayPhone==="—"?"":u.phone}','${u.origin||u.hometown||u.from||""}','${u.destination||u.to||""}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-delete" id="delbtn-${uid}" onclick="deleteUser('${uid}','${u.fullName}')"><i class="fa-solid fa-trash"></i></button>
@@ -1353,6 +1414,19 @@ function waBookingMsg(b){
 async function loadBookings(){
   const r=await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()});let bks=await r.json();
   try{ _waSettings = await (await fetch("/api/settings")).json(); }catch(e){}
+  // Safety net: a booking with no usable phone (e.g. after a seat switch) borrows it from the registered user with the same name
+  try{
+    if(Array.isArray(bks) && bks.some(b=>!waNumber(b.phone))){
+      const _us = await (await fetch("/api/admin?action=users&busId="+currentBusId,{headers:authHeaders()})).json();
+      const _good = (Array.isArray(_us)?_us:[]).filter(u=>u.phone && waNumber(u.phone));
+      bks.forEach(b=>{
+        if(waNumber(b.phone)) return;
+        const nm=(b.passengerName||"").trim().toLowerCase();
+        const u = _good.find(x=>(x.fullName||"").trim().toLowerCase()===nm) || findRegisteredUserByName(b.passengerName||"",_good);
+        if(u) b.phone = u.phone;
+      });
+    }
+  }catch(e){}
   const pending=bks.filter(b=>b.status==="pending").length;
   const approved=bks.filter(b=>b.status==="approved").length;
   const rejected=bks.filter(b=>b.status==="rejected").length;
@@ -1387,7 +1461,7 @@ async function loadBookings(){
     const bWaUrl = (b.status==="pending"||b.status==="approved") ? waUrlFromMsg(b.phone, waBookingMsg(b)) : "";
     const bWaTitle = b.status==="pending" ? "Send registration confirmation on WhatsApp" : "Send booking confirmation on WhatsApp";
     const bWaBtn = b.status==="rejected" ? "" : (bWaUrl
-      ? `<a class="btn" href="${bWaUrl}" target="_blank" rel="noopener" title="${bWaTitle}" style="background:${b.status==="pending"?"#e67e22":"#25d366"};color:#fff;text-decoration:none;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></a>`
+      ? waBtnHtml({url:bWaUrl, phone:b.phone, name:b.passengerName, kind:(b.status==="pending"?(b.hasPaymentProof?"pending-proof":"pending-noproof"):"approved"), base:b.status==="pending"?"#e67e22":"#25d366", title:bWaTitle})
       : `<span class="btn" title="No valid phone number" style="background:#ccc;color:#fff;opacity:0.6;cursor:not-allowed;display:inline-flex;align-items:center;"><i class="fa-brands fa-whatsapp"></i></span>`);
     tr.innerHTML=`<td><strong>${b.passengerName}</strong><br><span style="font-size:0.75rem;color:#888;">${b.phone||""}</span></td>
     <td>${_busNames[b.busId||"bus1"]||"Bus 1"}</td>
@@ -2319,7 +2393,7 @@ async function downloadBusLayoutPDF(){
    footer as Seats Update). Seats 1–72 as a plain formal list:
    Seat | Name | Destination (holiday) or Origin (back to school)
 ════════════════════════════════════════ */
-async function buildSeatListPDF(){
+async function buildSeatListPDF(withDeposits){
   const [seatsRes, settingsRes] = await Promise.all([
     fetch("/api/admin?action=seats&busId="+currentBusId,{headers:authHeaders()}),
     fetch("/api/settings")
@@ -2330,6 +2404,21 @@ async function buildSeatListPDF(){
   const logo     = await loadLogo2();
   const {jsPDF}  = window.jspdf;
   const dateStr  = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+
+  // Deposits: taken from the bookings (by seat number); only paid (booked) seats show an amount
+  const depBySeat = {}; let depTotal = 0;
+  if(withDeposits){
+    try{
+      const bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json();
+      (Array.isArray(bks)?bks:[]).forEach(bk=>{
+        if(bk.status==="rejected" || bk.deposit===undefined || bk.deposit===null || String(bk.deposit).trim()==="") return;
+        const prev = depBySeat[Number(bk.seatNumber)];
+        if(!prev || bk.status==="approved") depBySeat[Number(bk.seatNumber)] = bk.deposit;
+      });
+    }catch(e){}
+  }
+  const depNum = v=>{ const n=parseFloat(String(v).replace(/[^0-9.]/g,"")); return isNaN(n)?0:n; };
+  const depFmt = v=>"MK"+depNum(v).toLocaleString("en-US");
 
   const pW    = 210; // same A4 width as Seats Update
   const mode  = settings.tripMode || "holiday";
@@ -2359,17 +2448,24 @@ async function buildSeatListPDF(){
     const taken = !!(seat && seat.status && seat.status !== "available");
     if(taken){
       const place = isBackToSchool ? seat.origin : seat.destination;
-      rows.push([String(n), seat.passengerName || "—", place || "—"]);
+      const row = [String(n), seat.passengerName || "—", place || "—"];
+      if(withDeposits){
+        const dv = seat.status==="booked" ? (depBySeat[n]!==undefined ? depBySeat[n] : seat.deposit) : "";
+        if(dv!==undefined && dv!==null && String(dv).trim()!=="" && depNum(dv)>0){ row.push(depFmt(dv)); depTotal += depNum(dv); }
+        else row.push("—");
+      }
+      rows.push(row);
     } else {
-      rows.push([String(n), "—", "—"]);
+      rows.push(withDeposits ? [String(n),"—","—","—"] : [String(n),"—","—"]);
     }
   }
+  if(withDeposits) rows.push(["","","Total collected", "MK"+depTotal.toLocaleString("en-US")]);
 
-  const tableW  = 140;                 // centred block in the middle of the page
+  const tableW  = withDeposits ? 160 : 140;                 // centred block in the middle of the page
   const marginX = (pW - tableW) / 2;
 
   function drawAll(doc){
-    pdfHeader(doc, "Seat List", logo, busName);
+    pdfHeader(doc, withDeposits ? "Seat List & Deposits" : "Seat List", logo, busName);
     doc.setFont("times","normal");
     doc.setFontSize(8.5);
     doc.setTextColor(180,210,255);
@@ -2383,7 +2479,7 @@ async function buildSeatListPDF(){
 
     doc.autoTable({
       startY: 50,
-      head: [["Seat","Name",placeLabel]],
+      head: [withDeposits ? ["Seat","Name",placeLabel,"Deposit"] : ["Seat","Name",placeLabel]],
       body: rows,
       theme: "grid",
       tableWidth: tableW,
@@ -2392,7 +2488,12 @@ async function buildSeatListPDF(){
                overflow:"linebreak", valign:"middle" },
       headStyles:{ fillColor:[11,41,77], textColor:[255,255,255], fontStyle:"bold", font:"times" },
       alternateRowStyles:{ fillColor:[245,245,245] },
-      columnStyles:{
+      columnStyles: withDeposits ? {
+        0:{cellWidth:18, halign:"center", fontStyle:"bold"},
+        1:{cellWidth:62},
+        2:{cellWidth:46},
+        3:{cellWidth:34, halign:"right"}
+      } : {
         0:{cellWidth:20, halign:"center", fontStyle:"bold"},
         1:{cellWidth:70},
         2:{cellWidth:50}
@@ -2401,6 +2502,10 @@ async function buildSeatListPDF(){
       didParseCell:(data)=>{
         if(data.section==="body" && data.cell.raw==="—"){
           data.cell.styles.textColor = [140,140,140];
+        }
+        if(withDeposits && data.section==="body" && data.row.index===rows.length-1){
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [225,236,250];
         }
       }
     });
@@ -2419,6 +2524,21 @@ async function buildSeatListPDF(){
   return doc;
 }
 
+async function downloadSeatListDepositsPDF(){
+  const btn = event.currentTarget;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+  try{
+    const doc = await buildSeatListPDF(true);
+    doc.save((_busNames[currentBusId]||currentBusId).replace(/\s+/g,"-")+"-Seat-List-Deposits-"+new Date().toISOString().slice(0,10)+".pdf");
+  }catch(err){
+    alert("Could not generate the Seat List with deposits. Please try again.");
+    console.error(err);
+  }
+  btn.disabled = false;
+  btn.innerHTML = label;
+}
 async function downloadSeatListPDF(){
   const btn = event.currentTarget;
   btn.disabled = true;
