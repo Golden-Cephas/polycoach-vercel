@@ -259,6 +259,7 @@ tr:hover td{background:#fafafa;}
           <button class="btn btn-add" onclick="openAddBookingModal()"><i class="fa-solid fa-plus"></i> Add Booking</button>
           <button class="btn" style="background:#0b294d;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListPDF()"><i class="fa-solid fa-file-pdf"></i> Seat List</button>
           <button class="btn" style="background:#00796b;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="downloadSeatListDepositsPDF()"><i class="fa-solid fa-money-bill-wave"></i> Seat List + Deposits</button>
+          <button class="btn" style="background:#6a1b9a;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="rcOpen({})"><i class="fa-solid fa-scale-balanced"></i> Reconcile</button>
           <button class="btn" style="background:#25d366;color:#fff;padding:9px 18px;border-radius:6px;font-size:0.88rem;cursor:pointer;" onclick="shareSeatListWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Seat List</button>
         </div>
       </div>
@@ -957,7 +958,6 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
     const _live = Array.isArray(_bks) ? _bks.filter(x=>x.status!=="rejected") : [];
     const _nm = v=>(v||"").trim().toLowerCase();
     const _pick = (seat,name)=> _live.find(x=>Number(x.seatNumber)===Number(seat)&&_nm(x.passengerName)===_nm(name))
-                              || _live.find(x=>Number(x.seatNumber)===Number(seat))
                               || _live.find(x=>_nm(x.passengerName)===_nm(name)) || null;
     const _carry = (bk,status,phoneOverride)=>{
       const o = {};
@@ -966,23 +966,233 @@ async function switchSeats(seatA, seatB, nameA, nameB, destA, destB, statusA, st
       if(status==="booked" && bk && bk.deposit) o.deposit = bk.deposit;
       return o;
     };
-    const carryA = _carry(_pick(seatB,nameA), statusA, phoneA);
-    const carryB = nameB ? _carry(_pick(seatA,nameB), statusB) : {};
+    const bkA = _pick(seatB,nameA), bkB = nameB ? _pick(seatA,nameB) : null;
+    const carryA = _carry(bkA, statusA, phoneA);
+    const carryB = nameB ? _carry(bkB, statusB) : {};
+    // The booking record must move with the person too (its seat number)
+    const _syncBk = async (bk,newSeat)=>{
+      if(!bk || Number(bk.seatNumber)===Number(newSeat)) return;
+      await fetch("/api/admin?action=update-booking&id="+(bk._id||bk.id),{method:"POST",headers:authHeaders(),body:JSON.stringify({seatNumber:newSeat})});
+    };
     if(nameB){
       // seatA is occupied — assign each person to their new seat, clearing the other seat atomically
       await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB,...carryA})});
       await fetch("/api/admin?action=edit-seat&num="+seatB+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusB,passengerName:nameB,destination:destB||"",...carryB})});
+      await _syncBk(bkA,seatA); await _syncBk(bkB,seatB);
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
-      alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
+      if(!(await rcOpen({onlyIfIssues:true}))) alert(nameA+" moved to Seat "+seatA+" and "+nameB+" moved to Seat "+seatB+". Seats exchanged successfully.");
     } else {
       // seatA is empty — assign to new seat and tell backend to clear old seat by number
       await fetch("/api/admin?action=edit-seat&num="+seatA+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:statusA,passengerName:nameA,destination:destA||"",clearSeatNum:seatB,...carryA})});
+      await _syncBk(bkA,seatA);
       await Promise.all([loadBus(),loadBookings(),loadUsers()]);
-      alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
+      if(!(await rcOpen({onlyIfIssues:true}))) alert(nameA+" moved from Seat "+seatB+" to Seat "+seatA+". Seat "+seatB+" is now available.");
     }
   }catch(err){
     alert("Switch failed: "+err.message);
   }
+}
+
+/* ════════════════════════════════════════
+   RECONCILE — seats on the map vs bookings (pending / approved / booked)
+════════════════════════════════════════ */
+const rcNorm = v=>(v||"").trim().toLowerCase().replace(/\s+/g," ");
+let _rcFixes = [];
+let _rcOnly = false;
+
+async function rcFetch(){
+  const h = {headers:authHeaders()};
+  const [sr,br,ur] = await Promise.all([
+    fetch("/api/admin?action=seats&busId="+currentBusId,h),
+    fetch("/api/admin?action=bookings&busId="+currentBusId,h),
+    fetch("/api/admin?action=users&busId="+currentBusId,h)
+  ]);
+  const [seats,bks,users] = await Promise.all([sr.json(),br.json(),ur.json()]);
+  return {seats:Array.isArray(seats)?seats:[], bks:Array.isArray(bks)?bks:[], users:Array.isArray(users)?users:[]};
+}
+async function rcSetBookingSeat(b,t){
+  const id = b._id||b.id;
+  await fetch("/api/admin?action=update-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({seatNumber:t})});
+  const bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json();
+  const nb = (Array.isArray(bks)?bks:[]).find(x=>(x._id||x.id)===id);
+  if(!nb || Number(nb.seatNumber)!==Number(t)){
+    alert("The server did not accept the seat-number change for "+b.passengerName+".\n\nThe update-booking handler in /api/admin must accept the field seatNumber. Send me that handler and I will add it.");
+    return false;
+  }
+  return true;
+}
+async function rcSetSeat(n,status,b){
+  const place = getTripMode()==="backtoschool" ? {origin:b.origin||""} : {destination:b.destination||""};
+  const body = {status, passengerName:b.passengerName, phone:b.phone||"", ...place};
+  if(status==="booked" && b.deposit) body.deposit = b.deposit;
+  await fetch("/api/admin?action=edit-seat&num="+n+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify(body)});
+}
+async function rcFreeSeat(n){
+  await fetch("/api/admin?action=edit-seat&num="+n+"&busId="+currentBusId,{method:"POST",headers:authHeaders(),body:JSON.stringify({status:"available",passengerName:"",destination:""})});
+}
+
+function rcAnalyse(st){
+  _rcFixes = [];
+  const isB2S = getTripMode()==="backtoschool";
+  const seatBy = {}; st.seats.forEach(s=>{ seatBy[Number(s.number)] = s; });
+  const isTaken = s=>!!(s && s.status && s.status!=="available");
+  const seatSt  = s=>!s ? "available" : (s.status==="taken" ? "booked" : s.status);
+  const named = {};
+  st.seats.forEach(s=>{ if(!isTaken(s)) return; const k=rcNorm(s.passengerName); if(k) (named[k]=named[k]||[]).push(Number(s.number)); });
+  const active = st.bks.filter(b=>b.status!=="rejected")
+                       .sort((a,b)=>Number(a.seatNumber||999)-Number(b.seatNumber||999));
+  const cnt = {}; active.forEach(b=>{ const k=rcNorm(b.passengerName); cnt[k]=(cnt[k]||0)+1; });
+  const claimed = new Set(active.map(b=>Number(b.seatNumber)).filter(Boolean));
+  const goodUsers = st.users.filter(u=>u.phone && waNumber(u.phone));
+  const fx = (label,confirmMsg,run)=>{ _rcFixes.push({label,confirmMsg,run}); return _rcFixes.length-1; };
+
+  const rows = [];
+  active.forEach(b=>{
+    const s = Number(b.seatNumber)||0, k = rcNorm(b.passengerName), seat = seatBy[s];
+    const want = b.status==="approved" ? "booked" : "pending";
+    const checks = [];
+    const myOther = (named[k]||[]).filter(n=>n!==s);
+
+    if(!s){
+      const c = {level:"err", text:"Booking has no seat number"};
+      if((named[k]||[]).length===1){ const t=named[k][0]; c.fix = fx("Set booking to seat "+t, "Set "+b.passengerName+"'s booking to seat "+t+"?", ()=>rcSetBookingSeat(b,t)); }
+      checks.push(c);
+    } else if(isTaken(seat)){
+      if(rcNorm(seat.passengerName)===k){
+        if(seatSt(seat)!==want){
+          checks.push({level:"warn", text:"Seat is "+seatSt(seat).toUpperCase()+" but booking is "+b.status.toUpperCase(),
+            fix: fx("Set seat "+s+" to "+want, "Set seat "+s+" to "+want+" to match the booking?", ()=>rcSetSeat(s,want,b))});
+        }
+        myOther.filter(t=>!claimed.has(t)).forEach(t=>{
+          checks.push({level:"err", text:b.passengerName+" is marked on TWO seats: "+s+" (where the booking is) and "+t+" (no booking there). Which one is correct?",
+            fixes:[
+              fx("Keep seat "+s+", free seat "+t, "Keep "+b.passengerName+" on seat "+s+" and free seat "+t+"?", ()=>rcFreeSeat(t)),
+              fx("Move to seat "+t+", free seat "+s, "Move "+b.passengerName+"'s booking to seat "+t+" and then free seat "+s+"?", async()=>{ if(await rcSetBookingSeat(b,t)) await rcFreeSeat(s); })
+            ]});
+        });
+      } else {
+        const c = {level:"err", text:"Seat "+s+" belongs to \""+(seat.passengerName||"?")+"\" on the map"};
+        const t = myOther.filter(x=>!claimed.has(x));
+        if(t.length===1){ c.fix = fx("Set booking to seat "+t[0], "The map has "+b.passengerName+" on seat "+t[0]+". Set the booking to seat "+t[0]+"?", ()=>rcSetBookingSeat(b,t[0])); }
+        checks.push(c);
+      }
+    } else {
+      const t = myOther.filter(x=>!claimed.has(x));
+      if(t.length===1){
+        checks.push({level:"err", text:"Booking says seat "+s+" (empty) but the map has her/him on seat "+t[0],
+          fix: fx("Set booking to seat "+t[0], "Move "+b.passengerName+"'s booking to seat "+t[0]+" (where the map shows them)?", ()=>rcSetBookingSeat(b,t[0]))});
+      } else {
+        checks.push({level:"err", text:"Seat "+s+" is empty on the map but the booking is "+b.status.toUpperCase(),
+          fix: fx("Mark seat "+s+" as "+want, "Mark seat "+s+" as "+want+" for "+b.passengerName+"?", ()=>rcSetSeat(s,want,b))});
+      }
+    }
+
+    if(cnt[k]>1){
+      const c = {level:"warn", text:"Duplicate: "+cnt[k]+" active bookings for this name"};
+      const id=b._id||b.id;
+      c.fix = fx("Delete this booking", "Delete this booking?\n\n"+b.passengerName+" · seat "+b.seatNumber+" · "+String(b.status).toUpperCase()+" · deposit "+(b.deposit||"none")+"\n\nThis cannot be undone — make sure the OTHER booking is the one to keep.", async()=>{
+        await fetch("/api/admin?action=delete-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({})}); });
+      checks.push(c);
+    }
+    if(!waNumber(b.phone)){
+      const u = goodUsers.find(x=>rcNorm(x.fullName)===k) || findRegisteredUserByName(b.passengerName||"",goodUsers);
+      const c = {level:"warn", text:"No phone number on the booking"};
+      if(u){ const id=b._id||b.id; c.fix = fx("Use registered phone", "Save "+u.phone+" (registered student "+u.fullName+") as the booking phone?", ()=>fetch("/api/admin?action=update-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({phone:u.phone})})); }
+      checks.push(c);
+    }
+    if(b.status==="approved" && !String(b.deposit==null?"":b.deposit).trim()){
+      checks.push({level:"warn", text:"Approved but no deposit amount recorded"});
+    }
+    const level = checks.some(c=>c.level==="err") ? "err" : (checks.length ? "warn" : "ok");
+    rows.push({b, seat, checks, level});
+  });
+
+  const ghosts = [];
+  st.seats.filter(isTaken).forEach(sx=>{
+    const n = Number(sx.number), k = rcNorm(sx.passengerName);
+    if(claimed.has(n) || (k && cnt[k])) return;
+    const st2 = seatSt(sx);
+    ghosts.push({n, name:sx.passengerName||"—", status:st2,
+      level: st2==="booked" ? "err" : "warn",
+      text: st2==="booked" ? "BOOKED seat with no booking record — money may not be recorded" : "Pending seat with no booking record",
+      fix: fx("Free seat "+n, "Free seat "+n+" ("+(sx.passengerName||"no name")+")?", ()=>rcFreeSeat(n))});
+  });
+
+  const issues = rows.filter(r=>r.level!=="ok").length + ghosts.filter(g=>g.level==="err").length;
+  return {rows, ghosts, issues, total:rows.length};
+}
+
+function rcClose(){ const m=document.getElementById("rcModal"); if(m) m.style.display="none"; }
+
+async function rcRunFix(i){
+  const f = _rcFixes[i]; if(!f) return;
+  if(!confirm(f.confirmMsg)) return;
+  try{
+    await f.run();
+    await Promise.all([loadBookings(),loadBus(),loadUsers()]);
+  }catch(e){ alert("Fix failed: "+e.message); }
+  rcOpen({});
+}
+
+async function rcOpen(opts){
+  opts = opts||{};
+  let st;
+  try{ st = await rcFetch(); }catch(e){ alert("Could not load seats and bookings."); return false; }
+  const res = rcAnalyse(st);
+  if(opts.onlyIfIssues && res.issues===0){ rcClose(); return false; }
+  let m = document.getElementById("rcModal");
+  if(!m){ m=document.createElement("div"); m.id="rcModal"; m.className="modal-overlay"; document.body.appendChild(m); }
+  const busName = _busNames[currentBusId]||currentBusId;
+  const col = {ok:"#2e7d32", warn:"#e67e22", err:"#c62828"};
+  const bg  = {ok:"#f3faf4", warn:"#fff8ee", err:"#fff1f0"};
+  const okCount = res.rows.filter(r=>r.level==="ok").length;
+  const show = _rcOnly ? res.rows.filter(r=>r.level!=="ok") : res.rows;
+  const cell = "padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top;";
+  const fixBtn = i=>`<button class="btn" style="background:#0b294d;color:#fff;margin:3px 0 0 0;" onclick="rcRunFix(${i})">Fix: ${waEsc(_rcFixes[i].label)}</button>`;
+  const rowsHtml = show.map(r=>{
+    const b=r.b, sSt = r.seat ? (r.seat.status==="taken"?"booked":r.seat.status) : "available";
+    const mapTxt = r.seat && sSt!=="available" ? waEsc(r.seat.passengerName||"—")+" ("+sSt+")" : "empty";
+    const checks = r.checks.length
+      ? r.checks.map(c=>`<div style="color:${col[c.level]};margin-bottom:4px;">${c.level==="err"?"❌":"⚠️"} ${waEsc(c.text)}${(c.fixes||(c.fix!==undefined?[c.fix]:[])).map(i=>"<br>"+fixBtn(i)).join("")}</div>`).join("")
+      : `<span style="color:${col.ok};font-weight:700;">✅ Matches</span>`;
+    return `<tr style="background:${bg[r.level]};">
+      <td style="${cell}"><strong>${waEsc(b.seatNumber||"—")}</strong></td>
+      <td style="${cell}"><strong>${waEsc(b.passengerName)}</strong></td>
+      <td style="${cell}">${waEsc(b.phone||"—")}</td>
+      <td style="${cell}">${waEsc((b.status||"").toUpperCase())}</td>
+      <td style="${cell}">${b.deposit?waEsc(b.deposit):"—"}</td>
+      <td style="${cell}">${mapTxt}</td>
+      <td style="${cell}">${checks}</td></tr>`;
+  }).join("") || `<tr><td colspan="7" style="padding:18px;text-align:center;color:#2e7d32;font-weight:700;">Nothing to show — everything matches ✅</td></tr>`;
+  const ghostHtml = res.ghosts.length ? `
+    <h4 style="margin:18px 0 6px;color:#0b294d;">Seats taken on the map with no booking</h4>
+    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><tbody>${res.ghosts.map(g=>`
+      <tr style="background:${bg[g.level]};"><td style="${cell}width:60px;"><strong>${g.n}</strong></td>
+      <td style="${cell}">${waEsc(g.name)} (${g.status})</td>
+      <td style="${cell}color:${col[g.level]};">${g.level==="err"?"❌":"⚠️"} ${waEsc(g.text)}<br>${fixBtn(g.fix)}</td></tr>`).join("")}
+    </tbody></table>` : "";
+  m.innerHTML = `<div style="background:#fff;border-radius:12px;width:min(1020px,96vw);max-height:92vh;overflow:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h3 style="margin:0;color:#0b294d;">🔍 Reconcile Seats &amp; Bookings — ${waEsc(busName)}</h3>
+      <button class="btn" style="background:#eee;color:#333;" onclick="rcClose()">✕ Close</button>
+    </div>
+    <p style="margin:10px 0;font-size:0.88rem;">
+      ${opts.onlyIfIssues?'<strong style="color:#c62828;">The seat change left some mismatches — please review.</strong><br>':""}
+      <strong>${res.total}</strong> active bookings · <span style="color:#2e7d32;"><strong>${okCount}</strong> match</span> ·
+      <span style="color:#c62828;"><strong>${res.issues}</strong> need attention</span>
+      <label style="margin-left:14px;cursor:pointer;"><input type="checkbox" ${_rcOnly?"checked":""} onchange="_rcOnly=this.checked;rcOpen({})"> Only show problems</label>
+      <button class="btn" style="background:#f0f4ff;color:#0b294d;margin-left:10px;" onclick="rcOpen({})">↻ Refresh</button>
+    </p>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.82rem;min-width:760px;">
+      <thead><tr style="background:#0b294d;color:#fff;text-align:left;">
+        <th style="padding:8px;">Seat #</th><th style="padding:8px;">Passenger</th><th style="padding:8px;">Phone</th>
+        <th style="padding:8px;">Booking</th><th style="padding:8px;">Deposit</th><th style="padding:8px;">Seat map shows</th><th style="padding:8px;">Check</th></tr></thead>
+      <tbody>${rowsHtml}</tbody></table></div>
+    ${ghostHtml}
+    <p style="font-size:0.75rem;color:#888;margin-top:14px;">Nothing is changed automatically — every fix asks for confirmation first. Rejected bookings are ignored.</p>
+  </div>`;
+  m.style.display = "flex";
+  return true;
 }
 
 async function clearSeat(){
