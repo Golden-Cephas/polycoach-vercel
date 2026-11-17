@@ -831,6 +831,7 @@ async function saveSeatEdit(){
     });
     const d = await r.json();
     if(d.success){
+      await syncBookingWithSeat(currentSeatNum, status, name);
       await Promise.all([loadBus(), loadBookings(), loadUsers()]);
       if(status==="booked" && d.bookingCreated){
         showPanel("bookings");
@@ -1021,6 +1022,17 @@ async function rcSetBookingSeat(b,t){
   }
   return true;
 }
+async function rcSetBookingStatus(b,status){
+  const id = b._id||b.id;
+  await fetch("/api/admin?action=update-booking&id="+id,{method:"POST",headers:authHeaders(),body:JSON.stringify({status})});
+  const bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json();
+  const nb = (Array.isArray(bks)?bks:[]).find(x=>(x._id||x.id)===id);
+  if(!nb || nb.status!==status){
+    alert("The server did not accept the status change for "+b.passengerName+".\n\nThe update-booking handler in /api/admin must accept the field status. Send me that handler and I will add it.");
+    return false;
+  }
+  return true;
+}
 async function rcSetSeat(n,status,b){
   const place = getTripMode()==="backtoschool" ? {origin:b.origin||""} : {destination:b.destination||""};
   const body = {status, passengerName:b.passengerName, phone:b.phone||"", ...place};
@@ -1060,8 +1072,12 @@ function rcAnalyse(st){
     } else if(isTaken(seat)){
       if(rcNorm(seat.passengerName)===k){
         if(seatSt(seat)!==want){
-          checks.push({level:"warn", text:"Seat is "+seatSt(seat).toUpperCase()+" but booking is "+b.status.toUpperCase(),
-            fix: fx("Set seat "+s+" to "+want, "Set seat "+s+" to "+want+" to match the booking?", ()=>rcSetSeat(s,want,b))});
+          const seatWord = seatSt(seat)==="booked" ? "approved" : "pending";
+          checks.push({level:"warn", text:"Seat is "+seatSt(seat).toUpperCase()+" but booking is "+b.status.toUpperCase()+". Which one is right?",
+            fixes:[
+              fx("Make seat "+want.toUpperCase()+" (match booking)", "Set seat "+s+" to "+want+" to match the booking?", ()=>rcSetSeat(s,want,b)),
+              fx("Make booking "+seatWord.toUpperCase()+" (match seat)", "Set "+b.passengerName+"'s booking to "+seatWord.toUpperCase()+" to match seat "+s+"?"+(seatWord==="pending"&&b.deposit?"\n\nNote: a deposit of "+b.deposit+" is recorded on this booking and will be kept.":""), ()=>rcSetBookingStatus(b,seatWord))
+            ]});
         }
         myOther.filter(t=>!claimed.has(t)).forEach(t=>{
           checks.push({level:"err", text:b.passengerName+" is marked on TWO seats: "+s+" (where the booking is) and "+t+" (no booking there). Which one is correct?",
@@ -1193,6 +1209,18 @@ async function rcOpen(opts){
   </div>`;
   m.style.display = "flex";
   return true;
+}
+
+// Seat editor → booking: when a seat is set back to PENDING, offer to set its APPROVED booking to PENDING too
+async function syncBookingWithSeat(seatNum, seatStatus, name){
+  if(seatStatus!=="pending") return;
+  try{
+    const bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json();
+    const bk = (Array.isArray(bks)?bks:[]).find(x=>x.status==="approved" && Number(x.seatNumber)===Number(seatNum) && rcNorm(x.passengerName)===rcNorm(name));
+    if(!bk) return;
+    const ok = confirm(name+" has an APPROVED booking on seat "+seatNum+(bk.deposit?" (deposit "+bk.deposit+")":"")+".\n\nYou just set the seat to PENDING. Set the booking to PENDING too, so they match?\n\nOK = booking becomes pending (the deposit amount is kept)\nCancel = leave the booking approved");
+    if(ok) await rcSetBookingStatus(bk,"pending");
+  }catch(e){ console.error(e); }
 }
 
 async function clearSeat(){
