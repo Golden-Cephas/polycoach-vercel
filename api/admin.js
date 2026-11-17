@@ -510,6 +510,9 @@ module.exports = async (req, res) => {
             existing.passengerName = passengerName;
             existing.destination   = seat.destination||existing.destination;
             existing.origin        = seat.origin||existing.origin;
+            // Seat set back to pending -> its approved booking returns to the pending list
+            // (deposit and receipt number are kept; approving again asks for the deposit).
+            if(existing.status === "approved") existing.status = "pending";
             await existing.save();
             bookingId=existing._id;
           }
