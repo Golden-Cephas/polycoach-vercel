@@ -1666,6 +1666,7 @@ async function loadBookings(){
   bks.forEach(b=>{
     const tr=document.createElement("tr");
     const bid=b._id||b.id;
+    window._bkById = window._bkById || {}; window._bkById[bid] = b;
     tr.id="booking-row-"+bid;
     const badgeClass=b.status==="pending"?"badge-pending":b.status==="approved"?"badge-approved":"badge-rejected";
     const bWaUrl = (b.status==="pending"||b.status==="approved") ? waUrlFromMsg(b.phone, waBookingMsg(b)) : "";
@@ -1833,10 +1834,14 @@ async function saveEditBooking(){
     const d = await r.json();
     if(d.success){
       closeModal("editBookingModal");
-      if(seat){
+      // Keep the seat in step with the booking's OWN status (never force "booked")
+      const _orig = (window._bkById||{})[id];
+      if(seat && _orig && (_orig.status==="pending" || _orig.status==="approved")){
+        const seatStatus = _orig.status==="approved" ? "booked" : "pending";
         const seatBody = isHoliday
-          ? {status:"booked",passengerName:name,destination:dest,phone}
-          : {status:"booked",passengerName:name,origin:dest,phone};
+          ? {status:seatStatus,passengerName:name,destination:dest,phone}
+          : {status:seatStatus,passengerName:name,origin:dest,phone};
+        if(seatStatus==="booked" && _orig.deposit) seatBody.deposit = _orig.deposit;
         await fetch("/api/admin?action=edit-seat&num="+seat+"&busId="+currentBusId,{
           method:"POST", headers:authHeaders(),
           body:JSON.stringify(seatBody)
