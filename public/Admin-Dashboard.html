@@ -1218,7 +1218,7 @@ async function syncBookingWithSeat(seatNum, seatStatus, name){
     const bks = await (await fetch("/api/admin?action=bookings&busId="+currentBusId,{headers:authHeaders()})).json();
     const bk = (Array.isArray(bks)?bks:[]).find(x=>x.status==="approved" && Number(x.seatNumber)===Number(seatNum) && rcNorm(x.passengerName)===rcNorm(name));
     if(!bk) return;
-    const ok = confirm(name+" has an APPROVED booking on seat "+seatNum+(bk.deposit?" (deposit "+bk.deposit+")":"")+".\n\nYou just set the seat to PENDING. Set the booking to PENDING too, so they match?\n\nOK = booking becomes pending (the deposit amount is kept)\nCancel = leave the booking approved");
+    const ok = confirm("Are you sure you want to change "+name+" (seat "+seatNum+") to PENDING?");
     if(ok) await rcSetBookingStatus(bk,"pending");
   }catch(e){ console.error(e); }
 }
